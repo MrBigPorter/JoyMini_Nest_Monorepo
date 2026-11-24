@@ -37,10 +37,12 @@ export function evalDeltaText(value: unknown): string {
  * 运行头部的单一口径：EXTERNAL 读准确率，其他读任务通过率。
  * 返回 label 便于 UI 不把两种指标写成同一个名字。
  */
-export function evalHeadline(run?: {
-  mode?: string | null;
-  summary?: EvalSummary;
-} | null): { label: string; value: string } {
+export function evalHeadline(
+  run?: {
+    mode?: string | null;
+    summary?: EvalSummary;
+  } | null,
+): { label: string; value: string } {
   if (run?.mode === 'EXTERNAL') {
     return { label: '准确率', value: percentText(run.summary?.accuracy) };
   }

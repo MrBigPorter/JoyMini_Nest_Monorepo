@@ -151,14 +151,12 @@ const ACTION_STATUS_LABELS: Record<string, string> = {
 const ACTION_STATUS_CLASS: Record<string, string> = {
   CONFIRM_CREATED:
     'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
-  CONFIRMED:
-    'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+  CONFIRMED: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
   EXECUTED:
     'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
   EXPIRED: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
   FAILED: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
-  TRANSFERRED:
-    'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
+  TRANSFERRED: 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
 };
 
 const cardClass =
@@ -265,7 +263,9 @@ export default function AiContextPage() {
     (key) => !KNOWN_FLOW_KEYS.has(key) && hasContent(flowState[key]),
   );
   const slotEntries = isObject(contextState.slots)
-    ? Object.entries(contextState.slots).filter(([, value]) => hasContent(value))
+    ? Object.entries(contextState.slots).filter(([, value]) =>
+        hasContent(value),
+      )
     : [];
   const corrections = Array.isArray(contextState.corrections)
     ? contextState.corrections
@@ -392,9 +392,7 @@ export default function AiContextPage() {
           </div>
         ) : (
           <AiErrorBanner
-            message={
-              errorMessage(error) || '读取会话上下文失败，请稍后重试。'
-            }
+            message={errorMessage(error) || '读取会话上下文失败，请稍后重试。'}
             onRetry={() => {
               void refresh();
             }}
@@ -443,9 +441,7 @@ export default function AiContextPage() {
               </div>
               <div>
                 <dt className="text-gray-500">Previous intent</dt>
-                <dd className="mt-1">
-                  {snapshot.previousIntent || '未提供'}
-                </dd>
+                <dd className="mt-1">{snapshot.previousIntent || '未提供'}</dd>
               </div>
               <div>
                 <dt className="text-gray-500">流程 / 步骤</dt>
@@ -650,12 +646,8 @@ export default function AiContextPage() {
                         <dl className="mt-1 grid gap-2 rounded-lg bg-gray-50 p-3 text-xs dark:bg-gray-950/40 sm:grid-cols-2">
                           {paramEntries.map(([key, value]) => (
                             <div key={key} className="flex flex-wrap gap-x-2">
-                              <dt className="font-mono text-gray-500">
-                                {key}
-                              </dt>
-                              <dd className="break-words">
-                                {readable(value)}
-                              </dd>
+                              <dt className="font-mono text-gray-500">{key}</dt>
+                              <dd className="break-words">{readable(value)}</dd>
                             </div>
                           ))}
                         </dl>
@@ -686,9 +678,7 @@ export default function AiContextPage() {
                         className="rounded-lg border border-gray-100 p-3 dark:border-white/10"
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">
-                            {action.action}
-                          </span>
+                          <span className="font-medium">{action.action}</span>
                           <span
                             className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                               ACTION_STATUS_CLASS[action.status] ??
@@ -704,9 +694,7 @@ export default function AiContextPage() {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-3 text-gray-500">
                           {action.expiresAt ? (
-                            <span>
-                              过期时间 {formatTime(action.expiresAt)}
-                            </span>
+                            <span>过期时间 {formatTime(action.expiresAt)}</span>
                           ) : null}
                           {action.messageId ? (
                             <span className="font-mono">

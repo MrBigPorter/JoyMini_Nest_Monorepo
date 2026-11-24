@@ -4,13 +4,7 @@
  * The spec reads the live /admin/ai-ops/features flag and asserts the UI
  * matches it. Run it once with flags true and once with flags false.
  */
-import {
-  test,
-  expect,
-  waitForRole,
-  tokenForRole,
-  QA_ENV,
-} from './fixtures';
+import { test, expect, waitForRole, tokenForRole, QA_ENV } from './fixtures';
 
 const API_BASE = (
   process.env.QA_API_URL ??
@@ -49,38 +43,36 @@ test.describe('Batch 3 — feedback flag UI', () => {
 
     // ── Quality page ──
     const qualityFeatures = page.waitForResponse(
-      (resp) =>
-        resp.url().includes('/v1/admin/ai-ops/features') && resp.ok(),
+      (resp) => resp.url().includes('/v1/admin/ai-ops/features') && resp.ok(),
     );
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
     await qualityFeatures;
 
     if (features.feedbackUiEnabled) {
       await expect(page.getByText('反馈分诊未启用')).toHaveCount(0);
-      await expect(
-        page.getByRole('button', { name: '开始质检' }),
-      ).toBeVisible({ timeout: 120_000 });
+      await expect(page.getByRole('button', { name: '开始质检' })).toBeVisible({
+        timeout: 120_000,
+      });
     } else {
-      await expect(
-        page.getByText('反馈分诊未启用').first(),
-      ).toBeVisible({ timeout: 120_000 });
-      await expect(
-        page.getByRole('button', { name: '开始质检' }),
-      ).toHaveCount(0);
-      await expect(
-        page.getByRole('button', { name: '确认问题' }),
-      ).toHaveCount(0);
+      await expect(page.getByText('反馈分诊未启用').first()).toBeVisible({
+        timeout: 120_000,
+      });
+      await expect(page.getByRole('button', { name: '开始质检' })).toHaveCount(
+        0,
+      );
+      await expect(page.getByRole('button', { name: '确认问题' })).toHaveCount(
+        0,
+      );
       await expect(page.getByRole('button', { name: '排除' })).toHaveCount(0);
     }
 
     // ── ChatWindow ──
     const chatFeatures = page.waitForResponse(
-      (resp) =>
-        resp.url().includes('/v1/admin/ai-ops/features') && resp.ok(),
+      (resp) => resp.url().includes('/v1/admin/ai-ops/features') && resp.ok(),
     );
     await page.goto('/customer-service?conversationId=qa_conv_1');
     await waitForRole(page, 'ADMIN');

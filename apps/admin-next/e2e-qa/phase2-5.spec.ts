@@ -52,9 +52,9 @@ test.describe('ADMIN — analysis page actions', () => {
     await waitForRole(page, 'ADMIN');
 
     // ADMIN keeps the engineering navigation entry.
-    await expect(
-      page.locator('aside a[href^="/ai-ops/analysis"]'),
-    ).toHaveCount(1);
+    await expect(page.locator('aside a[href^="/ai-ops/analysis"]')).toHaveCount(
+      1,
+    );
 
     const clusterRow = page
       .getByRole('row')
@@ -148,9 +148,9 @@ test.describe('VIEWER — no analysis entry', () => {
       timeout: 180_000,
     });
     await waitForRole(page, 'VIEWER');
-    await expect(
-      page.locator('aside a[href^="/ai-ops/analysis"]'),
-    ).toHaveCount(0);
+    await expect(page.locator('aside a[href^="/ai-ops/analysis"]')).toHaveCount(
+      0,
+    );
   });
 });
 
@@ -163,8 +163,8 @@ test.describe('EDITOR — no analysis entry', () => {
       timeout: 180_000,
     });
     await waitForRole(page, 'EDITOR');
-    await expect(
-      page.locator('aside a[href^="/ai-ops/analysis"]'),
-    ).toHaveCount(0);
+    await expect(page.locator('aside a[href^="/ai-ops/analysis"]')).toHaveCount(
+      0,
+    );
   });
 });

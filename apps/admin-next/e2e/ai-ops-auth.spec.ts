@@ -20,9 +20,7 @@ test.describe('AI Ops smoke — unauthenticated', () => {
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByLabel('Username')).toBeVisible();
     await expect(page.getByLabel('Password')).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: /sign in/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
   });
 
   test('protected AI Ops route redirects to login', async ({ page }) => {
@@ -38,8 +36,8 @@ test.describe('AI Ops smoke — mocked admin session', () => {
 
     // Must NOT be bounced to /login.
     await page.waitForURL(/\/ai-ops/, { timeout: 20_000 });
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 20_000,
+    });
   });
 });

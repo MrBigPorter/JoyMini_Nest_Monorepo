@@ -29,17 +29,19 @@ test.afterAll(() => restartApi());
 test.describe('Batch 5 — admin analysis page', () => {
   test.use({ role: 'ADMIN' });
 
-  test('renders runs, metrics and events; runs the window', async ({ page }) => {
+  test('renders runs, metrics and events; runs the window', async ({
+    page,
+  }) => {
     await page.goto('/ai-ops/analysis');
-    await expect(
-      page.getByRole('heading', { name: '问题分析' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '问题分析' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     // Sidebar entry exists for ADMIN.
-    await expect(
-      page.locator('aside a[href^="/ai-ops/analysis"]'),
-    ).toHaveCount(1);
+    await expect(page.locator('aside a[href^="/ai-ops/analysis"]')).toHaveCount(
+      1,
+    );
 
     // Switch to the seeded UTC day.
     await page.getByLabel('分析日期').fill(DATE);
@@ -93,8 +95,9 @@ test.describe('Batch 5 — admin analysis page', () => {
       '评测未解决',
       '安全命中',
     ]) {
-      await expect(eventsSection.getByText(label, { exact: true }).first())
-        .toBeVisible();
+      await expect(
+        eventsSection.getByText(label, { exact: true }).first(),
+      ).toBeVisible();
     }
 
     // Runs table: COMPLETED main window + FAILED run with the simulated error.
@@ -114,9 +117,9 @@ test.describe('Batch 5 — admin analysis page', () => {
 
     // Run the window from the page (API restarted → lock clear).
     await page.getByRole('button', { name: '运行分析' }).click();
-    await expect(
-      page.getByText(/分析完成：8 条事件/),
-    ).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/分析完成：8 条事件/)).toBeVisible({
+      timeout: 120_000,
+    });
     await expect(
       page.getByRole('heading', { name: '问题事件（8）' }),
     ).toBeVisible({ timeout: 120_000 });
@@ -128,15 +131,13 @@ test.describe('Batch 5 — viewer navigation', () => {
 
   test('VIEWER sidebar has no analysis link', async ({ page }) => {
     await page.goto('/ai-ops');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'VIEWER');
 
     const sidebar = page.locator('aside');
-    await expect(
-      sidebar.locator('a[href^="/ai-ops/analysis"]'),
-    ).toHaveCount(0);
+    await expect(sidebar.locator('a[href^="/ai-ops/analysis"]')).toHaveCount(0);
     // The engineering group itself is hidden (Batch 1 regression).
     await expect(
       sidebar.getByText('AI Operations · 工程', { exact: true }),

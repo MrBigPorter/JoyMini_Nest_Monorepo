@@ -72,9 +72,7 @@ describe('AiReportsPage', () => {
   });
 
   it('旧报告没有 gates 时给出提示', () => {
-    mockUseRequest.mockReturnValue(
-      makeUseRequest([{ ...report, gates: [] }]),
-    );
+    mockUseRequest.mockReturnValue(makeUseRequest([{ ...report, gates: [] }]));
     render(<AiReportsPage />);
     expect(
       screen.getByText('该报告未包含门禁数据（旧格式）。'),

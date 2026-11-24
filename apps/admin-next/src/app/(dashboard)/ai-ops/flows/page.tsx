@@ -5,10 +5,7 @@ import { useRequest } from 'ahooks';
 import { Button } from '@repo/ui';
 import { aiContextApi, aiOpsApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
-import {
-  canManageFlows,
-  useAiOpsRole,
-} from '@/lib/ai-ops-permissions';
+import { canManageFlows, useAiOpsRole } from '@/lib/ai-ops-permissions';
 import type {
   AiFlowAudit,
   AiFlowBinding,
@@ -58,7 +55,8 @@ const REJECTION_REASON_LABELS: Record<string, string> = {
   conversation_not_found: '会话不存在或已被删除',
   human_handling: '会话正由人工客服接待，不能切换流程版本',
   thread_drift: '会话线程已变化（与绑定记录不一致），请先人工核对',
-  pending_check_unavailable: '无法确认是否有待确认操作（缓存不可用），已拒绝切换',
+  pending_check_unavailable:
+    '无法确认是否有待确认操作（缓存不可用），已拒绝切换',
   state_rollback_unavailable: '状态回滚能力不可用',
   same_checkpoint: '目标检查点与当前检查点相同',
 };
@@ -68,10 +66,7 @@ function flowTypeLabel(flowType: string): string {
   return label ? `${label} (${flowType})` : flowType;
 }
 
-function statusLabel(
-  status: string,
-  labels: Record<string, string>,
-): string {
+function statusLabel(status: string, labels: Record<string, string>): string {
   return labels[status] ?? status;
 }
 
@@ -87,7 +82,8 @@ function bindingVersion(
   binding: AiFlowBinding,
   byId: Map<string, AiFlowDefinition>,
 ): string {
-  if (binding.definition?.version != null) return `v${binding.definition.version}`;
+  if (binding.definition?.version != null)
+    return `v${binding.definition.version}`;
   const def = byId.get(binding.definitionVersionId);
   return def ? `v${def.version}` : '版本未知';
 }
@@ -502,7 +498,8 @@ export default function AiFlowsPage() {
         ) : null}
         {targetMismatch && selectedTarget ? (
           <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-            目标版本属于「{flowTypeLabel(selectedTarget.flowType)}」，但该会话当前绑定的是
+            目标版本属于「{flowTypeLabel(selectedTarget.flowType)}
+            」，但该会话当前绑定的是
             {bindings.map((b) => flowTypeLabel(b.flowType)).join('、')}
             ，不能跨流程类型切换。
           </div>
@@ -572,20 +569,18 @@ export default function AiFlowsPage() {
                   </td>
                 </tr>
               )}
-              {!bindingsLoading &&
-                !bindingsError &&
-                bindings.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-3 py-6 text-center text-gray-400"
-                    >
-                      {hasConversation
-                        ? '该会话暂无流程绑定'
-                        : '输入 conversationId 查询绑定'}
-                    </td>
-                  </tr>
-                )}
+              {!bindingsLoading && !bindingsError && bindings.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    {hasConversation
+                      ? '该会话暂无流程绑定'
+                      : '输入 conversationId 查询绑定'}
+                  </td>
+                </tr>
+              )}
               {bindings.map((b) => (
                 <tr
                   key={b.id}

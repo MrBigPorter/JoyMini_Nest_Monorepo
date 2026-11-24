@@ -18,7 +18,10 @@ export function describeHandoff(
   if (conv.status === 2 || conv.handoffState === 'CLOSED') {
     return { tone: 'closed', countdownSeconds: null, handlerName: null };
   }
-  if (conv.handoffState === 'WAITING_HUMAN' || conv.handlerId === 'awaiting_human') {
+  if (
+    conv.handoffState === 'WAITING_HUMAN' ||
+    conv.handlerId === 'awaiting_human'
+  ) {
     return {
       tone: 'waiting',
       countdownSeconds: conv.autoReturnAt

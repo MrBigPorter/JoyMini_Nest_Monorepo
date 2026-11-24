@@ -41,8 +41,7 @@ export default function AiOpsReportsPage() {
 
   const reports = data ?? [];
   const current = useMemo(
-    () =>
-      reports.find((item) => item.runId === selected) ?? reports[0] ?? null,
+    () => reports.find((item) => item.runId === selected) ?? reports[0] ?? null,
     [reports, selected],
   );
 
@@ -54,7 +53,8 @@ export default function AiOpsReportsPage() {
           description="定时抽样评测的门禁、指标与公平性"
         />
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
-          当前角色为 {role || 'viewer'}，无权查看评测报告。请联系管理员开通权限。
+          当前角色为 {role || 'viewer'}
+          ，无权查看评测报告。请联系管理员开通权限。
         </div>
       </div>
     );

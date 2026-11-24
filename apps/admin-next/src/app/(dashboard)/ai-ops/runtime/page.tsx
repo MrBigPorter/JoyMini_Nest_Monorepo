@@ -6,10 +6,7 @@ import { Button } from '@repo/ui';
 import { aiOpsApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
-import {
-  canManageQueues,
-  useAiOpsRole,
-} from '@/lib/ai-ops-permissions';
+import { canManageQueues, useAiOpsRole } from '@/lib/ai-ops-permissions';
 import type { AiFailedJob, AiOutboxItem, AiQueueStats } from '@/type/types';
 
 function normalizeQueues(data: unknown): AiQueueStats[] {
@@ -65,9 +62,7 @@ export default function AiRuntimePage() {
       clean: '清理已完成任务',
     };
     if (
-      !window.confirm(
-        `${labels[action]}：队列 ${name}。${impact} 确认执行？`,
-      )
+      !window.confirm(`${labels[action]}：队列 ${name}。${impact} 确认执行？`)
     )
       return;
     try {

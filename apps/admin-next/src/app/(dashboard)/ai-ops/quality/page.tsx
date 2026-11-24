@@ -80,7 +80,8 @@ const FAILURE_KIND_LABELS: Record<string, string> = {
   UNKNOWN: '未知',
 };
 
-const RESOLUTION_LABELS: Record<string, string> = {  OPEN: '待处理',
+const RESOLUTION_LABELS: Record<string, string> = {
+  OPEN: '待处理',
   CONFIRMED: '确认问题',
   EXCLUDED: '已排除',
   ADDED_TO_EVAL: '已进回归',
@@ -1472,8 +1473,8 @@ function KbRegressionCard() {
           ) : (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
               知识库有 {status.changedDocs.length} 篇文档变更，影响{' '}
-              {status.affectedCaseCount}{' '}
-              条回归用例。建议先跑子集（约 2–5 分钟）确认变更，发版前再跑一次全量。
+              {status.affectedCaseCount} 条回归用例。建议先跑子集（约 2–5
+              分钟）确认变更，发版前再跑一次全量。
             </div>
           )}
 
@@ -1549,9 +1550,7 @@ function KbRegressionCard() {
               有 {status.pendingActivation.length}{' '}
               篇文档待激活或索引未完成，激活后指纹才会变化，子集应在激活后执行：
               <span className="ml-1 font-mono">
-                {status.pendingActivation
-                  .map((item) => item.docId)
-                  .join(', ')}
+                {status.pendingActivation.map((item) => item.docId).join(', ')}
               </span>
             </div>
           ) : null}
@@ -2208,8 +2207,8 @@ function EvalPanel() {
                     className="rounded-lg border p-2 dark:border-white/10"
                   >
                     <div className="font-medium">
-                      {labelOf(verdictLabels, verdict)} · 分数{' '}
-                      {score ?? '-'} · {r.latencyMs ?? '-'}ms
+                      {labelOf(verdictLabels, verdict)} · 分数 {score ?? '-'} ·{' '}
+                      {r.latencyMs ?? '-'}ms
                       {judgeErrorKind ? ` · 判官错误：${judgeErrorKind}` : ''}
                     </div>
                     <div>{r.case?.question}</div>

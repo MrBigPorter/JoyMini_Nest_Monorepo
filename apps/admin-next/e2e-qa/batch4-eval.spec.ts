@@ -11,13 +11,7 @@
  * making the FAILED run deterministic.
  */
 import { execSync } from 'node:child_process';
-import {
-  test,
-  expect,
-  waitForRole,
-  tokenForRole,
-  QA_ENV,
-} from './fixtures';
+import { test, expect, waitForRole, tokenForRole, QA_ENV } from './fixtures';
 
 const API_BASE = (
   process.env.QA_API_URL ??
@@ -104,8 +98,7 @@ test.afterAll(() => {
 
 const RUN_REQUESTS = (requests: Array<{ method: string; url: URL }>) =>
   requests.filter(
-    (r) =>
-      r.method === 'GET' && /\/ai-eval\/runs\/[^/]+$/.test(r.url.pathname),
+    (r) => r.method === 'GET' && /\/ai-eval\/runs\/[^/]+$/.test(r.url.pathname),
   ).length;
 
 test.describe.serial('Batch 4 — eval UI', () => {
@@ -116,9 +109,9 @@ test.describe.serial('Batch 4 — eval UI', () => {
     requests,
   }) => {
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     const row = page.locator('tbody tr', {
@@ -136,9 +129,9 @@ test.describe.serial('Batch 4 — eval UI', () => {
     ).length;
     page.once('dialog', (dialog) => void dialog.dismiss());
     await page.getByRole('button', { name: '确认加入回归' }).click();
-    await expect(
-      page.getByText('回归用例必须填写期望答案'),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('回归用例必须填写期望答案')).toBeVisible({
+      timeout: 30_000,
+    });
     await page.waitForTimeout(600);
     const postsAfterEmpty = requests.filter(
       (r) => r.method === 'POST' && r.url.pathname.endsWith('/cases'),
@@ -147,13 +140,10 @@ test.describe.serial('Batch 4 — eval UI', () => {
 
     // With an expected answer → payload includes expected/source/feedback id.
     const caseRequest = page.waitForRequest(
-      (req) =>
-        req.method() === 'POST' && req.url().endsWith('/cases'),
+      (req) => req.method() === 'POST' && req.url().endsWith('/cases'),
       { timeout: 60_000 },
     );
-    page.once('dialog', (dialog) =>
-      void dialog.accept('must mention 7 days'),
-    );
+    page.once('dialog', (dialog) => void dialog.accept('must mention 7 days'));
     await page.getByRole('button', { name: '确认加入回归' }).click();
     const req = await caseRequest;
     const payload = req.postDataJSON();
@@ -172,9 +162,9 @@ test.describe.serial('Batch 4 — eval UI', () => {
     requests,
   }) => {
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
     await page.getByRole('button', { name: '回归测试' }).click();
 
@@ -189,9 +179,7 @@ test.describe.serial('Batch 4 — eval UI', () => {
     await expect(page.getByText(/失败原因：/)).toBeVisible({
       timeout: 90_000,
     });
-    await expect(page.getByText(/失败原因：/)).toContainText(
-      /judge|失败/i,
-    );
+    await expect(page.getByText(/失败原因：/)).toContainText(/judge|失败/i);
 
     const countAtFailed = RUN_REQUESTS(requests);
     await page.waitForTimeout(4500);
@@ -203,9 +191,9 @@ test.describe.serial('Batch 4 — eval UI', () => {
     requests,
   }) => {
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
     await page.getByRole('button', { name: '回归测试' }).click();
 

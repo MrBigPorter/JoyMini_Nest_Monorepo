@@ -83,7 +83,10 @@ function StatCard({
   const className =
     'rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900';
   return href ? (
-    <Link className={`${className} block hover:bg-gray-50 dark:hover:bg-white/5`} href={href}>
+    <Link
+      className={`${className} block hover:bg-gray-50 dark:hover:bg-white/5`}
+      href={href}
+    >
       {content}
     </Link>
   ) : (
@@ -176,9 +179,7 @@ export default function AiOpsOverviewPage() {
   const engineeringVisible = visibleRoutes.some(
     (route) => route.group === 'AI Operations · 工程',
   );
-  const aiOpsVisible = visibleRoutes.some(
-    (route) => route.path === '/ai-ops',
-  );
+  const aiOpsVisible = visibleRoutes.some((route) => route.path === '/ai-ops');
   const quickLinks = [
     { href: '/ai-ops/quality', label: '质量待办', engineering: false },
     { href: '/ai-ops/support', label: '转人工队列', engineering: false },
@@ -188,10 +189,7 @@ export default function AiOpsOverviewPage() {
     { href: '/ai-ops/flows', label: '流程版本', engineering: true },
     { href: '/ai-ops/usage', label: '用量与成本', engineering: true },
     { href: '/ai-ops/memory', label: '客户记忆', engineering: true },
-  ].filter(
-    (link) =>
-      aiOpsVisible && (engineeringVisible || !link.engineering),
-  );
+  ].filter((link) => aiOpsVisible && (engineeringVisible || !link.engineering));
 
   const today = new Date().toISOString().slice(0, 10);
   const {
@@ -218,10 +216,9 @@ export default function AiOpsOverviewPage() {
     data: usage,
     error: usageError,
     refresh: refreshUsage,
-  } = useRequest(
-    () => aiOpsApi.getUsageSummary({ from: today, to: today }),
-    { pollingInterval: 60_000 },
-  );
+  } = useRequest(() => aiOpsApi.getUsageSummary({ from: today, to: today }), {
+    pollingInterval: 60_000,
+  });
   const {
     data: feedbackData,
     loading: feedbackLoading,
@@ -348,12 +345,12 @@ export default function AiOpsOverviewPage() {
 
   const hasError = Boolean(
     queueError ||
-      failedError ||
-      outboxError ||
-      usageError ||
-      feedbackError ||
-      securityError ||
-      slaError,
+    failedError ||
+    outboxError ||
+    usageError ||
+    feedbackError ||
+    securityError ||
+    slaError,
   );
 
   return (

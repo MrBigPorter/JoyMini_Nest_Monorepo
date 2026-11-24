@@ -82,9 +82,9 @@ test.describe('Privacy — VIEWER eval detail', () => {
 
   test('VIEWER sees no raw case question/answer/expected', async ({ page }) => {
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'VIEWER');
 
     await page.getByRole('button', { name: '回归测试' }).click();
@@ -94,9 +94,9 @@ test.describe('Privacy — VIEWER eval detail', () => {
     await expect(
       page.getByRole('heading', { name: 'qa_pr_ui_dataset' }),
     ).toBeVisible({ timeout: 120_000 });
-    await expect(
-      page.getByRole('heading', { name: /用例（1）/ }),
-    ).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByRole('heading', { name: /用例（1）/ })).toBeVisible({
+      timeout: 120_000,
+    });
 
     const body = await page.locator('body').innerText();
     for (const secret of SECRETS) {
@@ -104,8 +104,8 @@ test.describe('Privacy — VIEWER eval detail', () => {
     }
 
     // The redacted detail should still be the dataset (no crash).
-    await expect(
-      page.getByText('期望：未填写').first(),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('期望：未填写').first()).toBeVisible({
+      timeout: 30_000,
+    });
   });
 });

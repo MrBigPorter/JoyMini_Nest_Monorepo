@@ -11,7 +11,5 @@ export function mergeChatMessages<
   for (const item of incoming) {
     byId.set(item.id, { ...(byId.get(item.id) ?? {}), ...item } as T);
   }
-  return [...byId.values()].sort(
-    (a, b) => (a.seqId ?? 0) - (b.seqId ?? 0),
-  );
+  return [...byId.values()].sort((a, b) => (a.seqId ?? 0) - (b.seqId ?? 0));
 }

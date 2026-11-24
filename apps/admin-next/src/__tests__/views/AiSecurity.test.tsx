@@ -81,10 +81,7 @@ function wireRequests(
   } = {},
 ) {
   const summaryResult = {
-    ...makeUseRequest(
-      options.summaryData ?? summary,
-      options.loading ?? false,
-    ),
+    ...makeUseRequest(options.summaryData ?? summary, options.loading ?? false),
     ...(options.summaryError ? { error: options.summaryError } : {}),
   };
 

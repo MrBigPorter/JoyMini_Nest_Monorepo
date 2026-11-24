@@ -13,25 +13,19 @@ test.describe('Quick Wins 1 — knowledge quality tab', () => {
     page,
   }) => {
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     await page.getByRole('button', { name: '知识质量' }).click();
 
-    const totalCard = page
-      .getByText('文档总数', { exact: true })
-      .locator('..');
-    const flaggedCard = page
-      .getByText('有标记', { exact: true })
-      .locator('..');
+    const totalCard = page.getByText('文档总数', { exact: true }).locator('..');
+    const flaggedCard = page.getByText('有标记', { exact: true }).locator('..');
     const needReviewCard = page
       .getByText('待复核', { exact: true })
       .locator('..');
-    const excellentCard = page
-      .getByText('优秀', { exact: true })
-      .locator('..');
+    const excellentCard = page.getByText('优秀', { exact: true }).locator('..');
     const goodCard = page.getByText('良好', { exact: true }).locator('..');
 
     await expect(totalCard).toContainText('10', { timeout: 120_000 });
@@ -53,8 +47,6 @@ test.describe('Quick Wins 1 — knowledge quality tab', () => {
     await expect(
       page.locator('tbody tr', { hasText: 'truncation' }),
     ).toHaveCount(5, { timeout: 120_000 });
-    await expect(
-      page.getByText('最近标记文档', { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText('最近标记文档', { exact: true })).toBeVisible();
   });
 });

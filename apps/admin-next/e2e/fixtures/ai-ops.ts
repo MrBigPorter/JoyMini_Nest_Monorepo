@@ -378,10 +378,7 @@ function installApiMocks(
         break;
     }
 
-    if (
-      method === 'GET' &&
-      path.startsWith('/v1/admin/ai-context/')
-    ) {
+    if (method === 'GET' && path.startsWith('/v1/admin/ai-context/')) {
       const conversationId = decodeURIComponent(
         path.slice('/v1/admin/ai-context/'.length),
       );

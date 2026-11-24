@@ -1,11 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import {
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { makeUseRequest, PageHeaderMock } from '../mocks/view-helpers';
 
 const mockUseRequest = vi.hoisted(() => vi.fn());
@@ -153,13 +149,12 @@ describe('CustomerServiceDesk', () => {
   });
 
   it('falls back to a direct fetch when the deep link is outside the loaded page', async () => {
-    mockGetConversations.mockImplementation(
-      (params: { pageSize?: number }) =>
-        Promise.resolve(
-          params?.pageSize === 100
-            ? { list: [conversation], total: 1, page: 1, pageSize: 100 }
-            : emptyPage(params),
-        ),
+    mockGetConversations.mockImplementation((params: { pageSize?: number }) =>
+      Promise.resolve(
+        params?.pageSize === 100
+          ? { list: [conversation], total: 1, page: 1, pageSize: 100 }
+          : emptyPage(params),
+      ),
     );
 
     render(<CustomerServiceDesk initialConversationId="conv-deep-1" />);

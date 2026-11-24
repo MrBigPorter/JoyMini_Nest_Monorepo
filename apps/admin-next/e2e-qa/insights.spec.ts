@@ -77,9 +77,9 @@ test.describe('Insights signal links', () => {
 
     // First pass: every link renders with the expected params.
     await page.goto('/ai-ops/insights/');
-    await expect(
-      page.getByRole('heading', { name: '运营洞察' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '运营洞察' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
     for (const item of cases) {
       const link = page.getByRole('link', { name: item.name });
@@ -88,10 +88,7 @@ test.describe('Insights signal links', () => {
     }
 
     // The Insights KPI count is the population the Transfer link must match.
-    const overview = await apiGet(
-      request,
-      '/v1/admin/ai-insights/overview',
-    );
+    const overview = await apiGet(request, '/v1/admin/ai-insights/overview');
 
     // Second pass: click each link, assert filters and the list total.
     for (const item of cases) {
@@ -100,9 +97,9 @@ test.describe('Insights signal links', () => {
         : await signalListTotal(request, item.signal, item.queue);
 
       await page.goto('/ai-ops/insights/');
-      await expect(
-        page.getByRole('heading', { name: '运营洞察' }),
-      ).toBeVisible({ timeout: 120_000 });
+      await expect(page.getByRole('heading', { name: '运营洞察' })).toBeVisible(
+        { timeout: 120_000 },
+      );
       await page.getByRole('link', { name: item.name }).click();
 
       const urlPattern = item.queue

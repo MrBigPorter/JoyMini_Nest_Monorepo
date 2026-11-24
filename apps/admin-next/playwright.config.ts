@@ -94,8 +94,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         baseURL:
-          process.env.PLAYWRIGHT_AI_OPS_BASE_URL ??
-          'http://127.0.0.1:4001',
+          process.env.PLAYWRIGHT_AI_OPS_BASE_URL ?? 'http://127.0.0.1:4001',
         storageState: { cookies: [], origins: [] },
         trace: 'retain-on-failure',
       },

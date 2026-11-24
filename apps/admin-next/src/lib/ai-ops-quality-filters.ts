@@ -72,9 +72,7 @@ function pick<T extends readonly string[]>(
   raw: string | null,
 ): '' | T[number] {
   if (!raw) return '';
-  return (values as readonly string[]).includes(raw)
-    ? (raw as T[number])
-    : '';
+  return (values as readonly string[]).includes(raw) ? (raw as T[number]) : '';
 }
 
 /** 解析 URL 参数；非法值静默忽略，避免脏链接让页面报错。 */
@@ -93,7 +91,10 @@ export function parseFeedbackFilters(search: string): FeedbackFilters {
       RESOLUTION_VALUES,
       params.get('resolution'),
     ) as FeedbackFilters['resolution'],
-    signal: pick(SIGNAL_VALUES, params.get('signal')) as FeedbackFilters['signal'],
+    signal: pick(
+      SIGNAL_VALUES,
+      params.get('signal'),
+    ) as FeedbackFilters['signal'],
     queue: pick(QUEUE_VALUES, params.get('queue')) as FeedbackFilters['queue'],
     from: parseDate(params.get('from')),
     to: parseDate(params.get('to')),
@@ -124,9 +125,7 @@ export function applyFeedbackFilters(
 }
 
 /** 单参数下钻链接：清空其他筛选，保证卡片数 = 列表数。 */
-export function buildQualityHref(
-  filters: Partial<FeedbackFilters>,
-): string {
+export function buildQualityHref(filters: Partial<FeedbackFilters>): string {
   const params = new URLSearchParams();
   for (const key of [
     'reviewStatus',
@@ -147,11 +146,11 @@ export function buildQualityHref(
 export function hasFeedbackFilters(filters: FeedbackFilters): boolean {
   return Boolean(
     filters.reviewStatus ||
-      filters.failureKind ||
-      filters.resolution ||
-      filters.signal ||
-      filters.queue ||
-      filters.from ||
-      filters.to,
+    filters.failureKind ||
+    filters.resolution ||
+    filters.signal ||
+    filters.queue ||
+    filters.from ||
+    filters.to,
   );
 }

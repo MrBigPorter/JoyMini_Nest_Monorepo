@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks -- Playwright fixture 的 use 回调，不是 React Hook */
 /**
  * Batch 1 QA Playwright fixture — real admin + real API.
  *
@@ -81,7 +82,9 @@ export const test = base.extend<{
   page: async ({ page, context, baseURL, role }, use) => {
     const adminOrigin = new URL(baseURL ?? 'http://127.0.0.1:4101').origin;
     const apiOrigin = new URL(
-      process.env.QA_API_URL ?? QA_ENV.QA_API_URL ?? 'http://127.0.0.1:4102/api',
+      process.env.QA_API_URL ??
+        QA_ENV.QA_API_URL ??
+        'http://127.0.0.1:4102/api',
     ).origin;
     const token = tokenForRole(role);
 
@@ -118,7 +121,9 @@ export async function waitForRole(page: Page, role: QaRole): Promise<void> {
         : role === 'EDITOR'
           ? 'QA Editor'
           : 'QA Viewer';
-  await expect(page.getByText(displayName, { exact: true }).first()).toBeVisible({
+  await expect(
+    page.getByText(displayName, { exact: true }).first(),
+  ).toBeVisible({
     timeout: 120_000,
   });
 }

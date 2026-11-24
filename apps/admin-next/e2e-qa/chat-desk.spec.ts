@@ -26,7 +26,10 @@ const deskHeading = /客服工作台|Customer Service Desk/;
 const claimButton = /^(认领|Claim)$/;
 const loadEarlier = /加载更早的消息|Load earlier messages/;
 
-async function openConversation(page: import('@playwright/test').Page, id: string) {
+async function openConversation(
+  page: import('@playwright/test').Page,
+  id: string,
+) {
   await page.goto(`/customer-service?conversationId=${id}`);
   await expect(page.getByRole('heading', { name: deskHeading })).toBeVisible({
     timeout: 180_000,
@@ -95,8 +98,7 @@ test.describe('Chat desk polling and claims', () => {
 
     const before = await scroller.evaluate((el) => ({
       scrollTop: el.scrollTop,
-      distanceFromBottom:
-        el.scrollHeight - el.scrollTop - el.clientHeight,
+      distanceFromBottom: el.scrollHeight - el.scrollTop - el.clientHeight,
     }));
     expect(before.scrollTop).toBeLessThan(50);
     expect(before.distanceFromBottom).toBeGreaterThan(100);
@@ -105,8 +107,7 @@ test.describe('Chat desk polling and claims', () => {
 
     const after = await scroller.evaluate((el) => ({
       scrollTop: el.scrollTop,
-      distanceFromBottom:
-        el.scrollHeight - el.scrollTop - el.clientHeight,
+      distanceFromBottom: el.scrollHeight - el.scrollTop - el.clientHeight,
     }));
     // The poll must not scroll the reader back to the bottom.
     expect(after.scrollTop).toBeLessThan(50);
@@ -130,9 +131,9 @@ test.describe('Chat desk polling and claims', () => {
     expect((body.data ?? body).handlerId).toBe('qa_admin_admin');
 
     // Once claimed, the awaiting-human claim button disappears.
-    await expect(
-      page.getByRole('button', { name: claimButton }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: claimButton })).toHaveCount(
+      0,
+    );
   });
 
   test('claim conflict (409) surfaces an error toast', async ({ page }) => {
@@ -175,15 +176,13 @@ test.describe('Chat desk polling and claims', () => {
     // Must NOT fall through to PATCH /handler (which would send it back to AI).
     const handlerSwitches = requests.filter(
       (request) =>
-        request.method === 'PATCH' &&
-        request.url.pathname.endsWith('/handler'),
+        request.method === 'PATCH' && request.url.pathname.endsWith('/handler'),
     );
     expect(handlerSwitches).toEqual([]);
     expect(
       requests.filter(
         (request) =>
-          request.method === 'POST' &&
-          request.url.pathname.endsWith('/claim'),
+          request.method === 'POST' && request.url.pathname.endsWith('/claim'),
       ).length,
     ).toBeGreaterThanOrEqual(1);
   });

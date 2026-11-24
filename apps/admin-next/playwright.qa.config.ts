@@ -32,7 +32,13 @@ export default defineConfig({
   outputDir: path.join(repoRoot, 'qa/reports/playwright-results'),
   reporter: [
     ['list'],
-    ['html', { outputFolder: path.join(repoRoot, 'qa/reports/playwright-report'), open: 'never' }],
+    [
+      'html',
+      {
+        outputFolder: path.join(repoRoot, 'qa/reports/playwright-report'),
+        open: 'never',
+      },
+    ],
   ],
   use: {
     baseURL: ADMIN_URL,

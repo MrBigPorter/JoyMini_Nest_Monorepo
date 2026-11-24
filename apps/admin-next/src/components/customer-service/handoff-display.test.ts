@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatConversation } from '@/type/types';
-import { describeHandoff, formatCountdown, handoffLabel } from './handoff-display';
+import {
+  describeHandoff,
+  formatCountdown,
+  handoffLabel,
+} from './handoff-display';
 
 const base = {
   status: 1,
@@ -21,7 +25,9 @@ const t = (key: string) => labels[key] ?? key;
 
 describe('describeHandoff', () => {
   it('AI 状态', () => {
-    expect(describeHandoff(base as ChatConversation)).toMatchObject({ tone: 'ai' });
+    expect(describeHandoff(base as ChatConversation)).toMatchObject({
+      tone: 'ai',
+    });
   });
 
   it('排队显示待接入和倒计时', () => {
@@ -52,7 +58,11 @@ describe('describeHandoff', () => {
 
   it('关闭优先', () => {
     expect(
-      describeHandoff({ ...base, status: 2, handlerId: 'admin-1' } as ChatConversation),
+      describeHandoff({
+        ...base,
+        status: 2,
+        handlerId: 'admin-1',
+      } as ChatConversation),
     ).toMatchObject({ tone: 'closed' });
   });
 

@@ -12,13 +12,7 @@
  */
 import { execSync } from 'node:child_process';
 import * as path from 'node:path';
-import {
-  test,
-  expect,
-  waitForRole,
-  tokenForRole,
-  QA_ENV,
-} from './fixtures';
+import { test, expect, waitForRole, tokenForRole, QA_ENV } from './fixtures';
 
 const API_BASE = (
   process.env.QA_API_URL ??
@@ -71,9 +65,9 @@ async function assertPendingDrill(
     `/v1/admin/ai-feedback/summary?from=${TODAY}&to=${TODAY}`,
   );
   await page.goto('/ai-ops/');
-  await expect(
-    page.getByRole('heading', { name: '今日运营' }),
-  ).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+    timeout: 180_000,
+  });
   await waitForRole(page, role);
 
   const card = page.getByTestId('anomaly-pending-feedback');
@@ -150,9 +144,8 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
     const allSec = await apiGet(request, '/v1/admin/ai-security/summary');
 
     const todayService =
-      todayFb.byFailureKind.find(
-        (x: any) => x.failureKind === 'SERVICE_ERROR',
-      )?.count ?? 0;
+      todayFb.byFailureKind.find((x: any) => x.failureKind === 'SERVICE_ERROR')
+        ?.count ?? 0;
     const allService =
       allFb.byFailureKind.find((x: any) => x.failureKind === 'SERVICE_ERROR')
         ?.count ?? 0;
@@ -168,14 +161,15 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
     expect(todayNew).toBeLessThan(allNew);
 
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
-    await expect(
-      page.getByTestId('anomaly-pending-feedback'),
-    ).toContainText(String(todayFb.pending), { timeout: 120_000 });
+    await expect(page.getByTestId('anomaly-pending-feedback')).toContainText(
+      String(todayFb.pending),
+      { timeout: 120_000 },
+    );
     await expect(page.getByTestId('anomaly-service-error')).toContainText(
       String(todayService),
       { timeout: 120_000 },
@@ -193,9 +187,9 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
     const summary = await apiGet(request, '/v1/admin/ai-feedback/summary');
 
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     // The two queue KPIs must match the API summary.
@@ -237,9 +231,7 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
       request,
       '/v1/admin/ai-feedback?queue=SIGNAL&signal=repeated_question&pageSize=100',
     );
-    await page.goto(
-      '/ai-ops/quality?queue=SIGNAL&signal=repeated_question',
-    );
+    await page.goto('/ai-ops/quality?queue=SIGNAL&signal=repeated_question');
     await expect(page.getByLabel('反馈队列筛选')).toHaveValue('SIGNAL');
     await expect(page.getByLabel('来源信号筛选')).toHaveValue(
       'repeated_question',
@@ -257,10 +249,7 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
       request,
       `/v1/admin/ai-feedback/summary?from=${TODAY}&to=${TODAY}`,
     );
-    const allSummary = await apiGet(
-      request,
-      '/v1/admin/ai-feedback/summary',
-    );
+    const allSummary = await apiGet(request, '/v1/admin/ai-feedback/summary');
     expect(todaySummary.pending).toBeLessThan(allSummary.pending);
 
     const todayList = await apiGet(
@@ -271,17 +260,17 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
       request,
       '/v1/admin/ai-feedback?queue=TODO&pageSize=100',
     );
-    expect(
-      todayList.list.some((x: any) => x.id === 'qa_b2_fb_yesterday'),
-    ).toBe(false);
-    expect(
-      allList.list.some((x: any) => x.id === 'qa_b2_fb_yesterday'),
-    ).toBe(true);
+    expect(todayList.list.some((x: any) => x.id === 'qa_b2_fb_yesterday')).toBe(
+      false,
+    );
+    expect(allList.list.some((x: any) => x.id === 'qa_b2_fb_yesterday')).toBe(
+      true,
+    );
 
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     await page.getByLabel('反馈开始日期').fill(TODAY);
@@ -324,9 +313,9 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
     expect(noIssue.total).toBeGreaterThanOrEqual(1);
 
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     await page.getByLabel('处理状态筛选').selectOption('NO_ISSUE');
@@ -346,9 +335,9 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
     request,
   }) => {
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     page.on('dialog', (dialog) => void dialog.accept('qa correct note'));
@@ -388,9 +377,9 @@ test.describe.serial('Batch 2 — triage and today windows', () => {
     request,
   }) => {
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     page.on('dialog', (dialog) => void dialog.accept('qa exclude note'));

@@ -100,10 +100,9 @@ export default function AiAnalysisPage() {
     loading: eventsLoading,
     error: eventsError,
     refresh: refreshEvents,
-  } = useRequest(
-    () => aiOpsApi.getAnalysisEvents({ date, pageSize: 50 }),
-    { refreshDeps: [date] },
-  );
+  } = useRequest(() => aiOpsApi.getAnalysisEvents({ date, pageSize: 50 }), {
+    refreshDeps: [date],
+  });
   const {
     data: clustersData,
     loading: clustersLoading,
@@ -115,9 +114,7 @@ export default function AiAnalysisPage() {
     loading: alertsLoading,
     error: alertsError,
     refresh: refreshAlerts,
-  } = useRequest(() =>
-    aiOpsApi.getAnalysisAlerts({ status: 'NEW', page: 1 }),
-  );
+  } = useRequest(() => aiOpsApi.getAnalysisAlerts({ status: 'NEW', page: 1 }));
   const adminId = useAuthStore((state) => state.userInfo?.id);
 
   const clusters = (clustersData?.list ?? []) as AiProblemClusterRow[];
@@ -181,9 +178,7 @@ export default function AiAnalysisPage() {
     setMessage('');
     try {
       const result = await aiOpsApi.runAnalysis(date);
-      setMessage(
-        `分析完成：${result.createdEvents} 条事件，窗口 ${date}`,
-      );
+      setMessage(`分析完成：${result.createdEvents} 条事件，窗口 ${date}`);
       await Promise.all([
         refreshRuns(),
         refreshMetrics(),
@@ -375,9 +370,7 @@ export default function AiAnalysisPage() {
         {eventsLoading ? (
           <div className="py-4 text-sm text-gray-400">Loading...</div>
         ) : events.length === 0 ? (
-          <div className="py-4 text-sm text-gray-500">
-            该日期没有问题事件。
-          </div>
+          <div className="py-4 text-sm text-gray-500">该日期没有问题事件。</div>
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -460,7 +453,9 @@ export default function AiAnalysisPage() {
                     className="border-t border-gray-100 align-top dark:border-white/5"
                   >
                     <td className="max-w-[320px] px-2 py-2">
-                      <div className="break-words">{item.representativeText}</div>
+                      <div className="break-words">
+                        {item.representativeText}
+                      </div>
                       <div className="mt-1 font-mono text-[11px] text-gray-400">
                         {item.id}
                       </div>

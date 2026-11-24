@@ -143,9 +143,14 @@ export default function AiUsagePage() {
                   </thead>
                   <tbody>
                     {summary.daily.map((day) => (
-                      <tr key={day.date} className="border-t dark:border-white/5">
+                      <tr
+                        key={day.date}
+                        className="border-t dark:border-white/5"
+                      >
                         <td className="py-1">{day.date}</td>
-                        <td className="py-1">{day.totalTokens.toLocaleString()}</td>
+                        <td className="py-1">
+                          {day.totalTokens.toLocaleString()}
+                        </td>
                         <td className="py-1">{day.requests}</td>
                         <td className="py-1">
                           {day.configured ? day.totalCost.toFixed(4) : '未配置'}
@@ -195,16 +200,18 @@ export default function AiUsagePage() {
                   </td>
                 </tr>
               )}
-              {!usersLoading && !usersError && (users?.list.length ?? 0) === 0 && (
-                <tr>
-                  <td
-                    colSpan={10}
-                    className="px-3 py-6 text-center text-gray-400"
-                  >
-                    该时间段没有 AI 用量
-                  </td>
-                </tr>
-              )}
+              {!usersLoading &&
+                !usersError &&
+                (users?.list.length ?? 0) === 0 && (
+                  <tr>
+                    <td
+                      colSpan={10}
+                      className="px-3 py-6 text-center text-gray-400"
+                    >
+                      该时间段没有 AI 用量
+                    </td>
+                  </tr>
+                )}
               {users?.list.map((u) => (
                 <tr
                   key={u.userId}

@@ -134,9 +134,7 @@ describe('AiTracesPage', () => {
     expect(screen.getByText('成功')).toBeTruthy();
     expect(screen.getByText('120 ms')).toBeTruthy();
     expect(screen.getByText('30')).toBeTruthy();
-    expect(
-      screen.getByText('您的订单已发货，请留意物流信息'),
-    ).toBeTruthy();
+    expect(screen.getByText('您的订单已发货，请留意物流信息')).toBeTruthy();
 
     const link = screen.getByRole('link', { name: 'conv-1' });
     expect(link.getAttribute('href')).toBe(
@@ -148,9 +146,7 @@ describe('AiTracesPage', () => {
     mockRole.current = 'VIEWER';
     render(<AiTracesPage />);
 
-    expect(
-      screen.queryByText('您的订单已发货，请留意物流信息'),
-    ).toBeNull();
+    expect(screen.queryByText('您的订单已发货，请留意物流信息')).toBeNull();
     expect(screen.getAllByText('只读账号不显示原文').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: '详情' }));
@@ -254,8 +250,6 @@ describe('AiTracesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '详情' }));
 
-    expect(
-      await screen.findByText('链路详情加载失败，请重试。'),
-    ).toBeTruthy();
+    expect(await screen.findByText('链路详情加载失败，请重试。')).toBeTruthy();
   });
 });

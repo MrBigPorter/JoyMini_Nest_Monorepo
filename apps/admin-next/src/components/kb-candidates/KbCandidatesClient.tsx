@@ -612,7 +612,10 @@ export function KbCandidatesClient() {
               <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
                 <input
                   type="checkbox"
-                  checked={items.length > 0 && items.every((item) => checked.has(item.id))}
+                  checked={
+                    items.length > 0 &&
+                    items.every((item) => checked.has(item.id))
+                  }
                   onChange={(event) => toggleAllOnPage(event.target.checked)}
                   aria-label="全选本页"
                 />

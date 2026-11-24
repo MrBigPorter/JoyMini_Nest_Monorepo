@@ -19,9 +19,9 @@ async function openFirstTraceDetail(
   page: import('@playwright/test').Page,
 ): Promise<void> {
   await page.goto('/ai-ops/traces/');
-  await expect(
-    page.getByRole('heading', { name: '链路追踪' }),
-  ).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByRole('heading', { name: '链路追踪' })).toBeVisible({
+    timeout: 180_000,
+  });
   await page.getByRole('button', { name: '详情' }).first().click();
   await expect(page.getByText('用户输入（截断）')).toBeVisible({
     timeout: 120_000,
@@ -37,9 +37,7 @@ test.describe('VIEWER trace detail redaction (UI)', () => {
     await openFirstTraceDetail(page);
     await waitForRole(page, 'VIEWER');
 
-    await expect(
-      page.getByText('只读账号不显示原文').first(),
-    ).toBeVisible();
+    await expect(page.getByText('只读账号不显示原文').first()).toBeVisible();
 
     const body = await page.locator('body').innerText();
     for (const secret of SECRETS) {

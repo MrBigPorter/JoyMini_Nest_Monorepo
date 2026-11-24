@@ -92,9 +92,7 @@ describe('ai-ops-quality-filters', () => {
         from: filters.from,
         to: filters.to,
       }),
-    ).toBe(
-      '/ai-ops/quality?queue=TODO&from=2026-11-20&to=2026-11-20',
-    );
+    ).toBe('/ai-ops/quality?queue=TODO&from=2026-11-20&to=2026-11-20');
     expect(parseFeedbackFilters('?from=2026-13-99').from).toBe('');
   });
 

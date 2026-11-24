@@ -9,9 +9,9 @@ import { test, expect, dismissDevOverlay } from './fixtures/ai-ops';
 test.describe('AI Ops navigation', () => {
   test('sidebar exposes the three AI Operations groups', async ({ page }) => {
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 20_000,
+    });
 
     const sidebar = page.locator('aside').first();
     await expect(sidebar).toBeVisible();
@@ -21,15 +21,9 @@ test.describe('AI Ops navigation', () => {
 
     // Each group links to its pages (href-based, locale independent).
     // trailingSlash renders "/ai-ops/quality/" in the DOM, so match by prefix.
-    await expect(
-      sidebar.locator('a[href^="/ai-ops/quality"]'),
-    ).toBeVisible();
-    await expect(
-      sidebar.locator('a[href^="/ai-ops/support"]'),
-    ).toBeVisible();
-    await expect(
-      sidebar.locator('a[href^="/ai-ops/context"]'),
-    ).toBeVisible();
+    await expect(sidebar.locator('a[href^="/ai-ops/quality"]')).toBeVisible();
+    await expect(sidebar.locator('a[href^="/ai-ops/support"]')).toBeVisible();
+    await expect(sidebar.locator('a[href^="/ai-ops/context"]')).toBeVisible();
   });
 });
 
@@ -40,25 +34,23 @@ test.describe('AI Ops navigation — VIEWER', () => {
     page,
   }) => {
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 20_000,
+    });
 
     const sidebar = page.locator('aside').first();
     await expect(sidebar.getByText('AI Operations · 工程')).toHaveCount(0);
     await expect(sidebar.getByText('AI Operations · 业务')).toBeVisible();
-    await expect(
-      sidebar.locator('a[href^="/ai-ops/quality"]'),
-    ).toBeVisible();
+    await expect(sidebar.locator('a[href^="/ai-ops/quality"]')).toBeVisible();
   });
 });
 
 test.describe('AI Ops overview — anomaly cards', () => {
   test('renders attention section and all anomaly cards', async ({ page }) => {
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 20_000,
+    });
 
     const attention = page.getByTestId('attention-section');
     await expect(attention).toBeVisible();
@@ -82,9 +74,9 @@ test.describe('AI Ops overview — anomaly cards', () => {
     }
 
     // Mocked pending feedback count is 1.
-    await expect(
-      page.getByTestId('anomaly-pending-feedback'),
-    ).toContainText('1');
+    await expect(page.getByTestId('anomaly-pending-feedback')).toContainText(
+      '1',
+    );
   });
 });
 
@@ -93,20 +85,14 @@ test.describe('AI Ops quality — tabs & review card', () => {
     page,
   }) => {
     await page.goto('/ai-ops/quality/');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 20_000,
+    });
 
     // Three tabs.
-    await expect(
-      page.getByRole('button', { name: '质量待办' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: '回归测试' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: '知识质量' }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: '质量待办' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '回归测试' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '知识质量' })).toBeVisible();
 
     // Feedback panel: filters + mocked row + triage card (role loaded async).
     await expect(page.getByLabel('反馈分诊状态')).toBeVisible();
@@ -124,9 +110,7 @@ test.describe('AI Ops quality — tabs & review card', () => {
     await expect(
       page.getByText('AI 回答', { exact: true }).first(),
     ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: '回答正确' }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: '回答正确' })).toBeVisible();
     await expect(
       page.getByRole('button', { name: '确认问题' }).first(),
     ).toBeVisible();
@@ -146,14 +130,12 @@ test.describe('AI Ops quality — tabs & review card', () => {
     page,
   }) => {
     await page.goto('/ai-ops/quality/');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 20_000,
+    });
 
     await dismissDevOverlay(page);
-    await page
-      .getByRole('link', { name: '服务故障，查看对应反馈' })
-      .click();
+    await page.getByRole('link', { name: '服务故障，查看对应反馈' }).click();
 
     await expect(page).toHaveURL(/failureKind=SERVICE_ERROR/);
     await page.reload();
@@ -166,9 +148,9 @@ test.describe('AI Ops support — queue & actions', () => {
     page,
   }) => {
     await page.goto('/ai-ops/support/');
-    await expect(
-      page.getByRole('heading', { name: '转人工队列' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: '转人工队列' })).toBeVisible(
+      { timeout: 20_000 },
+    );
 
     await expect(page.getByText('等待中的会话')).toBeVisible();
     await expect(page.getByText('conv-sla-1')).toBeVisible();
@@ -196,9 +178,9 @@ test.describe('AI Ops security — status filter & triage', () => {
     api,
   }) => {
     await page.goto('/ai-ops/security/');
-    await expect(
-      page.getByRole('heading', { name: '安全事件' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: '安全事件' })).toBeVisible({
+      timeout: 20_000,
+    });
 
     // Summary + event row come from mocks.
     await expect(page.getByText('conv-security-1')).toBeVisible();
@@ -252,9 +234,9 @@ test.describe('AI Ops context — readable sections', () => {
   }) => {
     await page.goto('/ai-ops/context/?conversationId=conv-context-1');
 
-    await expect(
-      page.getByRole('heading', { name: '会话上下文' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: '会话上下文' })).toBeVisible(
+      { timeout: 20_000 },
+    );
 
     await expect(page.getByText('会话概览')).toBeVisible({
       timeout: 20_000,
@@ -265,9 +247,7 @@ test.describe('AI Ops context — readable sections', () => {
     await expect(page.getByText('最近消息（2）')).toBeVisible();
 
     // Mocked values are surfaced as readable text.
-    await expect(
-      page.getByText('Order #1001', { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText('Order #1001', { exact: true })).toBeVisible();
     await expect(page.getByText('create_order', { exact: true })).toBeVisible();
     await expect(
       page.getByText('I want to order a blue shirt', { exact: true }),

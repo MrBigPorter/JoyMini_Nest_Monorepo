@@ -384,7 +384,8 @@ export default function AiSecurityPage() {
                           onClick={async () => {
                             const note =
                               window.prompt('处置备注（可选）') ?? undefined;
-                            if (!window.confirm(`确认标记为「${label}」？`)) return;
+                            if (!window.confirm(`确认标记为「${label}」？`))
+                              return;
                             try {
                               await aiQualityApi.securityTriage(row.id, {
                                 status: next,

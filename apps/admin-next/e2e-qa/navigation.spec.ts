@@ -10,9 +10,9 @@ test.describe('VIEWER navigation', () => {
     page,
   }) => {
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'VIEWER');
 
     const sidebar = page.locator('aside');
@@ -48,11 +48,7 @@ test.describe('VIEWER navigation', () => {
         links.map((link) => link.getAttribute('href') ?? ''),
       );
     expect(quickHrefs.sort()).toEqual(
-      [
-        '/ai-ops/insights/',
-        '/ai-ops/quality/',
-        '/ai-ops/support/',
-      ].sort(),
+      ['/ai-ops/insights/', '/ai-ops/quality/', '/ai-ops/support/'].sort(),
     );
     for (const href of [
       '/ai-ops/runtime',
@@ -105,9 +101,9 @@ test.describe('ADMIN navigation', () => {
     page,
   }) => {
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     const sidebar = page.locator('aside');
@@ -170,9 +166,9 @@ test.describe('SUPER_ADMIN navigation', () => {
     page,
   }) => {
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'SUPER_ADMIN');
 
     const sidebar = page.locator('aside');
@@ -222,9 +218,9 @@ test.describe('EDITOR navigation', () => {
     page,
   }) => {
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'EDITOR');
 
     const sidebar = page.locator('aside');

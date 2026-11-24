@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method -- 测试里把 jest mock 方法当值传给 expect，不存在 this 绑定风险 */
 /**
  * 注册表读取层测试（M0 回滚开关 / 缓存 / 空表降级）
  */
@@ -33,7 +34,8 @@ describe('intent-domain-registry', () => {
     if (originalFlag === undefined) delete process.env.INTENT_REGISTRY_ENABLED;
     else process.env.INTENT_REGISTRY_ENABLED = originalFlag;
 
-    if (originalTtl === undefined) delete process.env.INTENT_DOMAIN_CACHE_TTL_MS;
+    if (originalTtl === undefined)
+      delete process.env.INTENT_DOMAIN_CACHE_TTL_MS;
     else process.env.INTENT_DOMAIN_CACHE_TTL_MS = originalTtl;
 
     invalidateIntentDomainCache();

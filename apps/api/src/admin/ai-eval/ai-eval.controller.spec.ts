@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method -- 测试里把原型方法当值传给 Reflect.getMetadata，不存在 this 绑定风险 */
 import { Role } from '@lucky/shared';
 import { ROLES_KEY } from '../auth/roles.decorator';
 import { AiEvalController } from './ai-eval.controller';

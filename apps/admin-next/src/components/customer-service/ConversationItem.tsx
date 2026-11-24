@@ -5,7 +5,11 @@ import { StatusBadge } from './StatusBadge';
 import { formatTime, getInitials } from '@/lib/format-utils';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { ChatConversation } from '@/type/types';
-import { describeHandoff, formatCountdown, handoffLabel } from './handoff-display';
+import {
+  describeHandoff,
+  formatCountdown,
+  handoffLabel,
+} from './handoff-display';
 
 export function ConversationItem({
   conv,

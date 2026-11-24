@@ -45,9 +45,7 @@ const snapshot = {
   contextState: {
     activeEntity: '包包',
     slots: { amount: '500' },
-    corrections: [
-      { from: '苹果手机', to: '包包', at: 1730000000000 },
-    ],
+    corrections: [{ from: '苹果手机', to: '包包', at: 1730000000000 }],
     unresolved: ['确认用户当前要找的是包包'],
   },
   pendingConfirm: {
@@ -153,9 +151,7 @@ describe('AiContextPage', () => {
     render(<AiContextPage />);
     submitConversation();
 
-    expect(
-      screen.getByText(/未找到该会话的 checkpoint/),
-    ).toBeTruthy();
+    expect(screen.getByText(/未找到该会话的 checkpoint/)).toBeTruthy();
     expect(screen.getByText('thread_not_found')).toBeTruthy();
   });
 
@@ -176,9 +172,7 @@ describe('AiContextPage', () => {
     submitConversation('conv-empty');
 
     expect(
-      screen.getByText(
-        '该会话暂时没有 flowState、contextState 或消息数据。',
-      ),
+      screen.getByText('该会话暂时没有 flowState、contextState 或消息数据。'),
     ).toBeTruthy();
   });
 });

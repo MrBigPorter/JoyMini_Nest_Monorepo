@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method -- 测试里把原型方法当值传给 Reflector.get，不存在 this 绑定风险 */
 import { Reflector } from '@nestjs/core';
 
 const env = process.env as Record<string, string | undefined>;
@@ -11,7 +12,8 @@ describe('AiOpsFeaturesController', () => {
   const originalNodeEnv = env.NODE_ENV;
 
   afterEach(() => {
-    if (originalFeedback === undefined) delete process.env.AI_FEEDBACK_UI_ENABLED;
+    if (originalFeedback === undefined)
+      delete process.env.AI_FEEDBACK_UI_ENABLED;
     else process.env.AI_FEEDBACK_UI_ENABLED = originalFeedback;
     if (originalEval === undefined) delete process.env.AI_EVAL_ENABLED;
     else process.env.AI_EVAL_ENABLED = originalEval;

@@ -17,9 +17,9 @@ test.describe('Overview anomaly card drill-down', () => {
     requests,
   }) => {
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     const card = page.getByTestId('anomaly-service-error');
@@ -49,21 +49,21 @@ test.describe('Overview anomaly card drill-down', () => {
     expect(listCall).toBeDefined();
   });
 
-  test('"待处理 4" opens the actionable TODO queue for today', async ({ page }) => {
+  test('"待处理 4" opens the actionable TODO queue for today', async ({
+    page,
+  }) => {
     const today = new Date().toISOString().slice(0, 10);
     await page.goto('/ai-ops/');
-    await expect(
-      page.getByRole('heading', { name: '今日运营' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '今日运营' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     const card = page.getByTestId('anomaly-pending-feedback');
     await expect(card).toContainText('4', { timeout: 120_000 });
     await card.click();
     await expect(page).toHaveURL(
-      new RegExp(
-        `/ai-ops/quality/\\?queue=TODO&from=${today}&to=${today}`,
-      ),
+      new RegExp(`/ai-ops/quality/\\?queue=TODO&from=${today}&to=${today}`),
     );
     await expect(page.getByLabel('反馈队列筛选')).toHaveValue('TODO');
     await expect(page.getByLabel('反馈开始日期')).toHaveValue(today);
@@ -73,9 +73,7 @@ test.describe('Overview anomaly card drill-down', () => {
     // Refresh keeps the queue + UTC date window.
     await page.reload();
     await expect(page).toHaveURL(
-      new RegExp(
-        `/ai-ops/quality/\\?queue=TODO&from=${today}&to=${today}`,
-      ),
+      new RegExp(`/ai-ops/quality/\\?queue=TODO&from=${today}&to=${today}`),
     );
     await expect(page.getByText('共 4 条')).toBeVisible({ timeout: 120_000 });
   });
@@ -88,9 +86,9 @@ test.describe('Quality KPI cards carry exact URL params', () => {
     page,
   }) => {
     await page.goto('/ai-ops/quality');
-    await expect(
-      page.getByRole('heading', { name: 'AI 质量' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     const expected: Array<[string, string]> = [
@@ -111,9 +109,7 @@ test.describe('Quality KPI cards carry exact URL params', () => {
     }
 
     // Click 服务故障 → list is filtered to the 3 SERVICE_ERROR rows.
-    await page
-      .getByRole('link', { name: '服务故障，查看对应反馈' })
-      .click();
+    await page.getByRole('link', { name: '服务故障，查看对应反馈' }).click();
     await expect(page).toHaveURL(
       /\/ai-ops\/quality\/\?failureKind=SERVICE_ERROR/,
     );

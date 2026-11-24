@@ -24,8 +24,7 @@ const STATUS_STYLES: Record<string, string> = {
     'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
   TRANSFERRED:
     'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  CONFIRM:
-    'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
+  CONFIRM: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
   ERROR: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
 };
 
@@ -61,8 +60,7 @@ function jsonBlock(value: unknown): string {
 
 export default function AiTracesPage() {
   const role = useAiOpsRole();
-  const rawTextPlaceholder =
-    role === 'VIEWER' ? '只读账号不显示原文' : null;
+  const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
   const [conversationInput, setConversationInput] = useState('');
   const [intentInput, setIntentInput] = useState('');
   const [filters, setFilters] = useState<{
@@ -343,8 +341,7 @@ export default function AiTracesPage() {
 
 function TraceDetailBody({ detail }: { detail: AiTraceDetail }) {
   const role = useAiOpsRole();
-  const rawTextPlaceholder =
-    role === 'VIEWER' ? '只读账号不显示原文' : null;
+  const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
   return (
     <>
       <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
@@ -472,8 +469,7 @@ function TraceDetailBody({ detail }: { detail: AiTraceDetail }) {
 
 function SpanRow({ span }: { span: AiSpanRow }) {
   const role = useAiOpsRole();
-  const rawTextPlaceholder =
-    role === 'VIEWER' ? '只读账号不显示原文' : null;
+  const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
   const isError = span.status === 'ERROR';
   return (
     <div

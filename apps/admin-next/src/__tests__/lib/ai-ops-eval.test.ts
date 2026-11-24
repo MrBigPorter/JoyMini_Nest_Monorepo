@@ -21,10 +21,12 @@ describe('ai-ops-eval 展示口径', () => {
       evalHeadline({ mode: 'STORED', summary: { passRate: 0.667 } }),
     ).toEqual({ label: '通过率', value: '66.7%' });
     // verdict / score 改 nullable 后，老 run 可能没有可算的 passRate
-    expect(evalHeadline({ mode: 'LIVE', summary: { passRate: null } })).toEqual({
-      label: '通过率',
-      value: '-',
-    });
+    expect(evalHeadline({ mode: 'LIVE', summary: { passRate: null } })).toEqual(
+      {
+        label: '通过率',
+        value: '-',
+      },
+    );
   });
 
   it('准确率 0 是有效值，不能被当成缺失', () => {

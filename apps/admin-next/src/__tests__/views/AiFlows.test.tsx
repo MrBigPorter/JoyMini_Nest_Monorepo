@@ -126,11 +126,7 @@ function requestsWith(
 function requests(
   audit: ReturnType<typeof makeUseRequest> = makeUseRequest(audits),
 ) {
-  requestsWith(
-    makeUseRequest(definitions),
-    makeUseRequest(bindings),
-    audit,
-  );
+  requestsWith(makeUseRequest(definitions), makeUseRequest(bindings), audit);
 }
 
 describe('AiFlowsPage', () => {
@@ -150,12 +146,8 @@ describe('AiFlowsPage', () => {
     const { container } = render(<AiFlowsPage />);
 
     expect(screen.getByTestId('page-header').textContent).toContain('流程版本');
-    expect(
-      screen.getByRole('button', { name: '切换流程版本' }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: /换回旧版本/ }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: '切换流程版本' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /换回旧版本/ })).toBeTruthy();
 
     // 原始状态值保留在 title，正文显示中文标签。
     expect(screen.getAllByTitle('ACTIVE').length).toBeGreaterThan(0);
@@ -183,9 +175,7 @@ describe('AiFlowsPage', () => {
     requests();
     render(<AiFlowsPage />);
 
-    expect(
-      screen.queryByRole('button', { name: '切换流程版本' }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: '切换流程版本' })).toBeNull();
     expect(screen.queryByRole('button', { name: /换回旧版本/ })).toBeNull();
     expect(screen.getByText(/只读，无切换权限/)).toBeTruthy();
   });
@@ -248,9 +238,10 @@ describe('AiFlowsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /领券/ }));
 
     expect(screen.getByText(/不能跨流程类型切换/)).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: '切换流程版本' }),
-    ).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: '切换流程版本' })).toHaveProperty(
+      'disabled',
+      true,
+    );
   });
 
   it('distinguishes audit loading from an empty audit table', () => {
@@ -266,11 +257,7 @@ describe('AiFlowsPage', () => {
       ...makeUseRequest([]),
       error: new Error('definitions down'),
     };
-    requestsWith(
-      errored,
-      makeUseRequest([]),
-      makeUseRequest([]),
-    );
+    requestsWith(errored, makeUseRequest([]), makeUseRequest([]));
 
     render(<AiFlowsPage />);
 

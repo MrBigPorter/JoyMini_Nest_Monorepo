@@ -19,7 +19,11 @@ import type { ChatConversation, ChatMessage } from '@/type/types';
 import { ModalManager } from '@repo/ui';
 import { useTranslation } from '@/hooks/useTranslation';
 import { MessageBubble, QuickRepliesPanel } from './index';
-import { describeHandoff, formatCountdown, handoffLabel } from './handoff-display';
+import {
+  describeHandoff,
+  formatCountdown,
+  handoffLabel,
+} from './handoff-display';
 
 interface ChatWindowProps {
   conversation: ChatConversation;
@@ -140,8 +144,7 @@ export function ChatWindow({
     if (!scroller) return;
     const handleScroll = () => {
       nearBottomRef.current =
-        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <
-        80;
+        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
     };
     scroller.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
@@ -332,7 +335,11 @@ export function ChatWindow({
                       }
                       onMessageSentAction();
                     } catch (err: any) {
-                      addToast('error', err?.message ?? t('customerService.handoffSwitchFailed'));
+                      addToast(
+                        'error',
+                        err?.message ??
+                          t('customerService.handoffSwitchFailed'),
+                      );
                     }
                   }}
                   className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${

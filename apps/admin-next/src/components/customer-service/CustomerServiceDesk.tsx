@@ -46,9 +46,9 @@ export function CustomerServiceDesk({
   const [statusFilter, setStatusFilter] = useState<number | undefined>(
     undefined,
   );
-  const [queueFilter, setQueueFilter] = useState<'awaiting' | 'callback' | undefined>(
-    undefined,
-  );
+  const [queueFilter, setQueueFilter] = useState<
+    'awaiting' | 'callback' | undefined
+  >(undefined);
   const [page, setPage] = useState(1);
   const [lastSeenSeqId, setLastSeenSeqId] = useState<Record<string, number>>(
     {},
@@ -158,9 +158,7 @@ export function CustomerServiceDesk({
           { trace: false },
         );
         if (cancelled) return;
-        const found = result?.list?.find(
-          (c) => c.id === initialConversationId,
-        );
+        const found = result?.list?.find((c) => c.id === initialConversationId);
         if (found) {
           selectDeepLinkedConv(found);
           setDeepLinkState('idle');
@@ -180,12 +178,7 @@ export function CustomerServiceDesk({
         deepLinkAttemptRef.current = null;
       }
     };
-  }, [
-    initialConversationId,
-    hasDeepLinkMatch,
-    loading,
-    selectDeepLinkedConv,
-  ]);
+  }, [initialConversationId, hasDeepLinkMatch, loading, selectDeepLinkedConv]);
 
   const clearInvalidDeepLink = () => {
     setDeepLinkState('idle');

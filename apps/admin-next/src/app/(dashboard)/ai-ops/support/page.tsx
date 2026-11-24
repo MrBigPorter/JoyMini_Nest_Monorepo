@@ -35,13 +35,13 @@ interface ActionFeedback {
 
 export default function AiSupportPage() {
   const [hours, setHours] = useState(24);
-  const [actionFeedback, setActionFeedback] =
-    useState<ActionFeedback | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(
+    null,
+  );
   const [pendingId, setPendingId] = useState<string | null>(null);
   const role = useAiOpsRole();
   const canWrite = canManageSupport(role);
-  const rawTextPlaceholder =
-    role === 'VIEWER' ? '只读账号不显示原文' : null;
+  const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
   const { data, loading, error, refresh } = useRequest(
     () => aiQualityApi.slaHistory(hours),
     { refreshDeps: [hours], pollingInterval: 60_000 },
@@ -245,7 +245,11 @@ export default function AiSupportPage() {
       <section className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">等待中的会话</h2>
-          <Button size="sm" variant="outline" onClick={() => void refreshQueue()}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void refreshQueue()}
+          >
             刷新
           </Button>
         </div>
@@ -266,13 +270,18 @@ export default function AiSupportPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-left dark:bg-white/5">
                 <tr>
-                  {['会话', '等待', '转人工原因', '最后消息', '状态', '操作'].map(
-                    (h) => (
-                      <th key={h} className="px-3 py-2">
-                        {h}
-                      </th>
-                    ),
-                  )}
+                  {[
+                    '会话',
+                    '等待',
+                    '转人工原因',
+                    '最后消息',
+                    '状态',
+                    '操作',
+                  ].map((h) => (
+                    <th key={h} className="px-3 py-2">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -287,9 +296,7 @@ export default function AiSupportPage() {
                     <td className="px-3 py-2">
                       {formatWait(item.waitingSeconds)}
                     </td>
-                    <td className="px-3 py-2">
-                      {item.transferReason ?? '-'}
-                    </td>
+                    <td className="px-3 py-2">{item.transferReason ?? '-'}</td>
                     <td
                       className="max-w-[260px] truncate px-3 py-2"
                       title={rawTextPlaceholder ?? item.lastMessage ?? ''}
@@ -313,9 +320,7 @@ export default function AiSupportPage() {
                               size="sm"
                               variant="outline"
                               disabled={pendingId === item.conversationId}
-                              onClick={() =>
-                                void runClaim(item.conversationId)
-                              }
+                              onClick={() => void runClaim(item.conversationId)}
                             >
                               {pendingId === item.conversationId
                                 ? '处理中...'
@@ -325,9 +330,7 @@ export default function AiSupportPage() {
                               size="sm"
                               variant="outline"
                               disabled={pendingId === item.conversationId}
-                              onClick={() =>
-                                void runClose(item.conversationId)
-                              }
+                              onClick={() => void runClose(item.conversationId)}
                             >
                               关闭
                             </Button>

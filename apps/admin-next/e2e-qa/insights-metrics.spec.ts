@@ -35,9 +35,9 @@ test.describe('Insights metrics page', () => {
     page,
   }) => {
     await page.goto('/ai-ops/insights');
-    await expect(
-      page.getByRole('heading', { name: '运营洞察' }),
-    ).toBeVisible({ timeout: 180_000 });
+    await expect(page.getByRole('heading', { name: '运营洞察' })).toBeVisible({
+      timeout: 180_000,
+    });
     await waitForRole(page, 'ADMIN');
 
     await page.getByLabel('From date').fill(D);
@@ -71,13 +71,9 @@ test.describe('Insights metrics page', () => {
       '分母 = 窗口内创建或转人工的 SUPPORT/AI 会话',
     );
     await expect(card(page, '模型错误率')).toContainText('66.7%');
-    await expect(card(page, '模型错误率')).toContainText(
-      '分子/分母：2 / 3',
-    );
+    await expect(card(page, '模型错误率')).toContainText('分子/分母：2 / 3');
     await expect(card(page, '服务故障率')).toContainText('50.0%');
-    await expect(card(page, '服务故障率')).toContainText(
-      '分子/分母：2 / 4',
-    );
+    await expect(card(page, '服务故障率')).toContainText('分子/分母：2 / 4');
     await expect(card(page, '误转率')).toContainText('25.0%');
     await expect(card(page, '误转率')).toContainText('分子/分母：1 / 4');
     await expect(card(page, '疑似误转（信号区）')).toContainText('5');

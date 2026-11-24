@@ -58,7 +58,9 @@ test.describe('ADMIN — quality operator surface', () => {
   test('batch exclude only SERVICE_ERROR on the current page', async ({
     page,
   }) => {
-    await page.goto('/ai-ops/quality?failureKind=SERVICE_ERROR&from=2027-03-01&to=2027-03-01');
+    await page.goto(
+      '/ai-ops/quality?failureKind=SERVICE_ERROR&from=2027-03-01&to=2027-03-01',
+    );
     await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
       timeout: 180_000,
     });
@@ -100,7 +102,9 @@ test.describe('ADMIN — quality operator surface', () => {
   test('marks confirmed rows fixed-pending-verify and closed', async ({
     page,
   }) => {
-    await page.goto('/ai-ops/quality?resolution=CONFIRMED&from=2027-03-01&to=2027-03-01');
+    await page.goto(
+      '/ai-ops/quality?resolution=CONFIRMED&from=2027-03-01&to=2027-03-01',
+    );
     await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
       timeout: 180_000,
     });
@@ -120,9 +124,9 @@ test.describe('ADMIN — quality operator surface', () => {
       .filter({ hasText: 'qa_op_confirmed_input_2' })
       .first();
     await second.getByRole('button', { name: '关闭' }).click();
-    await expect(
-      page.getByText('已标记为已关闭', { exact: true }),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('已标记为已关闭', { exact: true })).toBeVisible(
+      { timeout: 30_000 },
+    );
 
     const rows = inspect();
     expect(rowById(rows, 'qa_op_fb_confirmed_1').resolution).toBe(
@@ -134,7 +138,9 @@ test.describe('ADMIN — quality operator surface', () => {
   test('review card shows transfer metadata and shortcuts persist main reason', async ({
     page,
   }) => {
-    await page.goto('/ai-ops/quality?failureKind=MODEL_ERROR&resolution=OPEN&from=2027-03-01&to=2027-03-01');
+    await page.goto(
+      '/ai-ops/quality?failureKind=MODEL_ERROR&resolution=OPEN&from=2027-03-01&to=2027-03-01',
+    );
     await expect(page.getByRole('heading', { name: 'AI 质量' })).toBeVisible({
       timeout: 180_000,
     });

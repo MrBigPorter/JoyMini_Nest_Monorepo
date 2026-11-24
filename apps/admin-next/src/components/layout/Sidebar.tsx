@@ -162,14 +162,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 
   const groupedRoutes = getVisibleRoutes(userInfo?.role).reduce(
-      (acc, route) => {
-        const group = route.group;
-        if (!acc[group]) acc[group] = [];
-        acc[group].push(route);
-        return acc;
-      },
-      {} as Record<string, RouteConfig[]>,
-    );
+    (acc, route) => {
+      const group = route.group;
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(route);
+      return acc;
+    },
+    {} as Record<string, RouteConfig[]>,
+  );
 
   const displayName =
     userInfo?.realName || userInfo?.username || t('user_fallbackName');

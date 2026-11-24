@@ -18,7 +18,9 @@ interface ConversationListProps {
   lastSeenSeqId: Record<string, number>;
   onKeywordChangeAction: (keyword: string) => void;
   onStatusFilterChangeAction: (status: number | undefined) => void;
-  onQueueFilterChangeAction: (queue: 'awaiting' | 'callback' | undefined) => void;
+  onQueueFilterChangeAction: (
+    queue: 'awaiting' | 'callback' | undefined,
+  ) => void;
   onPageChangeAction: (page: number) => void;
   onSelectConversationAction: (conv: ChatConversation) => void;
   onRefreshAction: () => void;

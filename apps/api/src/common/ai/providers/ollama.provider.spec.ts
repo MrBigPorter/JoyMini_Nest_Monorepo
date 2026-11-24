@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method -- 测试里把 spy 方法当值传给 expect，不存在 this 绑定风险 */
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { OllamaProvider } from './ollama.provider';
