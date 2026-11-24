@@ -25,6 +25,7 @@ const mockCancelRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
+const mockKbStatus = vi.hoisted(() => vi.fn());
 const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
 const mockAdminId = vi.hoisted(() => ({ current: 'admin-1' }));
 
@@ -52,6 +53,7 @@ vi.mock('@/api', () => ({
     getRun: vi.fn(),
     cancelRun: (...args: unknown[]) => mockCancelRun(...args),
     ragSearch: (...args: unknown[]) => mockRagSearch(...args),
+    kbRegressionStatus: mockKbStatus,
   },
   knowledgeApi: {
     qualityStats: (...args: unknown[]) => mockQualityStats(...args),
@@ -137,6 +139,24 @@ const datasets = [
     _count: { cases: 8, runs: 2 },
   },
 ];
+
+const kbRegressionStatus = {
+  currentFingerprint: 'f'.repeat(64),
+  generatedAt: '2026-01-01T00:00:00.000Z',
+  covered: true,
+  needsFullRun: false,
+  baseline: {
+    runId: 'run-baseline',
+    fingerprint: 'f'.repeat(64),
+    finishedAt: '2026-01-01T00:00:00.000Z',
+  },
+  changedDocs: [],
+  affectedCaseIds: [],
+  affectedCaseCount: 0,
+  uncoveredDocIds: [],
+  pendingActivation: [],
+  lastSubsetRun: null,
+};
 
 const evalDatasetDetail = {
   ...datasets[0],
@@ -237,16 +257,18 @@ function openTab(name: string) {
 }
 
 /**
- * EvalPanel 每轮渲染固定注册 3 个 useRequest（列表 / 详情 / 运行），
- * 反馈页 4 个槽位（features/summary/list/datasets），评测页 3 个；
+ * EvalPanel 每轮渲染固定注册 4 个 useRequest（列表 / 详情 / 运行 / 证据），
+ * 反馈页 4 个槽位（features/summary/list/datasets）；
+ * 回归状态卡片单独按 service 身份识别，不参与槽位计数。
  * 返回的函数在打开页签前调用。
  */
 function wireEvalTab(detail: unknown, runData: unknown = null) {
   let index = 0;
   let inEval = false;
   mockUseRequest.mockImplementation((service: unknown) => {
+    if (service === mockKbStatus) return makeUseRequest(kbRegressionStatus);
     if (typeof service === 'function') void (service as () => unknown)();
-    const slot = index % (inEval ? 3 : 4);
+    const slot = index % 4;
     index += 1;
     if (!inEval) {
       if (slot === 0)
@@ -265,7 +287,8 @@ function wireEvalTab(detail: unknown, runData: unknown = null) {
     }
     if (slot === 0) return makeUseRequest(datasets);
     if (slot === 1) return makeUseRequest(detail);
-    return makeUseRequest(runData);
+    if (slot === 2) return makeUseRequest(runData);
+    return makeUseRequest(null);
   });
   return () => {
     inEval = true;

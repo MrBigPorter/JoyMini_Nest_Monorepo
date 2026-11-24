@@ -1395,8 +1395,14 @@ function KbRegressionCard() {
   const status = data as KbRegressionStatus | undefined;
   const [copyState, setCopyState] = useState('');
 
+  // 状态来自后端实时计算；旧版本/缺字段时按空处理，避免整页白屏。
+  const changedDocs = status?.changedDocs ?? [];
+  const affectedCaseIds = status?.affectedCaseIds ?? [];
+  const uncoveredDocIds = status?.uncoveredDocIds ?? [];
+  const pendingActivation = status?.pendingActivation ?? [];
+
   const changedDocIds = Array.from(
-    new Set((status?.changedDocs ?? []).map((item) => item.docId)),
+    new Set(changedDocs.map((item) => item.docId)),
   );
   const subsetCommand =
     status?.baseline && changedDocIds.length > 0
@@ -1472,19 +1478,19 @@ function KbRegressionCard() {
             </div>
           ) : (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-              知识库有 {status.changedDocs.length} 篇文档变更，影响{' '}
+              知识库有 {changedDocs.length} 篇文档变更，影响{' '}
               {status.affectedCaseCount} 条回归用例。建议先跑子集（约 2–5
               分钟）确认变更，发版前再跑一次全量。
             </div>
           )}
 
-          {status.changedDocs.length > 0 ? (
+          {changedDocs.length > 0 ? (
             <div>
               <div className="mb-1 text-xs font-medium text-gray-500">
                 变更文档
               </div>
               <div className="max-h-56 space-y-1 overflow-y-auto text-xs">
-                {status.changedDocs.map((item) => (
+                {changedDocs.map((item) => (
                   <div
                     key={`${item.docId}|${item.locale}`}
                     className="rounded-lg border p-2 dark:border-white/10"
@@ -1523,7 +1529,7 @@ function KbRegressionCard() {
                 受影响用例（{status.affectedCaseCount}）
               </summary>
               <div className="mt-1 flex flex-wrap gap-1">
-                {status.affectedCaseIds.map((caseId) => (
+                {affectedCaseIds.map((caseId) => (
                   <span
                     key={caseId}
                     className="rounded border px-1 py-0.5 font-mono dark:border-white/10"
@@ -1535,22 +1541,22 @@ function KbRegressionCard() {
             </details>
           ) : null}
 
-          {status.uncoveredDocIds.length > 0 ? (
+          {uncoveredDocIds.length > 0 ? (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
               以下变更文档没有任何用例覆盖，子集无法证明它们的改动：
               <span className="ml-1 font-mono">
-                {status.uncoveredDocIds.join(', ')}
+                {uncoveredDocIds.join(', ')}
               </span>
               。请先补充用例。
             </div>
           ) : null}
 
-          {status.pendingActivation.length > 0 ? (
+          {pendingActivation.length > 0 ? (
             <div className="rounded-lg border border-amber-200 p-3 text-xs text-amber-700 dark:border-amber-500/30 dark:text-amber-300">
-              有 {status.pendingActivation.length}{' '}
+              有 {pendingActivation.length}{' '}
               篇文档待激活或索引未完成，激活后指纹才会变化，子集应在激活后执行：
               <span className="ml-1 font-mono">
-                {status.pendingActivation.map((item) => item.docId).join(', ')}
+                {pendingActivation.map((item) => item.docId).join(', ')}
               </span>
             </div>
           ) : null}
