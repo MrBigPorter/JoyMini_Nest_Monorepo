@@ -436,7 +436,7 @@ export function renderSummary(result) {
   push(`- 用例总数：${summary.totals.cases}（完成 ${summary.totals.ok}，跳过 ${summary.totals.skipped}，异常 ${summary.totals.errored}）`);
   if (meta.rejudge) {
     push(
-      `- **离线重判**：${meta.rejudge.at}，输入 \`${path.basename(meta.rejudge.input ?? "")}\`，重判 ${meta.rejudge.rejudgedCases} 条（未重跑用例；旧判定保留在 \`judge\`，新判定在 \`rejudge\`；判官版本 \`${meta.rejudge.judgeSpecVersion ?? "—"}\`、指标版本 \`${meta.rejudge.metricSpecVersion ?? "—"}\`）`,
+      `- **离线重判**：${meta.rejudge.at}，输入 \`${path.basename(meta.rejudge.input ?? "")}\`，重判 ${meta.rejudge.rejudgedCases} 条（未重跑用例；旧判定保留在 \`judge\`，新判定在 \`rejudge\`；判官版本 \`${meta.rejudge.judgeSpecVersion ?? "—"}\`、提示词 \`${meta.rejudge.judgePromptVersion ?? "—"}\`、指标版本 \`${meta.rejudge.metricSpecVersion ?? "—"}\`）`,
     );
   }
   push();
@@ -630,7 +630,7 @@ export function renderSummary(result) {
   const expanded = summary.knowledge.expandedGolden;
   if (expanded) {
     push(
-      `- **放宽口径诊断**（golden + 回答实际引用的文档）：${formatRate(expanded.accuracy)}（${expanded.judged} 条可判）；剩余不一致 ${
+      `- **放宽口径诊断**（golden + 回答实际引用的文档；只统计回答引用了 golden 之外文档的 ${expanded.judged} 条，不是全体 kb 组）：${formatRate(expanded.accuracy)}；剩余不一致 ${
         expanded.failures.length
       } 条${expanded.failures.length > 0 ? `：${expanded.failures.map((id) => `\`${id}\``).join("、")}` : ""}。`,
     );

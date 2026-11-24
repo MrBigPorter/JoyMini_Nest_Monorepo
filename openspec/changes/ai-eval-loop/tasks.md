@@ -48,6 +48,11 @@
 - [x] 7.3 依据 7.1/7.2 决定 `ai-answer-grounding` 6.2 是否勾选并登记基线；同步更新 `tasks.md`、memory 与 `docs/current-task.md`。验证：6.2 的结论有数字与链接支撑。
   - 决定（2026-11-24）：**6.2 不勾选，不登记新基线**。v2 表面 kbAccuracy 87.6% 达标，但 3 条翻真在人工复核中均不成立，修正后 84.3% 低于 85.5%；在判官一致率稳定前，任何 v2 数字都不能作为验收依据。
   - 阻塞项：判官对「事实断言归属到错误文档/错误路径」仍过宽（`r63` 闪购细节、`r79`/`rz28` Privacy Settings）。下一步先收紧判官提示词（每条断言必须同上下文支持、错误归属即不支持），再重判同一批回答并重新抽检。已同步 `ai-answer-grounding/tasks.md`、memory 与 `docs/current-task.md`。
+  - 2026-11-24 后续复核（strict-v1，`reports/20261124-113254-rejudged-v2-strict/`，判官版本 `v2`、提示词 `strict-v1`、指标 `2`）：
+    - 上面把 `r63` 列进「过宽」有误，`promotion-rules.en.md:84-87` 有原文；v2 修正值应为 76/89 = 85.4%（不是 84.3%）。
+    - strict-v1 严格口径 72/89 = 80.9%（同配置第二次 73/89）；19 条 false 中 15 条是「回答引用了 golden 未列的其它真实文档」造成的误判，真正错的只有 `r79`/`rz28`（以及 `r16` 对文档内容的描述）。
+    - `--include-cited` 诊断（`...-strict-cited/`）：放宽后 37/40，合成口径 85/89 = 95.5%；同一 `judgeInputHash` 两次运行仍有 2/97 判决漂移（`rz23`、`multi:r33+r34`）。
+    - 修正决定：**7.3 的「不勾选、不登记」不变，但阻塞项改为「判官输入范围 + golden 集不全 + 判决漂移」**。若要用 kbAccuracy 做验收，需先提 `METRIC_SPEC_VERSION`（golden∪cited）并加重复判定/稳定性门槛；这是新范围，不在 7.1–7.3 内。
 
 ## Workflow follow-up
 

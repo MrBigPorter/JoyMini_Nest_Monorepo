@@ -3,6 +3,10 @@
 > 本文件是评测口径的唯一文本来源。任何指标含义、分母或排除项的变化，都必须同时提升 `METRIC_SPEC_VERSION`，否则历史结果不得与新结果直接比较。
 >
 > 代码实现见 `metrics-spec.mjs`；运行记录会把版本号写入 `AiEvalRun.metricSpecVersion`。
+>
+> 判官口径由两个版本共同决定：`judgeSpecVersion`（输入规范：给哪些文档、预算、脱敏）与
+> `judgePromptVersion`（提示词）。两者任一不同，`kbAccuracy` 不得直接跨轮比较；
+> 离线重判报告头会同时打印这两个版本。
 
 ## 1. 指标定义
 

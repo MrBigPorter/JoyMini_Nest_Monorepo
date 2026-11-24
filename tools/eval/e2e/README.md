@@ -50,7 +50,14 @@ E2E_RESUME=1 node tools/eval/e2e/run.mjs
 
 # 离线重判（不重跑用例，只重判已有回答；输出到 <run>-rejudged/）
 node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json
+
+# 放宽口径诊断：判 B 时把回答实际引用的文档也交给判官，用来区分「编造」与「golden 集不全」。
+# 只做诊断，不替代严格口径。
+node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json --include-cited
 ```
+
+重判报告头会打印本次使用的 `judgeSpecVersion`（判官输入规范）、`judgePromptVersion`
+（判官提示词）与 `metricSpecVersion`（指标定义）。三者任一不同，数字就不能直接和上一轮比。
 
 报告：`tools/eval/e2e/reports/<YYYYMMDD-HHmmss>/summary.md` + `detail.json`
 （文件 600）。账号池：`tools/eval/e2e/.runtime/accounts.json`（目录 700）。

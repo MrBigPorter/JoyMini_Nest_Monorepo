@@ -1,4 +1,5 @@
 import {
+  JUDGE_PROMPT_VERSION,
   RagFaithfulnessService,
   parseJudgeOutput,
 } from './rag-faithfulness.service';
@@ -98,6 +99,7 @@ describe('RagFaithfulnessService', () => {
     expect(chainInvoke).toHaveBeenCalledTimes(1);
     expect(result.faithful).toBe(true);
     expect(result.judgeSpecVersion).toBe('v2');
+    expect(result.judgePromptVersion).toBe(JUDGE_PROMPT_VERSION);
     expect(result.judgeInputHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
@@ -185,6 +187,7 @@ describe('RagFaithfulnessService', () => {
     });
 
     expect(result.judgeSpecVersion).toBe('v1');
+    expect(result.judgePromptVersion).toBe(JUDGE_PROMPT_VERSION);
     expect(result.faithful).toBe(true);
   });
 });

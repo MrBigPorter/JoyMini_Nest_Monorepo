@@ -301,6 +301,10 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
         rejudgedCases: targets.length,
         includeCited: args.includeCited,
         judgeSpecVersion,
+        judgePromptVersion:
+          cases.find(
+            (item) => item.rejudge?.goldenAgreement?.judgePromptVersion,
+          )?.rejudge.goldenAgreement.judgePromptVersion ?? null,
         metricSpecVersion: String(METRIC_SPEC_VERSION),
         fingerprint: fingerprint(cases.map((item) => item.id)),
         judgeModel:

@@ -31,6 +31,8 @@ export interface FaithfulnessResult {
   errorKind?: JudgeErrorKind;
   judgeInputHash?: string;
   judgeSpecVersion: JudgeSpecVersion;
+  /** 判官提示词版本：输入口径之外的第二个可变量，改动必须升版本。 */
+  judgePromptVersion: string;
   /** 实际送审判官的来源条数（服务端解析后）。 */
   sourceCount: number;
 }
@@ -48,6 +50,15 @@ export interface FaithfulnessJudgeParams {
 
 const MAX_JUDGE_DOCS = 10;
 
+/**
+ * 判官提示词版本。
+ *
+ * 2026-11-24 人工抽检发现旧提示词只查「关键词是否出现」，会把错误归属
+ * （把别的章节的路径/规则安到当前说法上）和自行补充的例子判成有据；
+ * strict-v1 增加上下文、归属与例子三条硬约束。
+ */
+export const JUDGE_PROMPT_VERSION = 'strict-v1';
+
 const JUDGE_SYSTEM_PROMPT = `You are a strict RAG faithfulness judge.
 Given a question, an answer, and retrieved sources, decide whether every factual claim
 in the answer is supported by the sources.
@@ -55,9 +66,16 @@ Return ONLY a JSON object:
 {"faithful": true|false, "score": 0.0-1.0, "unsupportedClaims": ["..."], "reason": "..."}
 Rules:
 - Use ONLY the sources; no outside knowledge.
+- A claim is supported only when a source states it for the same subject, scope and context.
+  Do not assemble a claim from fragments in different sections.
+- If the answer attributes a rule, step, path or policy to a document or section that does
+  not state it, mark it unsupported—even if similar words appear elsewhere in the sources.
+- Examples or specifics added by the answer (for example extra events or extra timeframes)
+  are unsupported unless the sources state them.
 - If a number, date, fee, or policy is not in the sources, mark it unsupported.
 - score=1 only when every factual claim is supported; 0 when the answer contradicts or invents facts.
-- unsupportedClaims must be short quotes/phrases from the answer.`;
+- unsupportedClaims must be short quotes/phrases from the answer.
+- reason must name the source sentence, or its absence, for each unsupported claim.`;
 
 /** 解析 judge 输出；容忍 markdown code fence，非法输出返回 null。 */
 export function parseJudgeOutput(
@@ -145,6 +163,7 @@ export class RagFaithfulnessService {
         reason: 'no_sources',
         errorKind: 'not_applicable',
         judgeSpecVersion: specVersion,
+        judgePromptVersion: JUDGE_PROMPT_VERSION,
         sourceCount: 0,
       };
     }
@@ -172,6 +191,7 @@ export class RagFaithfulnessService {
           errorKind: 'output_format',
           judgeInputHash: judgeInput.judgeInputHash,
           judgeSpecVersion: specVersion,
+          judgePromptVersion: JUDGE_PROMPT_VERSION,
           sourceCount: judgeInput.sourceCount,
         };
       }
@@ -179,6 +199,7 @@ export class RagFaithfulnessService {
         ...parsed,
         judgeInputHash: judgeInput.judgeInputHash,
         judgeSpecVersion: specVersion,
+        judgePromptVersion: JUDGE_PROMPT_VERSION,
         sourceCount: judgeInput.sourceCount,
       };
     } catch (err) {
@@ -194,6 +215,7 @@ export class RagFaithfulnessService {
         errorKind: classifyJudgeError(err),
         judgeInputHash: judgeInput.judgeInputHash,
         judgeSpecVersion: specVersion,
+        judgePromptVersion: JUDGE_PROMPT_VERSION,
         sourceCount: judgeInput.sourceCount,
       };
     }
