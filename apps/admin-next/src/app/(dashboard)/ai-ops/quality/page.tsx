@@ -220,6 +220,12 @@ const formatPassRate = evalPassRateText;
 const formatRate = evalPercentText;
 const formatDelta = evalDeltaText;
 
+/** harness 物化的数据集前缀；这类数据集在控制台只读。 */
+const HARNESS_DATASET_PREFIX = 'e2e:';
+const isHarnessDataset = (ds?: { name?: string | null } | null): boolean =>
+  typeof ds?.name === 'string' &&
+  ds.name.trim().toLowerCase().startsWith(HARNESS_DATASET_PREFIX);
+
 function reviewStatusLabel(raw?: string | null): string {
   return raw ? (REVIEW_STATUS_LABELS[raw as ReviewStatus] ?? raw) : '-';
 }
@@ -1793,6 +1799,8 @@ function EvalPanel() {
   const runEvidence = evidence as RunEvidence | null | undefined;
   const list = Array.isArray(datasets) ? (datasets as EvalDataset[]) : [];
   const selectedMeta = list.find((item) => item.id === selectedId);
+  const harnessDataset =
+    isHarnessDataset(ds) || isHarnessDataset(selectedMeta);
   const lastRun = ds?.runs?.[0];
   const completedRuns = (ds?.runs ?? []).filter(
     (item) => item.status === 'COMPLETED',
@@ -1826,14 +1834,16 @@ function EvalPanel() {
             </option>
           ))}
         </select>
-        <Button
-          size="sm"
-          variant="outline"
-          aria-expanded={advanced}
-          onClick={() => setAdvanced((v) => !v)}
-        >
-          {advanced ? '收起高级模式' : '高级模式'}
-        </Button>
+        {harnessDataset ? null : (
+          <Button
+            size="sm"
+            variant="outline"
+            aria-expanded={advanced}
+            onClick={() => setAdvanced((v) => !v)}
+          >
+            {advanced ? '收起高级模式' : '高级模式'}
+          </Button>
+        )}
       </div>
       {message ? (
         <div className="text-sm text-gray-600 dark:text-gray-300">
@@ -1845,6 +1855,11 @@ function EvalPanel() {
         <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
           <h3 className="text-sm font-semibold">
             {selectedMeta?.name ?? ds?.name ?? '评测集'}
+            {harnessDataset ? (
+              <span className="ml-2 rounded border border-gray-200 px-1.5 py-0.5 text-xs font-normal text-gray-500 dark:border-white/10">
+                harness 数据集 · 只读
+              </span>
+            ) : null}
           </h3>
           <div className="mt-2 flex flex-wrap gap-6 text-sm">
             <div>
@@ -1901,7 +1916,12 @@ function EvalPanel() {
               ))}
             </div>
           ) : null}
-          <div className="mt-3 flex flex-wrap items-end gap-2">
+          {harnessDataset ? (
+            <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs text-gray-600 dark:border-white/10 dark:bg-gray-800 dark:text-gray-300">
+              该数据集由 harness 生成，只读。回归验证请在仓库根目录执行子集命令，或走 CI。
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1 text-xs text-gray-500">
               评测模式
               <select
@@ -1940,11 +1960,12 @@ function EvalPanel() {
                 只读角色仅可查看结果
               </span>
             ) : null}
-          </div>
+            </div>
+          )}
         </div>
       ) : null}
 
-      {selectedId && advanced ? (
+      {selectedId && advanced && !harnessDataset ? (
         <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
           <h3 className="mb-2 text-sm font-semibold">
             高级模式：导入用例（JSON 数组）
@@ -1989,7 +2010,7 @@ function EvalPanel() {
                     期望：{expectedText(c) || '未填写'}
                     {c.source === 'feedback' ? ' · 来源：反馈' : ''}
                   </div>
-                  {canStartRun ? (
+                  {canStartRun && !harnessDataset ? (
                     <div className="mt-1 flex gap-2">
                       <button
                         type="button"

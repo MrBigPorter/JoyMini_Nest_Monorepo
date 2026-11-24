@@ -919,6 +919,56 @@ describe('AiQualityPage', () => {
     expect(document.body.textContent).toContain('准确率 90.0%');
   });
 
+  it('renders an e2e dataset as read-only', () => {
+    const enterEval = wireEvalTab(harnessDatasetDetail, null, harnessDatasets);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'e2e-1' },
+    });
+
+    expect(screen.getByText('harness 数据集 · 只读')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '启动批量评测' })).toBeNull();
+    expect(screen.queryByLabelText('评测模式')).toBeNull();
+    expect(screen.queryByLabelText(/对比基线/)).toBeNull();
+    expect(screen.queryByRole('button', { name: '编辑期望' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '删除' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '高级模式' })).toBeNull();
+    expect(screen.getByText('怎么退款')).toBeTruthy();
+  });
+
+  it('keeps an e2e dataset read-only before its detail loads', () => {
+    const enterEval = wireEvalTab(null, null, harnessDatasets);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'e2e-1' },
+    });
+
+    expect(screen.queryByRole('button', { name: '启动批量评测' })).toBeNull();
+    expect(screen.getByText('harness 数据集 · 只读')).toBeTruthy();
+  });
+
+  it('keeps write controls for a normal dataset', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    expect(screen.getByRole('button', { name: '启动批量评测' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '编辑期望' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '删除' })).toBeTruthy();
+    expect(screen.queryByText('harness 数据集 · 只读')).toBeNull();
+  });
+
   it('starts a live run with the selected mode and baseline', async () => {
     const enterEval = wireEvalTab(evalDatasetDetail);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
