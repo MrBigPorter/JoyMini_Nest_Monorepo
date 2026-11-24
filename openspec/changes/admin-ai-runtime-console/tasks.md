@@ -20,4 +20,7 @@
 
 - [x] 3.1 后端 tsc + 全量测试
 - [x] 3.2 admin-next tsc + routes 测试
-- [ ] 3.3 手工：制造 FAILED Outbox / AI 死信，页面可重放
+- [x] 3.3 手工：制造 FAILED Outbox / AI 死信，页面可重放
+  - FAILED Outbox（真实入队失败）：`CONFIG SET maxmemory 1mb`（noeviction）后经产品接口发消息，`ai_task_outbox` 第 8 次重试落 `FAILED`，`last_error="OOM command not allowed when used memory > 'maxmemory'..."`；`/ai-ops/runtime` 过滤 FAILED → `重新投递`（confirm「确认重放 Outbox 任务 …」）→ 行变 `SENT|attempts=1`，监听器随后处理该消息。演练后已恢复 `maxmemory 400mb`。
+  - AI 死信（真实锁超时）：手动占用 `ai:conv:cmwuj3v0j00arru3z4750tbvm`（TTL 1200s）后经 `POST /chat/message` 发消息 `71a4bdd4-…`；BullMQ `attempts:3` 三次均以 `AI conversation lock not acquired within 130106ms` 失败，第 3 次后 `dead=true` 进入 failed 集合，页面死信表出现该行（attemptsMade=3）。释放锁后页面 `重新处理`（confirm「确认重放 AI 死信 …」）→ 行消失，`replay-ai` 写入 `admin_operation_logs`，监听器加锁成功并落库 AI 回复（`triggerMessageId=71a4bdd4-…`）。
+  - 已知外部依赖：演练窗口内 `api.deepseek.com` 从宿主与容器均 `ECONNREFUSED`，重放后的回复走了「人工客服暂时不在线」降级文案；队列/锁/重放链路本身验证通过，LLM 内容未参与本次断言。
