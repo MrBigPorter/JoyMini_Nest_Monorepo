@@ -6,8 +6,10 @@
  *
  * 令牌来源按优先级：
  *   1. E2E_ADMIN_TOKEN（CI 显式注入）
- *   2. POST /v1/auth/admin/test-login（读后端容器 env 的测试凭据）
- *   3. 本地签一个 SUPER_ADMIN JWT（读容器 env 的密钥 + DB 里已存在的
+ *   2. E2E_ADMIN_TEST_USERNAME / E2E_ADMIN_TEST_CODE（CI 注入测试凭据，
+ *      每次运行现调 test-login 换 token，避免长期 access token 过期）
+ *   3. POST /v1/auth/admin/test-login（读后端容器 env 的测试凭据）
+ *   4. 本地签一个 SUPER_ADMIN JWT（读容器 env 的密钥 + DB 里已存在的
  *      SUPER_ADMIN id）。dev 的测试凭据与 admin_users 行不一致时
  *      只能走这条；密钥/令牌只在内存里，绝不打印、绝不写报告。
  */
@@ -125,11 +127,61 @@ export function queryDbRows(
 }
 
 /**
+ * 用测试凭据换管理员令牌。凭据只出现在请求体里，不进日志与错误信息。
+ * 返回 null 表示这一来源不可用，调用方继续走下一种来源。
+ */
+async function testLoginToken({
+  config,
+  username,
+  code,
+  source,
+  fetchImpl,
+  logger,
+}) {
+  try {
+    const data = await requestJson({
+      config,
+      route: "/v1/auth/admin/test-login",
+      method: "POST",
+      body: { test: username, code },
+      fetchImpl,
+      timeoutMs: 15_000,
+    });
+    const token = data?.tokens?.accessToken;
+    if (token) return { token, source };
+    logger.warn(`${source} test-login 成功但响应里没有 accessToken，改用下一种令牌来源`);
+  } catch (error) {
+    const reason =
+      error instanceof E2EHttpError ? `HTTP ${error.status ?? "?"}` : "网络错误";
+    logger.warn(`${source} test-login 不可用（${reason}），改用下一种令牌来源`);
+  }
+  return null;
+}
+
+/**
  * 解析管理员令牌。失败信息只说「哪条路失败」，不带任何密钥/凭据。
  */
 export async function resolveAdminToken(config, { logger = console, fetchImpl } = {}) {
   if (process.env.E2E_ADMIN_TOKEN) {
     return { token: process.env.E2E_ADMIN_TOKEN, source: "env" };
+  }
+
+  const envUsername = process.env.E2E_ADMIN_TEST_USERNAME?.trim();
+  const envCode = process.env.E2E_ADMIN_TEST_CODE?.trim();
+  if (envUsername && envCode) {
+    const viaEnv = await testLoginToken({
+      config,
+      username: envUsername,
+      code: envCode,
+      source: "env-test-login",
+      fetchImpl,
+      logger,
+    });
+    if (viaEnv) return viaEnv;
+  } else if (envUsername || envCode) {
+    logger.warn(
+      "E2E_ADMIN_TEST_USERNAME / E2E_ADMIN_TEST_CODE 只配置了一个，忽略这一来源",
+    );
   }
 
   const backend =
@@ -140,23 +192,15 @@ export async function resolveAdminToken(config, { logger = console, fetchImpl } 
   const username = containerEnv(backend, "ADMIN_TEST_USERNAME");
   const code = containerEnv(backend, "ADMIN_TEST_CODE");
   if (username && code) {
-    try {
-      const data = await requestJson({
-        config,
-        route: "/v1/auth/admin/test-login",
-        method: "POST",
-        body: { test: username, code },
-        fetchImpl,
-        timeoutMs: 15_000,
-      });
-      const token = data?.tokens?.accessToken;
-      if (token) return { token, source: "test-login" };
-      logger.warn("admin test-login 成功但响应里没有 accessToken，改用本地签发");
-    } catch (error) {
-      const reason =
-        error instanceof E2EHttpError ? `HTTP ${error.status ?? "?"}` : "网络错误";
-      logger.warn(`admin test-login 不可用（${reason}），改用本地 SUPER_ADMIN 签发`);
-    }
+    const viaContainer = await testLoginToken({
+      config,
+      username,
+      code,
+      source: "container-test-login",
+      fetchImpl,
+      logger,
+    });
+    if (viaContainer) return viaContainer;
   } else {
     logger.warn("后端容器未配置 ADMIN_TEST_USERNAME/ADMIN_TEST_CODE，改用本地签发");
   }

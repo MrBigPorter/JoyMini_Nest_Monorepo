@@ -99,7 +99,11 @@ jobs:
           # 子集只跑 knowledge/multi（config 按 scope 自动收窄），账号只需 4 个，
           # 避免每次手动触发都在 QA 上批量注册账号。
           E2E_ACCOUNT_COUNT: ${{ inputs.scope == 'subset' && '4' || '12' }}
+          # 管理员令牌二选一：E2E_ADMIN_TOKEN（会过期）或测试账号凭据
+          # （每次运行现调 test-login 换 token，推荐后者）。
           E2E_ADMIN_TOKEN: ${{ secrets.E2E_ADMIN_TOKEN }}
+          E2E_ADMIN_TEST_USERNAME: ${{ secrets.E2E_ADMIN_TEST_USERNAME }}
+          E2E_ADMIN_TEST_CODE: ${{ secrets.E2E_ADMIN_TEST_CODE }}
           E2E_OTP_CODE: ${{ secrets.E2E_OTP_CODE }}
         run: node tools/eval/e2e/run.mjs
 

@@ -26,9 +26,11 @@ yarn install           # socket.io-client 等
 
 管理员令牌按优先级获取，无需手工配置：
 
-1. `E2E_ADMIN_TOKEN`（显式注入时直接用）；
-2. `POST /v1/auth/admin/test-login`（读后端容器 env 的测试凭据）；
-3. 本地签一个 SUPER_ADMIN JWT（读容器 env 的密钥 + DB 里的 SUPER_ADMIN id）。
+1. `E2E_ADMIN_TOKEN`（显式注入时直接用；注意 access token 默认 12h 过期）；
+2. `E2E_ADMIN_TEST_USERNAME` + `E2E_ADMIN_TEST_CODE`（CI 推荐：每次运行现调
+   `POST /v1/auth/admin/test-login` 换 token，不会因令牌过期中断）；
+3. `POST /v1/auth/admin/test-login`（读后端容器 env 的测试凭据）；
+4. 本地签一个 SUPER_ADMIN JWT（读容器 env 的密钥 + DB 里的 SUPER_ADMIN id）。
 
 凭据只在内存里，**不打印、不写报告**。
 
@@ -104,6 +106,9 @@ node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json --with-
 | `E2E_CHAT_MODEL` | 自动 | 报告头里写的被测模型（默认从容器 env 推断） |
 | `E2E_RUNTIME_DIR` / `E2E_REPORTS_DIR` | `.runtime` / `reports` | 落盘位置 |
 | `E2E_BACKEND_CONTAINER` / `E2E_DB_CONTAINER` / `E2E_DB_NAME` | `lucky-backend-dev` / `lucky-db` / `joy_mini` | 取管理员令牌用 |
+| `E2E_ADMIN_TOKEN` | — | 管理员 access token；默认 12h 过期，长跑/CI 优先用下面两个 |
+| `E2E_ADMIN_TEST_USERNAME` / `E2E_ADMIN_TEST_CODE` | — | 测试账号凭据；设置了就每次运行现调 test-login 换 token |
+| `E2E_OTP_CODE` | 后端固定码 | 建号用固定 OTP；未设置时读容器 `OTP_FIXED_CODE` / `OTP_DEV_CODE`，再退回 `999999` |
 
 后端全局限流是 60 次/分/IP，client、admin、judge 三类请求共用同一个节流器。
 调高 `E2E_HTTP_PER_MINUTE` 只会撞 429，不会更快。
