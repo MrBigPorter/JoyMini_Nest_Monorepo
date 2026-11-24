@@ -678,10 +678,14 @@ describe('AiEvalDatasetService', () => {
 
   it('addCases 拒绝 e2e 数据集且不写库', async () => {
     const { service, prisma } = makeService();
-    prisma.aiEvalDataset.findUnique.mockResolvedValue({
-      id: 'e2e-1',
-      name: 'e2e:abc',
-    });
+    // mock 跟随 select：若生产代码不再取 name，守卫拿不到名字，测试会变红。
+    prisma.aiEvalDataset.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.select?.name
+          ? { id: 'e2e-1', name: 'e2e:abc' }
+          : { id: 'e2e-1' },
+      ),
+    );
 
     await expect(
       service.addCases('e2e-1', {
@@ -697,10 +701,13 @@ describe('AiEvalDatasetService', () => {
       id: 'case-1',
       datasetId: 'e2e-1',
     });
-    prisma.aiEvalDataset.findUnique.mockResolvedValue({
-      id: 'e2e-1',
-      name: 'E2E:abc',
-    });
+    prisma.aiEvalDataset.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.select?.name
+          ? { id: 'e2e-1', name: 'E2E:abc' }
+          : { id: 'e2e-1' },
+      ),
+    );
 
     await expect(
       service.updateCase('e2e-1', 'case-1', { expected: 'x' }),
@@ -714,15 +721,36 @@ describe('AiEvalDatasetService', () => {
       id: 'case-1',
       datasetId: 'e2e-1',
     });
-    prisma.aiEvalDataset.findUnique.mockResolvedValue({
-      id: 'e2e-1',
-      name: 'e2e:abc',
-    });
+    prisma.aiEvalDataset.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.select?.name
+          ? { id: 'e2e-1', name: 'e2e:abc' }
+          : { id: 'e2e-1' },
+      ),
+    );
 
     await expect(service.deleteCase('e2e-1', 'case-1')).rejects.toBeInstanceOf(
       BadRequestException,
     );
     expect(prisma.aiEvalCase.delete).not.toHaveBeenCalled();
+  });
+
+  it('addCases 守卫同样拦截空白前缀', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalDataset.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.select?.name
+          ? { id: 'e2e-2', name: ' e2e:x' }
+          : { id: 'e2e-2' },
+      ),
+    );
+
+    await expect(
+      service.addCases('e2e-2', {
+        cases: [{ question: 'q', answer: 'a' }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.aiEvalCase.createMany).not.toHaveBeenCalled();
   });
 
   it('createDataset 拒绝 e2e 前缀并允许普通名称', async () => {

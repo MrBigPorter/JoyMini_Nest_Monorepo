@@ -969,6 +969,30 @@ describe('AiQualityPage', () => {
     expect(screen.queryByText('harness 数据集 · 只读')).toBeNull();
   });
 
+  it('hides the JSON import when switching to an e2e dataset with advanced mode open', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, null, [
+      ...datasets,
+      ...harnessDatasets,
+    ]);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '高级模式' }));
+    expect(screen.getByLabelText('评测用例 JSON')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'e2e-1' },
+    });
+
+    expect(screen.queryByLabelText('评测用例 JSON')).toBeNull();
+    expect(screen.queryByRole('button', { name: '高级模式' })).toBeNull();
+    expect(screen.getByText('harness 数据集 · 只读')).toBeTruthy();
+  });
+
   it('starts a live run with the selected mode and baseline', async () => {
     const enterEval = wireEvalTab(evalDatasetDetail);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
