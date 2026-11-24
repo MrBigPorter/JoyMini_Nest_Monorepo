@@ -314,6 +314,11 @@ function wireEvalTab(
   runData: unknown = null,
   datasetsData: unknown = datasets,
   kbStatusData: unknown = kbRegressionStatus,
+  options: {
+    runDataRef?: { current: unknown };
+    datasetRefresh?: ReturnType<typeof vi.fn>;
+    datasetsRefresh?: ReturnType<typeof vi.fn>;
+  } = {},
 ) {
   let index = 0;
   let inEval = false;
@@ -337,9 +342,18 @@ function wireEvalTab(
         };
       return { ...makeUseRequest(datasets), refreshAsync: vi.fn() };
     }
-    if (slot === 0) return makeUseRequest(datasetsData);
-    if (slot === 1) return makeUseRequest(detail);
-    if (slot === 2) return makeUseRequest(runData);
+    if (slot === 0)
+      return {
+        ...makeUseRequest(datasetsData),
+        ...(options.datasetsRefresh ? { refresh: options.datasetsRefresh } : {}),
+      };
+    if (slot === 1)
+      return {
+        ...makeUseRequest(detail),
+        ...(options.datasetRefresh ? { refresh: options.datasetRefresh } : {}),
+      };
+    if (slot === 2)
+      return makeUseRequest(options.runDataRef ? options.runDataRef.current : runData);
     return makeUseRequest(null);
   });
   return () => {
@@ -1090,6 +1104,53 @@ describe('AiQualityPage', () => {
       expect(mockCancelRun).toHaveBeenCalledWith('running-run'),
     );
     expect(screen.getByText('已取消本次运行')).toBeTruthy();
+  });
+
+  it('announces completion and refreshes dataset stats when polling ends', async () => {
+    const runDataRef = {
+      current: {
+        id: 'run-new',
+        datasetId: 'ds-1',
+        status: 'RUNNING',
+        mode: 'STORED',
+        baselineRunId: null,
+        createdBy: 'admin',
+        summary: null,
+        startedAt: '2026-01-02T00:00:00.000Z',
+        finishedAt: null,
+        results: [],
+      } as Record<string, unknown>,
+    };
+    const datasetRefresh = vi.fn();
+    const datasetsRefresh = vi.fn();
+    const enterEval = wireEvalTab(
+      evalDatasetDetail,
+      null,
+      datasets,
+      kbRegressionStatus,
+      { runDataRef, datasetRefresh, datasetsRefresh },
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { rerender } = render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('已启动，正在轮询结果…')).toBeTruthy(),
+    );
+
+    runDataRef.current.status = 'COMPLETED';
+    rerender(<AiQualityPage />);
+
+    await waitFor(() => expect(screen.getByText('运行已完成')).toBeTruthy());
+    expect(screen.queryByText('已启动，正在轮询结果…')).toBeNull();
+    expect(datasetRefresh).toHaveBeenCalled();
+    expect(datasetsRefresh).toHaveBeenCalled();
   });
 
   it('shows the CANCELLED label and cancellation note on a run card', () => {

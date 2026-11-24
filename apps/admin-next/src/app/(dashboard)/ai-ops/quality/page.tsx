@@ -1648,6 +1648,8 @@ function EvalPanel() {
   const [pollRun, setPollRun] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
+  // 记录"由本页启动、仍在等待结果"的 runId，避免把查看历史运行也当成轮询结束
+  const pendingRunRef = useRef<string>('');
   const role = useAiOpsRole();
   const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
 
@@ -1680,14 +1682,23 @@ function EvalPanel() {
   );
   const runStatus = (run as EvalRun | null | undefined)?.status;
   useEffect(() => {
+    if (!runId) return;
     if (
-      runStatus === 'COMPLETED' ||
-      runStatus === 'FAILED' ||
-      runStatus === 'CANCELLED'
+      runStatus !== 'COMPLETED' &&
+      runStatus !== 'FAILED' &&
+      runStatus !== 'CANCELLED'
     ) {
-      setPollRun(false);
+      return;
     }
-  }, [runStatus]);
+    setPollRun(false);
+    if (pendingRunRef.current !== runId) return;
+    pendingRunRef.current = '';
+    if (runStatus === 'COMPLETED') setMessage('运行已完成');
+    else if (runStatus === 'FAILED') setMessage('运行失败，请查看详情');
+    // 取消的提示语由 cancel() 负责，这里只刷新数据
+    void refreshDataset();
+    void refreshDatasets();
+  }, [runId, runStatus, refreshDataset, refreshDatasets]);
   useEffect(() => {
     setShowEvidence(false);
   }, [runId]);
@@ -1765,6 +1776,7 @@ function EvalPanel() {
         ...(baselineRunId ? { baselineRunId } : {}),
       });
       setRunId(created.id);
+      pendingRunRef.current = created.id;
       setPollRun(true);
       setMessage('已启动，正在轮询结果…');
     } catch (err: any) {
