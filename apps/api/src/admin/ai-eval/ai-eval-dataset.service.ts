@@ -185,6 +185,21 @@ export class AiEvalDatasetService {
     });
   }
 
+  /** harness 物化的数据集是快照，任何控制台写操作都会破坏同步与历史证据。 */
+  private assertDatasetWritable(
+    name: string | null | undefined,
+    action: string,
+  ): void {
+    if (
+      typeof name === 'string' &&
+      name.trim().toLowerCase().startsWith(EXTERNAL_DATASET_PREFIX)
+    ) {
+      throw new BadRequestException(
+        `External harness datasets are read-only; cannot ${action}`,
+      );
+    }
+  }
+
   async createDataset(input: {
     name: string;
     description?: string;
@@ -219,9 +234,10 @@ export class AiEvalDatasetService {
   async addCases(datasetId: string, dto: AddEvalCasesDto) {
     const dataset = await this.prisma.aiEvalDataset.findUnique({
       where: { id: datasetId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (!dataset) throw new NotFoundException('Eval dataset not found');
+    this.assertDatasetWritable(dataset.name, 'add cases');
 
     await this.prisma.aiEvalCase.createMany({
       data: dto.cases.map((item) => ({
@@ -258,6 +274,11 @@ export class AiEvalDatasetService {
     if (!existing || existing.datasetId !== datasetId) {
       throw new NotFoundException('Eval case not found');
     }
+    const dataset = await this.prisma.aiEvalDataset.findUnique({
+      where: { id: datasetId },
+      select: { name: true },
+    });
+    this.assertDatasetWritable(dataset?.name, 'edit cases');
     await this.prisma.aiEvalCase.update({
       where: { id: caseId },
       data: {
@@ -284,6 +305,11 @@ export class AiEvalDatasetService {
     if (!existing || existing.datasetId !== datasetId) {
       throw new NotFoundException('Eval case not found');
     }
+    const dataset = await this.prisma.aiEvalDataset.findUnique({
+      where: { id: datasetId },
+      select: { name: true },
+    });
+    this.assertDatasetWritable(dataset?.name, 'delete cases');
     await this.prisma.aiEvalCase.delete({ where: { id: caseId } });
     return this.getDataset(datasetId);
   }

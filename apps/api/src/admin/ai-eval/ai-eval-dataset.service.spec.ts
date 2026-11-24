@@ -55,7 +55,7 @@ function verdictOf(verdict: string) {
 function makeService() {
   const prisma = {
     aiScore: { create: jest.fn().mockResolvedValue({ id: 'score-1' }) },
-    aiEvalDataset: { findUnique: jest.fn() },
+    aiEvalDataset: { findUnique: jest.fn(), create: jest.fn() },
     aiEvalRun: {
       create: jest.fn(),
       // 状态检查走 select.status；默认视为 RUNNING，具体用例可覆盖。
@@ -70,6 +70,7 @@ function makeService() {
     },
     aiEvalCase: {
       findUnique: jest.fn(),
+      createMany: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
     },
@@ -673,6 +674,55 @@ describe('AiEvalDatasetService', () => {
     expect(prisma.aiEvalCase.delete).toHaveBeenCalledWith({
       where: { id: 'case-1' },
     });
+  });
+
+  it('addCases 拒绝 e2e 数据集且不写库', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'e2e-1',
+      name: 'e2e:abc',
+    });
+
+    await expect(
+      service.addCases('e2e-1', {
+        cases: [{ question: 'q', answer: 'a' }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.aiEvalCase.createMany).not.toHaveBeenCalled();
+  });
+
+  it('updateCase 拒绝 e2e 数据集且不写库', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalCase.findUnique.mockResolvedValue({
+      id: 'case-1',
+      datasetId: 'e2e-1',
+    });
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'e2e-1',
+      name: 'E2E:abc',
+    });
+
+    await expect(
+      service.updateCase('e2e-1', 'case-1', { expected: 'x' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.aiEvalCase.update).not.toHaveBeenCalled();
+  });
+
+  it('deleteCase 拒绝 e2e 数据集且不删库', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalCase.findUnique.mockResolvedValue({
+      id: 'case-1',
+      datasetId: 'e2e-1',
+    });
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'e2e-1',
+      name: 'e2e:abc',
+    });
+
+    await expect(service.deleteCase('e2e-1', 'case-1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(prisma.aiEvalCase.delete).not.toHaveBeenCalled();
   });
 
   it('getDataset 会把超时 RUNNING 标成 FAILED', async () => {
