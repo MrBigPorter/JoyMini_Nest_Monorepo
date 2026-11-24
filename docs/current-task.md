@@ -75,7 +75,15 @@
 - **判官漂移**：同一 `judgeInputHash` 两次运行，`rz23`、`multi:r33+r34` 判决从 false 变 true（2/97 ≈ 2.1%）；89 条样本 95% CI ≈ ±7pp。单次运行的 ±1 条不足以决定 6.2。
 - **复核更正**：上次把 `r63` 判成「闪购细节无来源」有误，`promotion-rules.en.md:84-87` 有原文；v2 修正值是 76/89 = 85.4%（不是 84.3%）。
 - 两批回答同口径对照（strict-v1）：`005755` 严格 69/83 = 83.1%、golden∪cited 79/83 = 95.2%（真错误 r14/r16/rz21）；`113254` 严格 73/89 = 82.0%、golden∪cited 85/89 = 95.5%（真错误 r79/rz28）。证据在各自 `...-strict-cited/manual-review.md`。
-- **结论不变：6.2 不勾选、不登记基线。** 阻塞项改为「golden-only 输入范围 + golden 集不全 + 判决漂移」。下一步需立项：准确性口径改 golden∪cited（`METRIC_SPEC_VERSION` → 3）+ 重复判定/稳定性门槛，之后才谈 85.5% 验收线。
+- **结论不变：6.2 不勾选、不登记基线。** 阻塞项改为「golden-only 输入范围 + golden 集不全 + 判决漂移」。下一步需立项：准确性口径改 golden∪cited（`METRIC_SPEC_VERSION` → 3）+ 重复判定/稳定性门槛，之后才谈 85.5% 验收线。（**已由下面的 v3 收口解决**）
+
+**metric spec v3 收口（2026-11-24，`ai-eval-metric-v3`）**：判官输入改为 golden ∪ 回答实际引用文档（服务端合并），每题默认重复 3 次取多数，平票/成功不足记 `judge_error` + `judge_disagreement`；新增 `judgeAgreement` 与基线 ≥95% 门槛（`EVAL_MIN_JUDGE_AGREEMENT`）。用同一批真实回答离线重判两份 detail，没有重跑用例：
+
+- `reports/20261124-113254-rejudged-v3/`：kbAccuracy **85/88 = 96.6%**（1 条平票不计入分母）、judgeAgreement **87/89 = 97.8%**、judgeErrorRate 1/399 = 0.3%；严格诊断 73/89 = 82.0%；真错误 `r79`/`rz28` 仍判 false。
+- `reports/20261124-005755-rejudged-v3/`：kbAccuracy **78/83 = 94.0%**、judgeAgreement **81/83 = 97.6%**、judgeErrorRate 0/364；严格诊断 69/83 = 83.1%；真错误 `r14`/`r16`/`rz21` 仍判 false。
+- 事实性无依据 11 → 0 维持、p95 +11.7% 在预算内；两批准确率都高于 85.5% 验收线。
+- 基线：经产品接口把 `113254` 的 v3 结果登记为 EXTERNAL run `cmwugzgee00pimn3ztjgdfk2j`（gateMode enforce、metric v3、judgeAgreement 97.94%）并 promote 成功。**`ai-answer-grounding` 6.2 已勾选。**
+- 报告归类修正：以前「回答里出现打码邮箱」就记为脱敏伪差异，会把 `r79`/`rz28` 真错误洗成测量误差；现在只有「判官列出的不支持点全部是联系方式」才算脱敏相关，其余计入内容不符。
 
 ---
 

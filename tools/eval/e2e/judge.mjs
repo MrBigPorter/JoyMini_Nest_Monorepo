@@ -132,31 +132,31 @@ export function sourcesForJudge(sources) {
 }
 
 /**
- * golden 文档 → 判官。
+ * golden 文档 + 本轮实际引用文档 → 判官。
  *
- * v2 起来源挑选、截断与脱敏都在判官端点（`judge-input-spec.ts`）完成：
- * harness 只传 docId，服务端按 docId 取 chunk 并在预算内挑最相关的，
- * 同时返回 `judgeInputHash` / `judgeSpecVersion` / `sourceCount`。
+ * v3 起来源挑选、截断与脱敏都在判官端点（`judge-input-spec.ts`）完成：
+ * harness 只传 `expectedDocIds` 与 `citedDocIds`，服务端按 golden 优先合并、
+ * 去重、限篇，同时返回 `judgeInputHash` / `judgeSpecVersion` / `sourceCount`。
  * 这样离线重判与在线判定走的是同一份规范，不会两处漂移。
  */
 export async function judgeGoldenAgreement({
   admin,
   question,
   answer,
-  expectedDocIds,
-  extraDocIds = [],
+  expectedDocIds = [],
+  citedDocIds = [],
 }) {
-  const docIds = mergeJudgeDocIds(expectedDocIds, extraDocIds);
   try {
     const verdict = await admin.judgeFaithfulness({
       question,
       answer,
-      expectedDocIds: docIds,
+      expectedDocIds,
+      citedDocIds,
     });
     const sourceChunks = Number(verdict?.sourceCount ?? 0);
     return {
       applicable: true,
-      sourceDocIds: docIds,
+      sourceDocIds: unionDocIds(expectedDocIds, citedDocIds),
       ...verdict,
       sourceChunks,
       // 服务端没取到任何 chunk：沿用旧报告的可读原因，便于对照
@@ -243,22 +243,35 @@ export function classifyGrounding({ ragSourceCount = 0, cited = false, tools = [
 }
 
 /**
- * 判 B：回答与 golden 文档是否一致。
- * 单独抽出，重判脚本与实时判定共用同一套 sources 选择逻辑。
+ * 回答本轮实际引用、但不是 golden 的文档。
  *
- * `extraDocIds` 用于「放宽口径」诊断：把回答实际引用的文档也交给判官。
- * golden 只是「这道题最该命中的文档」，不是「这道题唯一有效的文档」；
- * 回答引用另一篇真实文档并据此作答时，只给判官 golden 会把「有依据」
- * 误判成「编造」。默认不传，严格口径（只给 golden）保持不变。
+ * 来源只取该轮真实 `reply.sources`：没有引用就返回空数组，
+ * 由服务端决定「只有 golden」也照常判。
  */
-export function mergeJudgeDocIds(expectedDocIds, extraDocIds = []) {
-  const out = [];
-  for (const docId of [...(expectedDocIds ?? []), ...(extraDocIds ?? [])]) {
-    if (typeof docId === "string" && docId.length > 0 && !out.includes(docId)) {
-      out.push(docId);
-    }
-  }
-  return out;
+export function citedDocIdsFor(expectedDocIds = [], sources = []) {
+  const expected = new Set(expectedDocIds ?? []);
+  return [
+    ...new Set(
+      (sources ?? [])
+        .map((source) => source?.docId)
+        .filter(
+          (docId) =>
+            typeof docId === "string" &&
+            docId.length > 0 &&
+            !expected.has(docId),
+        ),
+    ),
+  ];
+}
+
+function unionDocIds(expectedDocIds = [], citedDocIds = []) {
+  return [
+    ...new Set(
+      [...(expectedDocIds ?? []), ...(citedDocIds ?? [])].filter(
+        (docId) => typeof docId === "string" && docId.length > 0,
+      ),
+    ),
+  ];
 }
 
 /**
@@ -347,6 +360,7 @@ export async function judgeKnowledgeCase({
           question,
           answer,
           expectedDocIds: testCase.expectedDocIds,
+          citedDocIds: citedDocIdsFor(testCase.expectedDocIds, sources),
         }).then((verdict) => {
           result.goldenAgreement = verdict;
         }),

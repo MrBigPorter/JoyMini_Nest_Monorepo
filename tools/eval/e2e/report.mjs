@@ -10,10 +10,12 @@ import {
   answerAccuracy,
   answeredRate,
   formatRate,
+  hasRepeatEvidence,
   hitAt3Rate,
   isApplicableJudged,
   isJudgeError,
   isJudged,
+  judgeAgreement,
   judgeErrorKinds,
   judgeErrorRate,
   METRIC_SPEC_VERSION,
@@ -52,7 +54,7 @@ function isCannedCase(item) {
 }
 
 /**
- * 判 B 的结果：重判报告读 `item.rejudge`（v2），实时运行读 `item.judge`。
+ * 判 B 的结果：重判报告读 `item.rejudge`（v3 合并口径），实时运行读 `item.judge`。
  * 两套数据都保留，旧报告仍能原样渲染。
  */
 function goldenJudgeOf(item) {
@@ -72,6 +74,12 @@ function groundingKind(item) {
 function judgeErrorThreshold() {
   const raw = Number(process.env.EVAL_MAX_JUDGE_ERROR_RATE);
   return Number.isFinite(raw) && raw >= 0 ? raw : 0.02;
+}
+
+/** 判官一致性阈值：与 promote 共用同一环境变量（默认 95%）。 */
+function judgeAgreementThreshold() {
+  const raw = Number(process.env.EVAL_MIN_JUDGE_AGREEMENT);
+  return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.95;
 }
 
 /** 把一次运行的结果整理成指标；纯函数，方便单测。 */
@@ -95,14 +103,15 @@ export function summarize(cases) {
   const goldenJudged = knowledge.filter((item) =>
     isApplicableJudged(goldenJudgeOf(item)),
   );
-  // 放宽口径：判 B 时把回答实际引用的文档也交给判官（`--include-cited`）。
-  // 只做诊断，严格口径照旧；用来区分「编造」与「golden 集不全」。
-  const expandedJudged = knowledge.filter((item) =>
-    isApplicableJudged(item?.rejudge?.expandedAgreement),
+  // v3 严格口径诊断：rejudge 显式加 --with-strict 时才有值。
+  // 只给 golden，仅用于对照，不参与主准确率与基线验收。
+  const strictJudged = knowledge.filter((item) =>
+    isApplicableJudged(item?.rejudge?.strictAgreement),
   );
-  const expandedFaithful = expandedJudged.filter(
-    (item) => item.rejudge.expandedAgreement.faithful === true,
+  const strictFaithful = strictJudged.filter(
+    (item) => item.rejudge.strictAgreement.faithful === true,
   ).length;
+  const judgeStability = judgeAgreement(knowledge.map(goldenJudgeOf));
   const knowledgeRealAnswered = knowledge.filter((item) => {
     const last = item.rounds?.[item.rounds?.length - 1];
     return Boolean(last?.reply?.content) && !isCannedCase(item);
@@ -140,28 +149,29 @@ export function summarize(cases) {
     };
   }
   // 判 B 未通过的知识库用例，按「是谁的问题」粗分：
-  //   脱敏伪差异 / golden 文档集不全 / 内容与引用文档也不符
+  //   仅联系方式不一致（脱敏相关）/ 内容与文档不符。
+  // v3 判官已看到回答实际引用的文档，所以不再有「golden 文档集不全」这一类；
+  // 判 false 就意味着判官在看到的全部来源里找不到支持。
   const kbFailures = knowledge.filter(
     (item) =>
       groundingKind(item) === "kb" &&
       isApplicableJudged(goldenJudgeOf(item)) &&
       goldenJudgeOf(item).faithful === false,
   );
-  const failureBuckets = { piiMasked: [], goldenDocGap: [], contentMismatch: [] };
+  const failureBuckets = { piiMasked: [], contentMismatch: [] };
   for (const item of kbFailures) {
     const last = item.rounds?.[item.rounds.length - 1];
     const content = String(last?.reply?.content ?? "");
-    if (/[a-z]\*{3}@/i.test(content)) {
-      failureBuckets.piiMasked.push(item.id);
-      continue;
-    }
-    const expected = new Set(item.expectedDocIds ?? []);
-    const cited = (last?.reply?.sources ?? []).map((source) => source.docId);
-    if (cited.some((docId) => docId && !expected.has(docId))) {
-      failureBuckets.goldenDocGap.push(item.id);
-      continue;
-    }
-    failureBuckets.contentMismatch.push(item.id);
+    const claims = goldenJudgeOf(item)?.unsupportedClaims ?? [];
+    // 「脱敏伪差异」必须满足两个条件：回答里出现了被打码的邮箱，
+    // 且判官列出的不支持点全部集中在联系方式上。只看到打码就归类，
+    // 会把 r79/rz28 这类真错误（权利归属错误，回答里恰好也有邮箱）洗成测量误差。
+    const maskedContactOnly =
+      /[a-z]\*{3}@/i.test(content) &&
+      claims.length > 0 &&
+      claims.every((claim) => /@|(?:\+?63|0)9\d{2}/.test(String(claim)));
+    if (maskedContactOnly) failureBuckets.piiMasked.push(item.id);
+    else failureBuckets.contentMismatch.push(item.id);
   }
 
   const languageJudged = cases.filter(
@@ -193,7 +203,7 @@ export function summarize(cases) {
       item.judge?.faithfulness,
       item.judge?.goldenAgreement,
       item.rejudge?.goldenAgreement,
-      item.rejudge?.expandedAgreement,
+      item.rejudge?.strictAgreement,
     ])
     .filter(Boolean);
   const judgeFailure = judgeErrorRate(judgeObjects);
@@ -235,25 +245,32 @@ export function summarize(cases) {
       groundingGate,
       toolNotApplicable: byGrounding.tool.total,
       ungrounded: byGrounding.none.total,
-      /** 判 B 未通过的 KB 用例粗分（脱敏伪差异 / 文档集不全 / 内容不符） */
+      /** 判 B 未通过的 KB 用例粗分（仅联系方式不一致 / 内容不符） */
       failures: {
         total: kbFailures.length,
         ...failureBuckets,
       },
-      /** 放宽口径：golden + 回答实际引用文档（仅 --include-cited 时有值） */
-      expandedGolden:
-        expandedJudged.length > 0
+      /** 严格 golden-only 口径（仅 --with-strict；只作诊断，不用于验收） */
+      strictGolden:
+        strictJudged.length > 0
           ? {
-              judged: expandedJudged.length,
-              faithful: expandedFaithful,
-              accuracy: rate(expandedFaithful, expandedJudged.length),
-              failures: expandedJudged
+              judged: strictJudged.length,
+              faithful: strictFaithful,
+              accuracy: rate(strictFaithful, strictJudged.length),
+              failures: strictJudged
                 .filter(
-                  (item) => item.rejudge.expandedAgreement.faithful === false,
+                  (item) => item.rejudge.strictAgreement.faithful === false,
                 )
                 .map((item) => item.id),
             }
           : null,
+      /** 判官重复采样稳定性：全票一致 / 有 ≥2 次成功的用例 */
+      judgeAgreement: judgeStability,
+      judgeDisagreement: judgeStability.disagreements,
+      /** 有重复采样证据的用例数（v2 旧数据为 0） */
+      judgeAgreementMeasured: knowledge.filter((item) =>
+        hasRepeatEvidence(goldenJudgeOf(item)),
+      ).length,
       /** 回答里真的带了 sources 的比例：没引用的回答判不了忠实度，必须先看这个数 */
       cited: rate(
         knowledgeAnswered.filter(
@@ -452,6 +469,8 @@ export function renderSummary(result) {
   push(`| 知识问答 · 忠实度（只看回答自带 sources） | ${formatRate(summary.knowledge.faithful)} |`);
   push(`| 知识问答 · 与 golden 文档一致 | ${formatRate(summary.knowledge.goldenAgreement)} |`);
   push(`| 知识问答 · kbAccuracy（kb 组，只算判得动的） | ${formatRate(summary.knowledge.byGrounding.kb?.accuracy)} |`);
+  push(`| 知识问答 · 判官一致性（全票一致 / ≥2 次成功的用例） | ${formatRate(summary.knowledge.judgeAgreement)} |`);
+  push(`| 知识问答 · 判官分歧（平票或成功不足，记 judge_error） | ${summary.knowledge.judgeDisagreement} 条 |`);
   push(`| 负样本 · 泄露 | ${summary.negatives.leaked} 条（应 0） |`);
   push(`| 负样本 · 引用了无关文档 | ${summary.negatives.citedUnrelated}/${summary.negatives.total} |`);
   push(`| 多轮 · 第二轮有回复 | ${formatRate(summary.multi.answeredSecond)} |`);
@@ -562,9 +581,11 @@ export function renderSummary(result) {
       `| 用例 / 正确 / 错误 / 判官失败 | ${record.total ?? "—"} / ${record.correct ?? 0} / ${record.incorrect ?? 0} / ${record.judgeError ?? 0} |`,
     );
     push(`| 答案准确率（correct/(correct+incorrect)） | ${pct(record.accuracy)} |`);
+    push(`| 判官失败率（harness / not_applicable 不计） | ${pct(record.judgeErrorRate)} |`);
     push(
-      `| 判官失败率（harness / not_applicable 不计） | ${pct(record.judgeErrorRate)} |`,
+      `| 判官一致性（基线门槛 ≥ 95%） | ${pct(record.judgeAgreement)}（${record.judgeAgreementMeasured ?? 0} 条可测） |`,
     );
+    push(`| 判官分歧（平票或成功不足） | ${record.judgeDisagreement ?? 0} 条 |`);
     push(
       `| 判官错误类型 | ${
         Array.isArray(record.judgeErrorKinds) && record.judgeErrorKinds.length > 0
@@ -609,6 +630,14 @@ export function renderSummary(result) {
         `> ⚠️ 判官失败率 ${pct(record.judgeErrorRate)} 未低于 ${(judgeErrorThreshold() * 100).toFixed(1)}%：本轮仅诊断，不得登记为新基线。`,
       );
     }
+    if (
+      typeof record.judgeAgreement !== "number" ||
+      record.judgeAgreement < judgeAgreementThreshold()
+    ) {
+      push(
+        `> ⚠️ 判官一致性 ${pct(record.judgeAgreement)} 未达到 ${(judgeAgreementThreshold() * 100).toFixed(0)}% 门槛：本轮仅诊断，不得登记为新基线。`,
+      );
+    }
     if (meta.externalRun.isBaseline) {
       push("- 该运行已是当前基线（`isBaseline=true`）。");
     }
@@ -618,7 +647,7 @@ export function renderSummary(result) {
   const failures = summary.knowledge.failures;
   if (failures.total > 0) {
     push(
-      `判 B 未通过的 ${failures.total} 条知识库回答，粗分为：脱敏伪差异 ${failures.piiMasked.length} 条、golden 文档集不全 ${failures.goldenDocGap.length} 条（回答引用了 golden 未列出的文档，判官只看到部分文档）、内容与文档不符 ${failures.contentMismatch.length} 条。`,
+      `判 B 未通过的 ${failures.total} 条知识库回答，粗分为：仅联系方式不一致（脱敏相关）${failures.piiMasked.length} 条、内容与文档不符 ${failures.contentMismatch.length} 条。`,
     );
     if (failures.contentMismatch.length > 0) {
       push();
@@ -627,15 +656,13 @@ export function renderSummary(result) {
     push();
   }
 
-  const expanded = summary.knowledge.expandedGolden;
-  if (expanded) {
+  const strict = summary.knowledge.strictGolden;
+  if (strict) {
     push(
-      `- **放宽口径诊断**（golden + 回答实际引用的文档；只统计回答引用了 golden 之外文档的 ${expanded.judged} 条，不是全体 kb 组）：${formatRate(expanded.accuracy)}；剩余不一致 ${
-        expanded.failures.length
-      } 条${expanded.failures.length > 0 ? `：${expanded.failures.map((id) => `\`${id}\``).join("、")}` : ""}。`,
+      `- **严格口径诊断**（判官只看 golden；仅诊断，不用于验收）：${formatRate(strict.accuracy)}；剩余不一致 ${strict.failures.length} 条${strict.failures.length > 0 ? `：${strict.failures.map((id) => `\`${id}\``).join("、")}` : ""}。`,
     );
     push(
-      "- 该口径只用于区分「回答编造」与「golden 文档集不全」，**不替代上面的严格准确率**；严格口径仍是验收口径。",
+      "- 主准确率使用 v3 合并口径（golden ∪ 回答实际引用文档）；严格口径用于对照与防作弊，**不替代主口径**。",
     );
     push();
   }

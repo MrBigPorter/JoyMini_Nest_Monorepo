@@ -49,15 +49,18 @@ node tools/eval/e2e/run.mjs
 E2E_RESUME=1 node tools/eval/e2e/run.mjs
 
 # 离线重判（不重跑用例，只重判已有回答；输出到 <run>-rejudged/）
+# v3 主口径：判 B 时把 golden ∪ 回答实际引用的文档交给判官，每题默认判 3 次取多数。
 node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json
 
-# 放宽口径诊断：判 B 时把回答实际引用的文档也交给判官，用来区分「编造」与「golden 集不全」。
-# 只做诊断，不替代严格口径。
-node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json --include-cited
+# 严格口径诊断：再按 golden-only 判一遍，只写进报告的「严格口径诊断」段，
+# 用来区分「回答编造」与「golden 集不全」。不参与基线，不决定 6.2 收口。
+node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json --with-strict
 ```
 
 重判报告头会打印本次使用的 `judgeSpecVersion`（判官输入规范）、`judgePromptVersion`
 （判官提示词）与 `metricSpecVersion`（指标定义）。三者任一不同，数字就不能直接和上一轮比。
+重复判定次数由 `EVAL_JUDGE_REPEATS` 控制（只接受 1/3/5，默认 3），报告头同时打印
+`judgeRepeats`、`judgeAgreement` 与 `judgeDisagreement`。
 
 报告：`tools/eval/e2e/reports/<YYYYMMDD-HHmmss>/summary.md` + `detail.json`
 （文件 600）。账号池：`tools/eval/e2e/.runtime/accounts.json`（目录 700）。
@@ -94,7 +97,7 @@ node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json --inclu
 | 名称 | 用什么 sources | 回答什么 |
 | --- | --- | --- |
 | **忠实度（A）** | 回答消息里真实下发的 `meta.sources` | 「回答是否被自己引用的内容支持」；回答没引用就**不判**，不进分母 |
-| **与 golden 一致（B）** | golden 文档 docId 交给判官端点取 chunk | 「答对了没有」，与 A 分开报 |
+| **与 golden 一致（B）** | golden docId ∪ 回答本轮实际引用的 docId 交给判官端点取 chunk | 「答对了没有」，与 A 分开报；每题默认判 3 次取多数 |
 | **检索命中** | 回答 `meta.sources` 的 `docId` 顺序 vs `expectedDocIds` | Hit@1 / Hit@3 |
 | **业务动作** | 卡片 → `/ai/customer/confirm`（提现再 `/confirm/otp`）→ 客户端读接口核验 | 动作是否真的执行并落库 |
 | **任务完成度** | `POST /admin/ai-eval/judge` | 读类问答的 solved / partial / unsolved |
@@ -144,6 +147,10 @@ A 不是正确率。报告里把两者分开写，避免「拿忠实度冒充正
 - 传 `sources`：按传入内容判（忠实度 A 用回答真实下发的 sources）。
 - 传 `expectedDocIds` / `citedDocIds`：服务端按 docId 取 chunk（`docId + locale`
   定位文档），按问题/回答词面相关度挑 chunk；每篇文档先保一条覆盖，再填满预算。
+  v3 口径合并两者（golden 优先、去重），回答引用到 golden 之外的文档时判官也能看到。
+- 重复判定：`repeats`（1/3/5，不传读 `EVAL_JUDGE_REPEATS`，默认 3）在服务端并行
+  调用同一份 `judgeInput`，按多数聚合；平票或成功不足 2 次记 `judge_error` +
+  `judge_disagreement`，单列为判官分歧，不计入回答错误。
 - 预算：单条 2000 字符、合计 8000 字符；同分按原始顺序，保证 `judgeInputHash` 稳定。
 - 脱敏：answer 与 sources 用同一个 `redactForJudge()`，同一邮箱在两处形态一致。
 - 响应带 `judgeInputHash`、`judgeSpecVersion`、`sourceCount`；run 元数据记录同一个版本。
@@ -166,7 +173,8 @@ v1 与 v2 的准确率不可混比——换口径必须同时换 `metricSpecVers
 
 登记基线：`POST /admin/ai-eval/runs/:id/promote`。只有 `COMPLETED`、判官失败率低于
 `EVAL_MAX_JUDGE_ERROR_RATE`（默认 2%）、四个版本字段齐全且 `metricSpecVersion`
-与当前一致的运行才能通过；通过后全局至多一条 `isBaseline`。同一数据集的新运行
+与当前一致、`summary.judgeAgreement >= EVAL_MIN_JUDGE_AGREEMENT`（默认 0.95，
+缺失即拒绝）的运行才能通过；通过后全局至多一条 `isBaseline`。同一数据集的新运行
 未显式传 `baselineRunId` 时会自动以它作为对比基线，报告里出现
 `baselineAccuracy / delta / newFailures / fixed`。
 

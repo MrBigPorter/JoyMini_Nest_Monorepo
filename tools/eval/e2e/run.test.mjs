@@ -101,7 +101,7 @@ test("buildRunMetadata：代码/门禁/判官/指标四维齐全", () => {
     codeVersion: "f00dcafe",
     gateMode: "shadow",
     judgeSpecVersion: "v1",
-    metricSpecVersion: "2",
+    metricSpecVersion: "3",
   });
 });
 
@@ -114,7 +114,7 @@ test("buildRunMetadata：CI 无 GIT_SHA 用完整 sha；缺门禁配置时默认
   assert.equal(meta.codeVersion, "abc1234567890");
   assert.equal(meta.gateMode, "shadow");
   assert.equal(meta.judgeSpecVersion, "v2");
-  assert.equal(meta.metricSpecVersion, "2");
+  assert.equal(meta.metricSpecVersion, "3");
 });
 
 test("buildExternalSnapshot：多轮问句合并、指纹覆盖实际用例集", () => {
@@ -223,8 +223,8 @@ test("classifyJudgeError：五类错误归档", () => {
   assert.equal(classifyJudgeError("unparseable output"), "output_format");
 });
 
-test("HARNESS_METRIC_SPEC_VERSION 跟随指标规范升到 2", () => {
-  assert.equal(HARNESS_METRIC_SPEC_VERSION, "2");
+test("HARNESS_METRIC_SPEC_VERSION 跟随指标规范升到 3", () => {
+  assert.equal(HARNESS_METRIC_SPEC_VERSION, "3");
 });
 
 test("summarizeExternalResults：与服务端同口径，排除 harness/not_applicable", () => {
@@ -246,12 +246,63 @@ test("summarizeExternalResults：与服务端同口径，排除 harness/not_appl
     // 判官实际调用 4 次（2 次成功 + 2 次 timeout），失败 2 次
     judgeErrorRate: 0.5,
     judgeErrorKinds: [{ kind: "timeout", count: 2 }],
+    // 没有重复采样证据：稳定性无定义
+    judgeAgreement: null,
+    judgeAgreementMeasured: 0,
+    judgeDisagreement: 0,
   });
+});
+
+test("summarizeExternalResults：judgeAgreement 只统计 ≥2 次成功的用例", () => {
+  const judged = (agreement, attempts, disagreement = false) => ({
+    answerVerdict: "correct",
+    judgeAgreement: agreement,
+    judgeSuccessfulAttempts: attempts,
+    judgeDisagreement: disagreement,
+  });
+  const local = summarizeExternalResults([
+    judged(1, 3), // 全票
+    judged(1, 3), // 全票
+    judged(0.67, 3), // 2:1，分母内但不算一致
+    judged(0.5, 2, true), // 平票 → judge_error 但仍然测量到分歧
+    judged(1, 1, true), // 成功不足，不进分母
+    { answerVerdict: "correct" }, // 旧数据，没有逐次证据
+  ]);
+  assert.equal(local.judgeAgreementMeasured, 4);
+  assert.equal(local.judgeDisagreement, 1);
+  assert.equal(local.judgeAgreement, 0.5);
+});
+
+test("toExternalResult：把重复采样证据带给服务端", () => {
+  const result = toExternalResult({
+    id: "knowledge:delivery",
+    kind: "knowledge",
+    status: "ok",
+    judge: {
+      grounding: { kind: "kb" },
+      goldenAgreement: {
+        faithful: true,
+        score: 1,
+        reason: "ok",
+        judgeAgreement: 0.67,
+        judgeSuccessfulAttempts: 3,
+        judgeDisagreement: false,
+      },
+    },
+    rounds: [{ reply: { content: "3-5 天" } }],
+  });
+  assert.equal(result.judgeAgreement, 0.67);
+  assert.equal(result.judgeSuccessfulAttempts, 3);
+  assert.equal("judgeDisagreement" in result, false);
 });
 
 test("compareSummaryWithRecord：逐字段核对库内 summary", () => {
   const local = summarizeExternalResults([
-    { answerVerdict: "correct" },
+    {
+      answerVerdict: "correct",
+      judgeAgreement: 1,
+      judgeSuccessfulAttempts: 3,
+    },
     { answerVerdict: "judge_error", judgeErrorKind: "timeout" },
   ]);
   const record = {
@@ -262,6 +313,9 @@ test("compareSummaryWithRecord：逐字段核对库内 summary", () => {
     accuracy: 1,
     judgeErrorRate: 0.5,
     judgeErrorKinds: [{ kind: "timeout", count: 1 }],
+    judgeAgreement: 1,
+    judgeAgreementMeasured: 1,
+    judgeDisagreement: 0,
   };
 
   assert.deepEqual(compareSummaryWithRecord(local, record), {
@@ -271,11 +325,11 @@ test("compareSummaryWithRecord：逐字段核对库内 summary", () => {
 
   const mismatch = compareSummaryWithRecord(local, {
     ...record,
-    judgeErrorRate: 0.4,
+    judgeAgreement: 0.9,
   });
   assert.equal(mismatch.ok, false);
   assert.deepEqual(
     mismatch.mismatches.map((item) => item.field),
-    ["judgeErrorRate"],
+    ["judgeAgreement"],
   );
 });

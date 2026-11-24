@@ -51,7 +51,7 @@ function makeExternalRun() {
     codeVersion: 'sha-abc',
     gateMode: 'shadow',
     judgeSpecVersion: 'v1',
-    metricSpecVersion: '2',
+    metricSpecVersion: '3',
     dataset: {
       id: 'ds-e2e',
       name: 'e2e:fp1234',
@@ -67,10 +67,16 @@ function promotableRun(overrides: Record<string, any> = {}) {
   return {
     id: 'run-ext-1',
     status: 'COMPLETED',
-    summary: { judgeErrorRate: 0.01, judgeErrorKinds: [] },
+    summary: {
+      judgeErrorRate: 0.01,
+      judgeErrorKinds: [],
+      judgeAgreement: 0.98,
+      judgeAgreementMeasured: 40,
+      judgeDisagreement: 1,
+    },
     codeVersion: 'sha-abc',
     judgeSpecVersion: 'v2',
-    metricSpecVersion: '2',
+    metricSpecVersion: '3',
     datasetSnapshot: { hash: 'fp1234', cases: [] },
     ...overrides,
   };
@@ -225,12 +231,16 @@ describe('AiEvalDatasetService external runs', () => {
           answerVerdict: 'correct',
           reason: 'ok',
           grounding: 'kb',
+          judgeAgreement: 1,
+          judgeSuccessfulAttempts: 3,
         },
         {
           caseId: 'q2',
           answerVerdict: 'incorrect',
           reason: 'no',
           grounding: 'kb',
+          judgeAgreement: 0.67,
+          judgeSuccessfulAttempts: 3,
         },
         {
           caseId: 'q3',
@@ -238,6 +248,9 @@ describe('AiEvalDatasetService external runs', () => {
           judgeErrorKind: 'timeout',
           reason: 'judge timeout',
           grounding: 'kb',
+          judgeAgreement: 1,
+          judgeSuccessfulAttempts: 3,
+          judgeDisagreement: true,
         },
       ],
     });
@@ -262,6 +275,10 @@ describe('AiEvalDatasetService external runs', () => {
     });
     expect(summary.grounding).toEqual({ kb: 3 });
     expect(summary.mode).toBe('EXTERNAL');
+    // 判官稳定性进 summary Json（不加数据库列）：3 条都有 ≥2 次成功，1 条全票一致。
+    expect(summary.judgeAgreement).toBe(0.3333);
+    expect(summary.judgeAgreementMeasured).toBe(3);
+    expect(summary.judgeDisagreement).toBe(1);
   });
 
   it('汇总按 judgeErrorKind 输出错误类型分布（降序、同数按类型名）', async () => {
@@ -427,13 +444,69 @@ describe('AiEvalDatasetService promote baseline', () => {
   it('指标定义版本不一致时拒绝', async () => {
     const { service, prisma } = makeService();
     prisma.aiEvalRun.findUnique.mockResolvedValue(
-      promotableRun({ metricSpecVersion: '1' }),
+      promotableRun({ metricSpecVersion: '2' }),
     );
 
     await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
-      /metricSpecVersion 1 != current 2/,
+      /metricSpecVersion 2 != current 3/,
     );
     expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
+  });
+
+  it('缺少 judgeAgreement 时拒绝，并提示如何测量', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({
+        summary: { judgeErrorRate: 0.01, judgeErrorKinds: [] },
+      }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
+      /no judgeAgreement.*EVAL_JUDGE_REPEATS/,
+    );
+    expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
+  });
+
+  it('judgeAgreement 低于 95% 时拒绝', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({
+        summary: {
+          judgeErrorRate: 0.01,
+          judgeErrorKinds: [],
+          judgeAgreement: 0.9,
+          judgeAgreementMeasured: 80,
+        },
+      }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
+      /judgeAgreement 90\.00% is not at least 95\.00% \(measured on 80 cases\)/,
+    );
+    expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
+  });
+
+  it('judgeAgreement 达到 97% 时通过', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({
+        summary: {
+          judgeErrorRate: 0.01,
+          judgeErrorKinds: [],
+          judgeAgreement: 0.97,
+          judgeAgreementMeasured: 80,
+        },
+      }),
+    );
+
+    await service.promoteRun('run-ext-1');
+
+    expect(prisma.aiEvalRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'run-ext-1' },
+        data: { isBaseline: true },
+      }),
+    );
   });
 
   it('通过校验后在事务内清旧基线并登记新基线', async () => {

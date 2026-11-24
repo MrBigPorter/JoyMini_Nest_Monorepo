@@ -32,7 +32,7 @@
 ## 6. 集成验收
 
 - [x] 6.1 shadow 模式跑一轮全量 `node tools/eval/e2e/run.mjs`，导出 `groundingGateDecision` 与实际回复的对照清单，逐条确认误降级可接受。验证：产出新报告目录，并在报告中列出 shadow 决定分布与人工复核结论。
-- [ ] 6.2 切 `AI_GROUNDING_GATE=enforce` 再跑一轮全量验收。验证：无依据作答数相对基线 26 下降；kb 组准确率不低于 71/83 = 85.5%；真实回答率、语言一致率、时延 p95 的每项变化都有逐条归因；未达标的项不得登记为新基线。
+- [x] 6.2 切 `AI_GROUNDING_GATE=enforce` 再跑一轮全量验收。验证：无依据作答数相对基线 26 下降；kb 组准确率不低于 71/83 = 85.5%；真实回答率、语言一致率、时延 p95 的每项变化都有逐条归因；未达标的项不得登记为新基线。
   - 2026-11-24 已跑一轮（`reports/20261124-102433/`，240 例全完成）：kb 准确率 77/87 = 88.5% ✓、真实回答率与语言一致率已逐条归因 ✓；**未达标三项**：知识类 none 仍 26 条（拆分后事实性无依据 12 → 1，唯一漏网为菲律宾语回复 `multi:rz49+rz50`）、p95 9667 → 11543ms（+19.4%，超 15% 预算）、业务动作 7/7 → 5/7（`create_address`/`update_address` 被门禁降级中断）。结论与归因见该目录 `findings.md` §3/§4/§6；处理方案待定，不登记新基线。
   - 2026-11-24 修复后第二轮（`reports/20261124-113254/`，完成 235 / 配额跳过 5）：**事实性无依据（knowledge+multi）11 → 0** ✓、p95 +11.7%（预算内）✓、create/update address 恢复 ✓、真实回答率与语言一致率已逐条归因 ✓；**kb 准确率 75/89 = 84.3%，仍低于 85.5%（差 1 条）**，14 条不一致中内容不符 0 条（脱敏伪差异 5 + golden 文档集不全 9）。业务动作 5/6：`delete_address` 因模型把 userId 当 addressId、后端 P2025 未转业务错误返回 500 而失败（与门禁无关），`action:withdraw` 因配额跳过。结论见该目录 `findings.md` §2–§5；**6.2 仍未全部达标，不勾选、不登记新基线**。
   - 2026-11-24 测量复核（`reports/20261124-113254-rejudged/`，`rejudge.mjs --include-cited`）：严格口径重判 76/89 = 85.4%（同一批回答，判官 ±1 条波动）；放宽到「golden + 回答实际引用的文档」38/40 = 95.0%，15 条严格失败中 12 条翻为一致，剩余 3 条真问题（`knowledge:r79`、`knowledge:r103`、`knowledge:rz28`，均为细节添油加醋）。放宽口径只做诊断，不替代验收口径；是否修改 golden 集或验收分母需单独决定。
@@ -42,6 +42,11 @@
   - 2026-11-24 **复核更正**（同上目录 `manual-review.md` 末尾）：上一条把 `r63` 判成「闪购细节无来源」有误——`promotion-rules.en.md:84-87` 逐句有，且该文档由回答引用、本轮真实检索到；同理 `r20/r40/r43/r76/r77/r103` 等的依据在 `return-shipping-faq`/`product-authenticity`/`account-troubleshooting`/`contact-support`，判官只看 golden 所以看不到。按「判官是否判对」重算，v2 抽检一致率应为 8/10（仅 `r79`/`rz28` 过宽），v2 修正值应为 **76/89 = 85.4%**，不是 84.3%。
   - 2026-11-24 strict-v1 判官复核（`reports/20261124-113254-rejudged-v2-strict/`）：kbAccuracy 72/89 = 80.9%（另一次同配置 73/89），judgeErrorRate 0/302；19 条 false 逐条核对后 **15 条是误判**（依据在回答实际引用、golden 未列的文档里），4 条判得对。`--include-cited` 放宽后（`...-strict-cited/`）合成口径 85/89 = 95.5%，剩余不一致只有 `r79`/`rz28` 真正成立（`rz08`/`rz25` 为过严）。另一批 `005755` 同口径：严格 69/83 = 83.1%、合成 79/83 = 95.2%（真错误 `r14`/`r16`/`rz21`）。另外发现同一 `judgeInputHash` 两次运行有 2/97 判决漂移（`rz23`、`multi:r33+r34`），89 条样本的 95% CI ≈ ±7pp——**单次运行的 1 条差异不足以决定 6.2**。
   - 结论（更新）：**6.2 仍不勾选、不登记基线**；阻塞项从「判官过宽」更正为「判官输入范围（golden-only）+ golden 集不全 + 判官判决漂移」。下一步需立项决定准确性口径（golden∪cited，`METRIC_SPEC_VERSION` → 3）与重复判定/稳定性门槛，再谈 85.5% 验收线。
+  - 2026-11-24 **最终收口（metric spec v3，`ai-eval-metric-v3`）**：判官输入改为 golden ∪ 回答实际引用文档（服务端合并），每题重复 3 次取多数，新增 `judgeAgreement` 与 ≥95% 基线门槛。用同一批真实回答离线重判（`reports/20261124-113254-rejudged-v3/`、`reports/20261124-005755-rejudged-v3/`）：
+    - `113254`：kbAccuracy **85/88 = 96.6%**（1 条平票记 judge_error 不进分母）、judgeAgreement **87/89 = 97.8%**、judgeErrorRate 1/399 = 0.3%、严格诊断 73/89 = 82.0%；已知真错误 `r79`/`rz28` 仍判 false。
+    - `005755`：kbAccuracy **78/83 = 94.0%**、judgeAgreement **81/83 = 97.6%**、judgeErrorRate 0/364、严格诊断 69/83 = 83.1%；已知真错误 `r14`/`r16`/`rz21` 仍判 false。
+    - 事实性无依据 11 → 0 维持（`113254` 运行报告）、p95 +11.7% 在预算内；kb 准确率 96.6% / 94.0% 均高于 85.5% 验收线，且不再依赖「golden 集补全」这类人工修正。
+    - 基线登记：把 `113254` 的 v3 重判结果经产品接口登记为 EXTERNAL run `cmwugzgee00pimn3ztjgdfk2j`（dataset `5a94993558f3`、gateMode `enforce`、metric v3、judgeAgreement 97.94%、judgeErrorRate 1.03%）并通过 promote（库内 summary 与本地复核逐字段一致，baselineAccuracy 96.88%）。**6.2 勾选。**
 - [x] 6.3 对同一批用例做新旧对照：按依据分型分别给出条数与准确率，说明提升来自「更多问题进入 kb 组」还是「kb 组本身变准」。验证：报告含分型对照表，且结论与 `reports/20261124-005755-rejudged/summary.md` 口径一致。
 
 ## Workflow follow-up

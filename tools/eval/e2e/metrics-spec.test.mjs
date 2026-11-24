@@ -4,9 +4,11 @@ import test from "node:test";
 import {
   answerAccuracy,
   answeredRate,
+  hasRepeatEvidence,
   hitAt3Rate,
   isApplicableJudged,
   isJudgeError,
+  judgeAgreement,
   judgeErrorKinds,
   judgeErrorRate,
   METRIC_SPEC_VERSION,
@@ -29,8 +31,8 @@ const notApplicable = {
   errorKind: "not_applicable",
 };
 
-test("版本号固定为 2", () => {
-  assert.equal(METRIC_SPEC_VERSION, 2);
+test("版本号固定为 3", () => {
+  assert.equal(METRIC_SPEC_VERSION, 3);
 });
 
 test("answerAccuracy：correct/(correct+incorrect)，judge_error 与不适用不进分母", () => {
@@ -84,6 +86,52 @@ test("judgeErrorKinds：按失败类型计数并降序", () => {
       { kind: "auth", count: 1 },
     ],
   );
+});
+
+test("judgeAgreement：全票一致 / 有 ≥2 次成功；2:1 与成功不足分别处理", () => {
+  const unanimous = {
+    faithful: true,
+    judgeAgreement: 1,
+    judgeSuccessfulAttempts: 3,
+    judgeDisagreement: false,
+  };
+  const split = {
+    faithful: true,
+    judgeAgreement: 0.67,
+    judgeSuccessfulAttempts: 3,
+    judgeDisagreement: false,
+  };
+  const tie = {
+    faithful: null,
+    errorKind: "output_format",
+    judgeAgreement: 0.5,
+    judgeSuccessfulAttempts: 2,
+    judgeDisagreement: true,
+  };
+  const lowAttempts = {
+    faithful: true,
+    judgeAgreement: 1,
+    judgeSuccessfulAttempts: 1,
+    judgeDisagreement: true,
+  };
+  const legacyV2 = { faithful: true }; // 没有逐次证据
+
+  const bucket = judgeAgreement([unanimous, split, tie, lowAttempts, legacyV2]);
+  assert.equal(bucket.measured, 3); // unanimous + split + tie
+  assert.equal(bucket.unanimous, 1);
+  assert.equal(bucket.disagreements, 1);
+  assert.equal(bucket.total, 3);
+  assert.equal(bucket.pct, (1 / 3) * 100);
+
+  assert.equal(hasRepeatEvidence(lowAttempts), false);
+  assert.equal(hasRepeatEvidence(legacyV2), false);
+  assert.equal(hasRepeatEvidence(unanimous), true);
+
+  // 全部成功但 2:1 时一致性为 0；平票单独计入分歧
+  const splitOnly = judgeAgreement([split, tie]);
+  assert.equal(splitOnly.measured, 2);
+  assert.equal(splitOnly.unanimous, 0);
+  assert.equal(splitOnly.disagreements, 1);
 });
 
 test("answeredRate：兜底话术不算已答，分母是全部轮次", () => {

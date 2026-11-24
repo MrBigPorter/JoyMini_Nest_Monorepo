@@ -76,6 +76,7 @@ export class RagController {
       sources: dto.sources,
       expectedDocIds: dto.expectedDocIds,
       citedDocIds: dto.citedDocIds,
+      repeats: dto.repeats,
     });
   }
 

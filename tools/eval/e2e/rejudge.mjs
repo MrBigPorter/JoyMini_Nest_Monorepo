@@ -3,17 +3,18 @@
  * 离线重判：不重跑用例，只把已有回答重新判一遍。
  *
  *   node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json \
- *     [--out reports/<run>-rejudged] [--concurrency 3] [--limit N] [--include-cited]
+ *     [--out reports/<run>-rejudged] [--concurrency 3] [--limit N] [--with-strict]
  *
- * `--include-cited` 额外跑一遍「放宽口径」：判 B 时把回答实际引用、但 golden
- * 未列出的文档也交给判官，用来区分「回答编造」与「golden 文档集不全」。
- * 严格口径（只给 golden）保持不变，报告同时列两套数字。
+ * v3 默认按「golden ∪ 回答本轮实际引用文档」判；服务端每题重复判定
+ * （`EVAL_JUDGE_REPEATS`，默认 3）并按多数聚合。
+ * `--with-strict` 额外再跑一遍只给 golden 的严格口径，存
+ * `rejudge.strictAgreement`，仅作诊断，不参与基线验收。
  *
  * 做三件事：
  *   1. 用 `ai_traces` / `ai_spans` 判清每条回答的依据来源
  *      （兜底 > 工具 > 知识库 > 无依据）；
  *   2. 只对「知识库依据」组重新调 `/admin/rag/documents/judge`，
- *      只传 docId，由端点按 JudgeInputSpec 取 chunk、挑来源并脱敏；
+ *      分别传 expectedDocIds / citedDocIds，由端点合并、取 chunk 并脱敏；
  *   3. 输出新旧对照（校准）：来源未变的对照组一致率、翻真/翻假清单。
  *
  * 旧判定原样保留在 `case.judge`，新判定写到 `case.rejudge`，报告同时渲染两套。
@@ -27,12 +28,71 @@ import { createAdminApi, readBackendEnv } from "./admin.mjs";
 import { loadConfig } from "./config.mjs";
 import { classifyJudgeError } from "./external-sync.mjs";
 import { createThrottle } from "./http.mjs";
-import { cannedReplyCheck, fingerprint, judgeGoldenAgreement } from "./judge.mjs";
-import { METRIC_SPEC_VERSION } from "./metrics-spec.mjs";
+import {
+  cannedReplyCheck,
+  citedDocIdsFor,
+  fingerprint,
+  judgeGoldenAgreement,
+} from "./judge.mjs";
+import {
+  judgeAgreement as summarizeJudgeAgreement,
+  METRIC_SPEC_VERSION,
+} from "./metrics-spec.mjs";
 import { rate, writeReport } from "./report.mjs";
 import { applyGrounding, collectMessageIds, loadGrounding } from "./traces.mjs";
 
 const log = (message) => process.stderr.write(`[rejudge] ${message}\n`);
+
+export const REJUDGE_VERSION = "v3";
+
+/**
+ * 单条重判记录：默认合并口径 + 可选严格诊断。
+ *
+ * `judge` 可注入，单测用桩替掉真实判官调用。
+ */
+export async function judgeRejudgeCase({
+  admin,
+  item,
+  last,
+  withStrict = false,
+  judge = judgeGoldenAgreement,
+}) {
+  const question = last?.question ?? "";
+  const answer = last?.reply?.content ?? "";
+  const goldenAgreement = annotateJudgeError(
+    await judge({
+      admin,
+      question,
+      answer,
+      expectedDocIds: item.expectedDocIds,
+      citedDocIds: citedDocIdsFor(item.expectedDocIds, last?.reply?.sources ?? []),
+    }),
+  );
+  // 严格口径：只给 golden，仅作离线诊断，不参与基线验收。
+  let strictAgreement = null;
+  if (withStrict) {
+    strictAgreement = annotateJudgeError(
+      await judge({
+        admin,
+        question,
+        answer,
+        expectedDocIds: item.expectedDocIds,
+        citedDocIds: [],
+      }),
+    );
+  }
+  return {
+    version: REJUDGE_VERSION,
+    basis: "kb",
+    applicable: true,
+    evidence: item.judge?.grounding,
+    goldenAgreement,
+    ...(strictAgreement ? { strictAgreement } : {}),
+    judgeRepeats: goldenAgreement?.judgeRepeats ?? null,
+    judgeAgreement: goldenAgreement?.judgeAgreement ?? null,
+    judgeDisagreement: goldenAgreement?.judgeDisagreement ?? null,
+  };
+}
 
 export function parseRejudgeArgs(argv = []) {
   const args = {
@@ -40,14 +100,14 @@ export function parseRejudgeArgs(argv = []) {
     out: null,
     concurrency: 3,
     limit: 0,
-    includeCited: false,
+    withStrict: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     if (token === "--out") args.out = argv[++index];
     else if (token === "--concurrency") args.concurrency = Number(argv[++index]) || 3;
     else if (token === "--limit") args.limit = Number(argv[++index]) || 0;
-    else if (token === "--include-cited") args.includeCited = true;
+    else if (token === "--with-strict") args.withStrict = true;
     else if (!token.startsWith("-") && !args.input) args.input = token;
   }
   return args;
@@ -168,7 +228,7 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
   const args = parseRejudgeArgs(argv);
   if (!args.input) {
     throw new Error(
-      "用法：node tools/eval/e2e/rejudge.mjs <detail.json> [--out DIR] [--concurrency 3] [--limit N]",
+      "用法：node tools/eval/e2e/rejudge.mjs <detail.json> [--out DIR] [--concurrency 3] [--limit N] [--with-strict]",
     );
   }
 
@@ -223,48 +283,12 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
     while (queue.length > 0) {
       const item = queue.shift();
       const last = item.rounds?.[item.rounds.length - 1];
-      const question = last?.question ?? "";
-      const answer = last?.reply?.content ?? "";
-      const goldenAgreement = annotateJudgeError(
-        await judgeGoldenAgreement({
-          admin,
-          question,
-          answer,
-          expectedDocIds: item.expectedDocIds,
-        }),
-      );
-      // 放宽口径：把回答实际引用、但 golden 没列出的文档也交给判官。
-      // 只做诊断，不覆盖严格口径；用于区分「回答编造」与「golden 集不全」。
-      let expandedAgreement = null;
-      if (args.includeCited) {
-        const expected = new Set(item.expectedDocIds ?? []);
-        const extraDocIds = [
-          ...new Set(
-            (last?.reply?.sources ?? [])
-              .map((source) => source?.docId)
-              .filter((docId) => docId && !expected.has(docId)),
-          ),
-        ];
-        if (extraDocIds.length > 0) {
-          expandedAgreement = annotateJudgeError(
-            await judgeGoldenAgreement({
-              admin,
-              question,
-              answer,
-              expectedDocIds: item.expectedDocIds,
-              extraDocIds,
-            }),
-          );
-        }
-      }
-      item.rejudge = {
-        version: "v2",
-        basis: "kb",
-        applicable: true,
-        evidence: item.judge.grounding,
-        goldenAgreement,
-        ...(expandedAgreement ? { expandedAgreement } : {}),
-      };
+      item.rejudge = await judgeRejudgeCase({
+        admin,
+        item,
+        last,
+        withStrict: args.withStrict,
+      });
       done += 1;
       if (done % 20 === 0) log(`进度 ${done}/${targets.length}`);
     }
@@ -280,7 +304,7 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
   for (const item of cases) {
     if (item.rejudge || !item.judge?.grounding) continue;
     item.rejudge = {
-      version: "v2",
+      version: "v3",
       basis: item.judge.grounding.kind,
       applicable: item.judge.grounding.kind === "kb",
       evidence: item.judge.grounding,
@@ -289,6 +313,12 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
   }
 
   const calibration = buildCalibration(cases, chunkTotals);
+  const agreement = summarizeJudgeAgreement(
+    cases.map((item) => item.rejudge?.goldenAgreement ?? null),
+  );
+  const firstJudge = cases.find(
+    (item) => item.rejudge?.goldenAgreement?.judgeRepeats != null,
+  )?.rejudge.goldenAgreement;
   const runDir = path.dirname(path.resolve(args.input));
   const out =
     args.out ?? path.join(path.dirname(runDir), `${path.basename(runDir)}-rejudged`);
@@ -299,13 +329,17 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
         at: new Date().toISOString(),
         input: args.input,
         rejudgedCases: targets.length,
-        includeCited: args.includeCited,
+        withStrict: args.withStrict,
         judgeSpecVersion,
         judgePromptVersion:
           cases.find(
             (item) => item.rejudge?.goldenAgreement?.judgePromptVersion,
           )?.rejudge.goldenAgreement.judgePromptVersion ?? null,
         metricSpecVersion: String(METRIC_SPEC_VERSION),
+        judgeRepeats: firstJudge?.judgeRepeats ?? null,
+        judgeAgreement: agreement.pct,
+        judgeAgreementMeasured: agreement.measured,
+        judgeDisagreement: agreement.disagreements,
         fingerprint: fingerprint(cases.map((item) => item.id)),
         judgeModel:
           cases.find((item) => item.judge?.taskJudge?.judgeModel)?.judge

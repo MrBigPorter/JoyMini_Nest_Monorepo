@@ -10,7 +10,9 @@ import {
 import {
   annotateJudgeError,
   buildCalibration,
+  judgeRejudgeCase,
   parseRejudgeArgs,
+  REJUDGE_VERSION,
   selectRejudgeCases,
   stashV1,
 } from "./rejudge.mjs";
@@ -191,16 +193,65 @@ test("buildCalibration：对照组一致率与翻真/翻假清单", () => {
   ]);
 });
 
-test("parseRejudgeArgs：输入、输出与并发", () => {
+test("judgeRejudgeCase：默认合并 golden+引用，严格口径按需另跑", async () => {
+  const calls = [];
+  const judge = async (input) => {
+    calls.push(input);
+    return {
+      faithful: true,
+      judgeRepeats: 3,
+      judgeAgreement: 1,
+      judgeSuccessfulAttempts: 3,
+      judgeDisagreement: false,
+      judgePromptVersion: "strict-v1",
+    };
+  };
+  const item = {
+    expectedDocIds: ["doc-1"],
+    judge: { grounding: { kind: "kb" } },
+  };
+  const last = {
+    question: "q",
+    reply: {
+      content: "a",
+      sources: [{ docId: "doc-1" }, { docId: "doc-2" }],
+    },
+  };
+
+  const merged = await judgeRejudgeCase({ admin: {}, item, last, judge });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].expectedDocIds, ["doc-1"]);
+  assert.deepEqual(calls[0].citedDocIds, ["doc-2"]);
+  assert.equal(merged.version, REJUDGE_VERSION);
+  assert.equal(merged.goldenAgreement.judgeRepeats, 3);
+  assert.equal(merged.judgeAgreement, 1);
+  assert.equal("strictAgreement" in merged, false);
+
+  calls.length = 0;
+  const strict = await judgeRejudgeCase({
+    admin: {},
+    item,
+    last,
+    withStrict: true,
+    judge,
+  });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1].expectedDocIds, ["doc-1"]);
+  assert.deepEqual(calls[1].citedDocIds, []);
+  assert.equal(strict.strictAgreement.faithful, true);
+  assert.equal(strict.goldenAgreement.judgePromptVersion, "strict-v1");
+});
+
+test("parseRejudgeArgs：输入、输出、并发与严格诊断开关", () => {
   assert.deepEqual(parseRejudgeArgs(["in.json", "--out", "o", "--concurrency", "2"]), {
     input: "in.json",
     out: "o",
     concurrency: 2,
     limit: 0,
-    includeCited: false,
+    withStrict: false,
   });
   assert.equal(
-    parseRejudgeArgs(["in.json", "--include-cited"]).includeCited,
+    parseRejudgeArgs(["in.json", "--with-strict"]).withStrict,
     true,
   );
 });

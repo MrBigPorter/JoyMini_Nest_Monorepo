@@ -49,6 +49,7 @@ import {
   verifyAction,
 } from "./fixtures.mjs";
 import {
+  citedDocIdsFor,
   fingerprint,
   judgeActionCase,
   judgeBoundaryCase,
@@ -131,7 +132,7 @@ function gitInfo() {
  * - codeVersion：完整 git sha（`GIT_SHA` 优先，CI 里没有 .git 也能记）
  * - gateMode：发布门禁当前模式（shadow 时数字与 enforce 不可直接对比）
  * - judgeSpecVersion：判官输入规范版本（Phase 2 起默认 v2，v1 仅回滚用）
- * - metricSpecVersion：指标定义版本（当前为 2）
+ * - metricSpecVersion：指标定义版本（当前为 3）
  */
 export function buildRunMetadata({
   env = process.env,
@@ -971,6 +972,10 @@ export async function main(env = process.env) {
         question: last?.question ?? item.question ?? "",
         answer: last?.reply?.content ?? "",
         expectedDocIds: item.expectedDocIds,
+        citedDocIds: citedDocIdsFor(
+          item.expectedDocIds,
+          last?.reply?.sources ?? [],
+        ),
       });
     }
     if (missing.length > 0) {

@@ -20,6 +20,16 @@ import {
 
 export type { JudgeSource };
 
+/** 单次判官尝试。`faithful: null` 表示这次尝试失败（见 errorKind）。 */
+export interface FaithfulnessAttempt {
+  faithful: boolean | null;
+  score: number | null;
+  reason: string;
+  unsupportedClaims?: string[];
+  error?: string;
+  errorKind?: JudgeErrorKind;
+}
+
 export interface FaithfulnessResult {
   /** null 表示「判官没能给出判定」，与 `faithful:false`（回答有错）不是一回事。 */
   faithful: boolean | null;
@@ -35,6 +45,18 @@ export interface FaithfulnessResult {
   judgePromptVersion: string;
   /** 实际送审判官的来源条数（服务端解析后）。 */
   sourceCount: number;
+  /** 本次实际发起的判定次数（1/3/5）。 */
+  judgeRepeats?: number;
+  /** 逐次判定明细，供审计与离线复盘。 */
+  judgeAttempts?: FaithfulnessAttempt[];
+  /** 成功判定的次数（返回了可解析的 faithful 布尔值）。 */
+  judgeSuccessfulAttempts?: number;
+  /** 多数阵营票数 / 成功次数；全部失败时为 0。 */
+  judgeAgreement?: number;
+  /** 平票或成功次数不足：记为 judge_error，不混入回答错误。 */
+  judgeDisagreement?: boolean;
+  /** 成功次数 < 2（N=1 也会标 true）：该用例不计入稳定性分母。 */
+  judgeLowAttempts?: boolean;
 }
 
 export interface FaithfulnessJudgeParams {
@@ -46,9 +68,15 @@ export interface FaithfulnessJudgeParams {
   expectedDocIds?: string[];
   /** 没传 sources 时，按回答实际引用的 docId 取 chunk。 */
   citedDocIds?: string[];
+  /** 重复判定次数；不传读 EVAL_JUDGE_REPEATS，默认 3。 */
+  repeats?: number;
 }
 
 const MAX_JUDGE_DOCS = 10;
+
+/** 只接受奇数，保证成功判定之间总有多数票。 */
+export const JUDGE_REPEAT_OPTIONS = [1, 3, 5] as const;
+const DEFAULT_JUDGE_REPEATS = 3;
 
 /**
  * 判官提示词版本。
@@ -177,31 +205,64 @@ export class RagFaithfulnessService {
       specVersion,
     });
 
+    const repeats = this.resolveJudgeRepeats(params.repeats);
+    // 并行发起同一输入的 N 次判定；聚合只在这里做一次，在线/离线共用。
+    const attempts = await Promise.all(
+      Array.from({ length: repeats }, () =>
+        this.runJudgeAttempt(judgeInput.input),
+      ),
+    );
+
+    return this.aggregateAttempts(attempts, {
+      repeats,
+      judgeInputHash: judgeInput.judgeInputHash,
+      judgeSpecVersion: specVersion,
+      sourceCount: judgeInput.sourceCount,
+    });
+  }
+
+  /** 解析重复次数：显式传入 > EVAL_JUDGE_REPEATS > 默认 3；非法值告警后回落。 */
+  private resolveJudgeRepeats(requested?: number): number {
+    if (requested !== undefined) {
+      if ((JUDGE_REPEAT_OPTIONS as readonly number[]).includes(requested)) {
+        return requested;
+      }
+      this.logger.warn(
+        `[faithfulness] repeats=${String(requested)} not allowed (1/3/5), falling back to ${DEFAULT_JUDGE_REPEATS}`,
+      );
+      return DEFAULT_JUDGE_REPEATS;
+    }
+
+    const raw = this.configService.get<string | number>('EVAL_JUDGE_REPEATS');
+    if (raw === undefined || raw === null || raw === '') {
+      return DEFAULT_JUDGE_REPEATS;
+    }
+    const parsed = Number(raw);
+    if ((JUDGE_REPEAT_OPTIONS as readonly number[]).includes(parsed)) {
+      return parsed;
+    }
+    this.logger.warn(
+      `[faithfulness] EVAL_JUDGE_REPEATS=${String(raw)} not allowed (1/3/5), falling back to ${DEFAULT_JUDGE_REPEATS}`,
+    );
+    return DEFAULT_JUDGE_REPEATS;
+  }
+
+  /** 单次判定：把解析失败与调用异常都收敛为一次「失败尝试」，不中断其它并行判定。 */
+  private async runJudgeAttempt(input: string): Promise<FaithfulnessAttempt> {
     try {
-      const raw = await this.chain.invoke({ input: judgeInput.input });
+      const raw = await this.chain.invoke({ input });
       const parsed = parseJudgeOutput(raw);
       if (!parsed) {
         this.logger.warn('[faithfulness] judge output is not valid JSON');
         return {
           faithful: null,
           score: null,
-          unsupportedClaims: [],
           reason: 'judge_parse_failed',
           error: String(raw).slice(0, 500),
           errorKind: 'output_format',
-          judgeInputHash: judgeInput.judgeInputHash,
-          judgeSpecVersion: specVersion,
-          judgePromptVersion: JUDGE_PROMPT_VERSION,
-          sourceCount: judgeInput.sourceCount,
         };
       }
-      return {
-        ...parsed,
-        judgeInputHash: judgeInput.judgeInputHash,
-        judgeSpecVersion: specVersion,
-        judgePromptVersion: JUDGE_PROMPT_VERSION,
-        sourceCount: judgeInput.sourceCount,
-      };
+      return parsed;
     } catch (err) {
       this.logger.warn(
         `[faithfulness] judge call failed: ${(err as Error)?.message ?? err}`,
@@ -209,16 +270,106 @@ export class RagFaithfulnessService {
       return {
         faithful: null,
         score: null,
-        unsupportedClaims: [],
         reason: 'judge_error',
         error: String((err as Error)?.message ?? err).slice(0, 500),
         errorKind: classifyJudgeError(err),
-        judgeInputHash: judgeInput.judgeInputHash,
-        judgeSpecVersion: specVersion,
-        judgePromptVersion: JUDGE_PROMPT_VERSION,
-        sourceCount: judgeInput.sourceCount,
       };
     }
+  }
+
+  /**
+   * 多数聚合。
+   *
+   * - 成功 0 次：沿用失败分类，judge_error；
+   * - 成功不足 2 次（N>1）：判官_error + judge_disagreement，保留逐次错误类型；
+   * - 平票：同上，但 errorKind 取首个失败类型（没有失败则 output_format）；
+   * - 否则取多数阵营的首次结果。N=1 成功时等价旧行为。
+   */
+  private aggregateAttempts(
+    attempts: FaithfulnessAttempt[],
+    base: {
+      repeats: number;
+      judgeInputHash: string;
+      judgeSpecVersion: JudgeSpecVersion;
+      sourceCount: number;
+    },
+  ): FaithfulnessResult {
+    const successes = attempts.filter(
+      (attempt): attempt is FaithfulnessAttempt & { faithful: boolean } =>
+        attempt.faithful !== null,
+    );
+    const failures = attempts.filter((attempt) => attempt.faithful === null);
+    const trueVotes = successes.filter((attempt) => attempt.faithful).length;
+    const falseVotes = successes.length - trueVotes;
+    const majority =
+      trueVotes > falseVotes ? true : falseVotes > trueVotes ? false : null;
+    const judgeAgreement =
+      successes.length > 0
+        ? Math.round((Math.max(trueVotes, falseVotes) / successes.length) * 100) /
+          100
+        : 0;
+
+    const common = {
+      judgeInputHash: base.judgeInputHash,
+      judgeSpecVersion: base.judgeSpecVersion,
+      judgePromptVersion: JUDGE_PROMPT_VERSION,
+      sourceCount: base.sourceCount,
+      judgeRepeats: base.repeats,
+      judgeAttempts: attempts,
+      judgeSuccessfulAttempts: successes.length,
+      judgeAgreement,
+      judgeLowAttempts: successes.length < 2,
+    };
+
+    if (successes.length === 0) {
+      const first = failures[0];
+      return {
+        ...common,
+        faithful: null,
+        score: null,
+        unsupportedClaims: [],
+        reason: 'judge_error',
+        error: first?.error,
+        errorKind: first?.errorKind ?? 'output_format',
+        judgeDisagreement: false,
+      };
+    }
+
+    if (base.repeats > 1 && successes.length < 2) {
+      return {
+        ...common,
+        faithful: null,
+        score: null,
+        unsupportedClaims: [],
+        reason: 'judge_disagreement',
+        error: failures[0]?.error,
+        errorKind: failures[0]?.errorKind ?? 'output_format',
+        judgeDisagreement: true,
+      };
+    }
+
+    if (majority === null) {
+      return {
+        ...common,
+        faithful: null,
+        score: null,
+        unsupportedClaims: [],
+        reason: 'judge_disagreement',
+        error: failures[0]?.error,
+        errorKind: failures[0]?.errorKind ?? 'output_format',
+        judgeDisagreement: true,
+      };
+    }
+
+    const winner = successes.find((attempt) => attempt.faithful === majority)!;
+    return {
+      ...common,
+      faithful: winner.faithful,
+      score: winner.score,
+      unsupportedClaims: winner.unsupportedClaims ?? [],
+      reason: winner.reason,
+      judgeDisagreement: false,
+    };
   }
 
   /**

@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -67,4 +69,15 @@ export class JudgeRagDto {
   @IsArray()
   @IsString({ each: true })
   citedDocIds?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      '重复判定次数（奇数，允许 1/3/5）。不传时读 EVAL_JUDGE_REPEATS，默认 3；N=1 等价单次判定。',
+    enum: [1, 3, 5],
+    default: 3,
+  })
+  @IsOptional()
+  @IsInt()
+  @IsIn([1, 3, 5])
+  repeats?: number;
 }

@@ -1,5 +1,5 @@
 /**
- * 指标规范的唯一实现（METRIC_SPEC_VERSION = 2）。
+ * 指标规范的唯一实现（METRIC_SPEC_VERSION = 3）。
  *
  * 任何指标含义、分母或排除项的变化都必须提升版本号；文本定义见
  * `METRICS.md`，报告只负责排版，不再内联公式。
@@ -8,11 +8,12 @@
  *   - 两套判定维度不合并：答案准确性（faithful）与任务成功率（solved）分开。
  *   - `judge_error`（faithful === null + errorKind）不进任何准确率分母。
  *   - `harness` / `not_applicable` 不是判官失败，单列且不计入判官错误率。
+ *   - v3：判官输入为 golden ∪ 回答引用文档；每题重复判定，稳定性单列。
  */
 
 import { cannedReplyCheck } from "./judge.mjs";
 
-export const METRIC_SPEC_VERSION = 2;
+export const METRIC_SPEC_VERSION = 3;
 
 /** 判官失败类型：只有这些进入 judgeErrorRate 分子。 */
 export const JUDGE_FAILURE_KINDS = [
@@ -135,6 +136,37 @@ export function judgeErrorKinds(judges) {
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([kind, count]) => ({ kind, count }));
+}
+
+/** 该份判定是否有「≥2 次成功」的重复采样证据；没有就不进稳定性分母。 */
+export const hasRepeatEvidence = (judge) =>
+  Boolean(judge) &&
+  Number.isFinite(Number(judge.judgeSuccessfulAttempts)) &&
+  Number(judge.judgeSuccessfulAttempts) >= 2;
+
+/**
+ * 判官稳定性：全票一致用例 / 有 ≥2 次成功判定的用例。
+ *
+ * 分母刻意排除「只成功 1 次」与 v2 旧数据（没有逐次记录）：
+ * 那两种情况无法区分「一致」与「没测到」。
+ * `judgeDisagreement` 单列，仍属于 judge_error，不混入回答错误。
+ */
+export function judgeAgreement(judges) {
+  const measured = (judges ?? []).filter(hasRepeatEvidence);
+  const unanimous = measured.filter(
+    (judge) =>
+      judge.judgeDisagreement !== true &&
+      Number(judge.judgeAgreement) === 1,
+  ).length;
+  const disagreements = measured.filter(
+    (judge) => judge.judgeDisagreement === true,
+  ).length;
+  return {
+    ...rate(unanimous, measured.length),
+    unanimous,
+    measured: measured.length,
+    disagreements,
+  };
 }
 
 /**

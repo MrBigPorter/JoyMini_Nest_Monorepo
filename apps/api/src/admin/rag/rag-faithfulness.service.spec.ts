@@ -55,17 +55,21 @@ describe('parseJudgeOutput', () => {
 describe('RagFaithfulnessService', () => {
   function makeService({
     spec,
+    repeatsEnv,
     chunks = {},
     invoke,
   }: {
     spec?: string;
+    repeatsEnv?: string | number;
     chunks?: Record<string, Array<Record<string, unknown>>>;
     invoke?: jest.Mock;
   } = {}) {
     const config = {
-      get: jest.fn((key: string, fallback?: unknown) =>
-        key === 'EVAL_JUDGE_SPEC' ? spec : fallback,
-      ),
+      get: jest.fn((key: string, fallback?: unknown) => {
+        if (key === 'EVAL_JUDGE_SPEC') return spec;
+        if (key === 'EVAL_JUDGE_REPEATS') return repeatsEnv;
+        return fallback;
+      }),
     };
     const rag = {
       getChunksByDocId: jest.fn(async (docId: string) => chunks[docId] ?? []),
@@ -84,9 +88,26 @@ describe('RagFaithfulnessService', () => {
     content,
   });
 
+  const source = [{ docId: 'd', content: 'c' }];
+
+  /** 按顺序返回给定输出（字符串视为成功，Error 视为调用失败）。 */
+  const invokeSequence = (...outputs: Array<string | Error>) => {
+    let index = 0;
+    return jest.fn(async () => {
+      const next = outputs[Math.min(index, outputs.length - 1)];
+      index += 1;
+      if (next instanceof Error) throw next;
+      return next;
+    });
+  };
+
+  const faithfulJson = (faithful: boolean, reason = 'r') =>
+    JSON.stringify({ faithful, score: faithful ? 1 : 0, reason });
+
   it('没有 golden 时按 citedDocIds 由服务端取 chunk', async () => {
     const { service, rag, chainInvoke } = makeService({
       chunks: { 'refund-policy': [chunk('refund-policy', '退款 1-3 天')] },
+      repeatsEnv: 1,
     });
 
     const result = await service.judge({
@@ -105,6 +126,7 @@ describe('RagFaithfulnessService', () => {
 
   it('expected 与 cited 合并去重，golden 文档优先', async () => {
     const { service, rag } = makeService({
+      repeatsEnv: 1,
       chunks: {
         golden: [chunk('golden', 'golden text')],
         cited: [chunk('cited', 'cited text')],
@@ -136,6 +158,166 @@ describe('RagFaithfulnessService', () => {
     expect(result.score).toBeNull();
     expect(result.errorKind).toBe('not_applicable');
     expect(result.judgeSpecVersion).toBe('v2');
+    expect(result.judgeRepeats).toBeUndefined();
+  });
+
+  it('三次判定一致：采用该结论，agreement 1', async () => {
+    const { service, chainInvoke } = makeService({
+      chunks: { d: [chunk('d', 'c')] },
+      invoke: invokeSequence(
+        faithfulJson(true),
+        faithfulJson(true),
+        faithfulJson(true),
+      ),
+    });
+
+    const result = await service.judge({
+      question: 'q',
+      answer: 'a',
+      sources: source,
+    });
+
+    expect(chainInvoke).toHaveBeenCalledTimes(3);
+    expect(result.faithful).toBe(true);
+    expect(result.judgeRepeats).toBe(3);
+    expect(result.judgeAttempts).toHaveLength(3);
+    expect(result.judgeSuccessfulAttempts).toBe(3);
+    expect(result.judgeAgreement).toBe(1);
+    expect(result.judgeDisagreement).toBe(false);
+    expect(result.judgeLowAttempts).toBe(false);
+  });
+
+  it('三次判定 2:1：采用多数结论，agreement 0.67', async () => {
+    const { service } = makeService({
+      chunks: { d: [chunk('d', 'c')] },
+      invoke: invokeSequence(
+        faithfulJson(false),
+        faithfulJson(false),
+        faithfulJson(true),
+      ),
+    });
+
+    const result = await service.judge({
+      question: 'q',
+      answer: 'a',
+      sources: source,
+    });
+
+    expect(result.faithful).toBe(false);
+    expect(result.judgeAgreement).toBe(0.67);
+    expect(result.judgeDisagreement).toBe(false);
+    expect(result.judgeLowAttempts).toBe(false);
+  });
+
+  it('两次成功但结论相反：平票记 judge_error，单列分歧', async () => {
+    const { service } = makeService({
+      chunks: { d: [chunk('d', 'c')] },
+      invoke: invokeSequence(
+        faithfulJson(true),
+        faithfulJson(false),
+        new Error('judge timed out'),
+      ),
+    });
+
+    const result = await service.judge({
+      question: 'q',
+      answer: 'a',
+      sources: source,
+    });
+
+    expect(result.faithful).toBeNull();
+    expect(result.reason).toBe('judge_disagreement');
+    expect(result.errorKind).toBe('timeout');
+    expect(result.judgeAgreement).toBe(0.5);
+    expect(result.judgeDisagreement).toBe(true);
+    expect(result.judgeLowAttempts).toBe(false);
+  });
+
+  it('仅 1 次成功：记 judge_error，保留逐次错误类型', async () => {
+    const { service } = makeService({
+      chunks: { d: [chunk('d', 'c')] },
+      invoke: invokeSequence(
+        faithfulJson(true),
+        new Error('judge rate limit 429'),
+        new Error('judge timed out'),
+      ),
+    });
+
+    const result = await service.judge({
+      question: 'q',
+      answer: 'a',
+      sources: source,
+    });
+
+    expect(result.faithful).toBeNull();
+    expect(result.reason).toBe('judge_disagreement');
+    expect(result.errorKind).toBe('rate_limit');
+    expect(result.judgeSuccessfulAttempts).toBe(1);
+    expect(result.judgeAgreement).toBe(1);
+    expect(result.judgeDisagreement).toBe(true);
+    expect(result.judgeLowAttempts).toBe(true);
+  });
+
+  it('三次全部失败：沿用失败分类，agreement 0', async () => {
+    const { service } = makeService({
+      chunks: { d: [chunk('d', 'c')] },
+      invoke: invokeSequence(
+        new Error('invalid api key'),
+        new Error('invalid api key'),
+        new Error('invalid api key'),
+      ),
+    });
+
+    const result = await service.judge({
+      question: 'q',
+      answer: 'a',
+      sources: source,
+    });
+
+    expect(result.faithful).toBeNull();
+    expect(result.reason).toBe('judge_error');
+    expect(result.errorKind).toBe('auth');
+    expect(result.judgeSuccessfulAttempts).toBe(0);
+    expect(result.judgeAgreement).toBe(0);
+    expect(result.judgeDisagreement).toBe(false);
+    expect(result.judgeLowAttempts).toBe(true);
+  });
+
+  it('N=1 等价单次判定，并标记尝试次数不足', async () => {
+    const { service, chainInvoke } = makeService({
+      chunks: { d: [chunk('d', 'c')] },
+      invoke: invokeSequence(faithfulJson(true)),
+    });
+
+    const result = await service.judge({
+      question: 'q',
+      answer: 'a',
+      sources: source,
+      repeats: 1,
+    });
+
+    expect(chainInvoke).toHaveBeenCalledTimes(1);
+    expect(result.faithful).toBe(true);
+    expect(result.judgeRepeats).toBe(1);
+    expect(result.judgeAgreement).toBe(1);
+    expect(result.judgeLowAttempts).toBe(true);
+  });
+
+  it('EVAL_JUDGE_REPEATS 非法值回落 3 次', async () => {
+    const { service, chainInvoke, config } = makeService({
+      repeatsEnv: '4',
+      chunks: { d: [chunk('d', 'c')] },
+    });
+
+    const result = await service.judge({
+      question: 'q',
+      answer: 'a',
+      sources: source,
+    });
+
+    expect(config.get).toHaveBeenCalledWith('EVAL_JUDGE_REPEATS');
+    expect(chainInvoke).toHaveBeenCalledTimes(3);
+    expect(result.judgeRepeats).toBe(3);
   });
 
   it('判官输出无法解析：faithful null + output_format，不算回答错误', async () => {
@@ -147,7 +329,7 @@ describe('RagFaithfulnessService', () => {
     const result = await service.judge({
       question: 'q',
       answer: 'a',
-      sources: [{ docId: 'd', content: 'c' }],
+      sources: source,
     });
 
     expect(result.faithful).toBeNull();
@@ -166,7 +348,7 @@ describe('RagFaithfulnessService', () => {
     const result = await service.judge({
       question: 'q',
       answer: 'a',
-      sources: [{ docId: 'd', content: 'c' }],
+      sources: source,
     });
 
     expect(result.faithful).toBeNull();
@@ -178,12 +360,13 @@ describe('RagFaithfulnessService', () => {
     const { service } = makeService({
       spec: 'v1',
       chunks: { d: [chunk('d', 'c')] },
+      repeatsEnv: 1,
     });
 
     const result = await service.judge({
       question: 'q',
       answer: 'a',
-      sources: [{ docId: 'd', content: 'c' }],
+      sources: source,
     });
 
     expect(result.judgeSpecVersion).toBe('v1');

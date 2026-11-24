@@ -69,6 +69,38 @@ test("summarize：忠实度只按「判了的」算分母，skip 不算失败", 
   assert.equal(summary.reliability.skippedReasons[0].key, "fixture blocked");
 });
 
+test("summarize：只有不支持点全是联系方式时才算脱敏伪差异", () => {
+  const failed = (id, claims) =>
+    knowledgeCase({
+      id,
+      rounds: [
+        {
+          latencyMs: 1000,
+          reply: { content: "请联系 p***@joymini.com 处理" },
+        },
+      ],
+      judge: {
+        answered: true,
+        faithfulness: null,
+        goldenAgreement: { faithful: false, unsupportedClaims: claims },
+        retrieval: { hitAt1: true, hitAt3: true, citedDocIds: ["d"] },
+        language: { pass: true, skipped: false },
+      },
+    });
+  const summary = summarize([
+    failed("knowledge:pii", ["联系邮箱 p***@joymini.com 不在来源里"]),
+    failed("knowledge:rights", [
+      "权利可在 Account → Privacy Settings 管理",
+      "联系邮箱 p***@joymini.com 不在来源里",
+    ]),
+  ]);
+
+  assert.deepEqual(summary.knowledge.failures.piiMasked, ["knowledge:pii"]);
+  assert.deepEqual(summary.knowledge.failures.contentMismatch, [
+    "knowledge:rights",
+  ]);
+});
+
 test("summarize：动作按验证结果计数，边界按断言计数", () => {
   const summary = summarize([
     {
@@ -110,6 +142,75 @@ test("summarize：动作按验证结果计数，边界按断言计数", () => {
   assert.equal(summary.actions.passed, 1);
   assert.equal(summary.boundaries.total, 1);
   assert.equal(summary.boundaries.passed.successes, 1);
+});
+
+test("renderSummary：v3 主口径、严格诊断与判官一致性三行并列", () => {
+  const meta = {
+    startedAt: "2026-11-23T10:00:00Z",
+    finishedAt: "2026-11-23T10:30:00Z",
+    apiBaseUrl: "http://localhost:3000/api",
+    businessId: "simulation_support_v1",
+    trafficSource: "e2e_acceptance_v1",
+    gitSha: "abc1234",
+    branch: "feat/x",
+    accountCount: 12,
+    concurrency: 4,
+    datasetFingerprint: "deadbeef1234",
+    chatModel: "deepseek-chat",
+    judgeModel: "deepseek-chat",
+  };
+  const merged = knowledgeCase({
+    id: "knowledge:merged",
+    judge: {
+      answered: true,
+      faithfulness: null,
+      goldenAgreement: null,
+      retrieval: { hitAt1: true, hitAt3: true, citedDocIds: ["d"] },
+      language: { pass: true, skipped: false },
+    },
+    rejudge: {
+      goldenAgreement: {
+        faithful: true,
+        judgeAgreement: 1,
+        judgeSuccessfulAttempts: 3,
+        judgeDisagreement: false,
+      },
+      strictAgreement: { faithful: false },
+    },
+  });
+  const split = knowledgeCase({
+    id: "knowledge:split",
+    judge: {
+      answered: true,
+      faithfulness: null,
+      goldenAgreement: null,
+      retrieval: { hitAt1: true, hitAt3: true, citedDocIds: ["d"] },
+      language: { pass: true, skipped: false },
+    },
+    rejudge: {
+      goldenAgreement: {
+        faithful: true,
+        judgeAgreement: 0.67,
+        judgeSuccessfulAttempts: 3,
+        judgeDisagreement: false,
+      },
+    },
+  });
+
+  const text = renderSummary({
+    meta,
+    fixtures: { log: [], blockers: [] },
+    stats: { requests: 10, throttled: 0, retries: 0 },
+    cases: [merged, split],
+  });
+
+  // 主 kbAccuracy 用合并口径（两条都 faithful）
+  assert.match(text, /kbAccuracy（kb 组，只算判得动的） \| 2\/2 = 100\.0%/);
+  // 严格诊断只统计有 strictAgreement 的 1 条
+  assert.match(text, /严格口径诊断.*0\/1 = 0\.0%/);
+  // 一致性：两条都有 ≥2 次成功，只有一条全票一致
+  assert.match(text, /判官一致性（全票一致 \/ ≥2 次成功的用例） \| 1\/2 = 50\.0%/);
+  assert.match(text, /判官分歧（平票或成功不足，记 judge_error） \| 0 条/);
 });
 
 test("renderSummary：输出结论表、动作明细与判定口径", () => {

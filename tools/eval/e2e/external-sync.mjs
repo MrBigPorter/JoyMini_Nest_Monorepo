@@ -153,6 +153,21 @@ function knowledgeVerdict(base, item) {
  * 与「答案准确性」不是同一维度，Phase 1 一律 not_applicable；它们仍会写入
  * run（保持行数与用例数一致），只是不进准确率分母。
  */
+/**
+ * 判官重复采样的稳定性字段（metric spec v3）。
+ * 只有 ≥2 次成功判定才带出去；旧数据没有这些字段，不进稳定性分母。
+ */
+function agreementOf(item) {
+  const judge = item?.judge?.goldenAgreement;
+  const successful = Number(judge?.judgeSuccessfulAttempts);
+  if (!Number.isFinite(successful)) return {};
+  const out = { judgeSuccessfulAttempts: successful };
+  const agreement = Number(judge?.judgeAgreement);
+  if (Number.isFinite(agreement)) out.judgeAgreement = agreement;
+  if (judge?.judgeDisagreement === true) out.judgeDisagreement = true;
+  return out;
+}
+
 export function toExternalResult(item) {
   const last = lastRound(item);
   const grounding =
@@ -163,6 +178,7 @@ export function toExternalResult(item) {
     ...(Number.isFinite(last?.latencyMs)
       ? { latencyMs: Math.max(0, Math.round(last.latencyMs)) }
       : {}),
+    ...agreementOf(item),
   };
 
   if (item.status === "skipped") {
@@ -216,6 +232,17 @@ export function summarizeExternalResults(results) {
     kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
   }
   const judged = counts.correct + counts.incorrect;
+  // 判官稳定性：全票一致用例 / 有 ≥2 次成功判定的用例。
+  const agreementRows = (results ?? []).filter(
+    (item) => (item.judgeSuccessfulAttempts ?? 0) >= 2,
+  );
+  const unanimous = agreementRows.filter(
+    (item) =>
+      item.judgeDisagreement !== true && Number(item.judgeAgreement) === 1,
+  ).length;
+  const judgeDisagreement = agreementRows.filter(
+    (item) => item.judgeDisagreement === true,
+  ).length;
   return {
     total: results?.length ?? 0,
     correct: counts.correct,
@@ -226,6 +253,12 @@ export function summarizeExternalResults(results) {
     judgeErrorKinds: [...kinds.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([kind, count]) => ({ kind, count })),
+    judgeAgreement:
+      agreementRows.length > 0
+        ? round4(unanimous / agreementRows.length)
+        : null,
+    judgeAgreementMeasured: agreementRows.length,
+    judgeDisagreement,
   };
 }
 
@@ -238,6 +271,9 @@ export function compareSummaryWithRecord(local, record) {
     "judgeError",
     "accuracy",
     "judgeErrorRate",
+    "judgeAgreement",
+    "judgeAgreementMeasured",
+    "judgeDisagreement",
   ];
   const mismatches = fields
     .filter((field) => (local?.[field] ?? null) !== (record?.[field] ?? null))

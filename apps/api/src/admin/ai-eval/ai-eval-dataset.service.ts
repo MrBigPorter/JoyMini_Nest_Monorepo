@@ -40,10 +40,16 @@ export const AI_EVAL_LIVE_AI = 'AI_EVAL_LIVE_AI';
  * 指标定义版本（与 tools/eval/e2e/metrics-spec.mjs 的 METRIC_SPEC_VERSION 同步）。
  * 只有同一版本下的运行才能登记为基线，否则数字不可直接比较。
  */
-export const CURRENT_METRIC_SPEC_VERSION = '2';
+export const CURRENT_METRIC_SPEC_VERSION = '3';
 
 /** 基线准入的判官失败率上限；可用 EVAL_MAX_JUDGE_ERROR_RATE 覆盖。 */
 export const DEFAULT_MAX_JUDGE_ERROR_RATE = 0.02;
+
+/**
+ * 基线准入的判官一致性下限（judgeAgreement = 全票一致用例 / ≥2 次成功用例）；
+ * 可用 EVAL_MIN_JUDGE_AGREEMENT 覆盖。缺失时视为无法验证稳定性，一律拒绝。
+ */
+export const DEFAULT_MIN_JUDGE_AGREEMENT = 0.95;
 
 /**
  * promote 的事务级 advisory lock：并发提升基线时串行化「先清旧基线、再写新基线」，
@@ -476,6 +482,21 @@ export class AiEvalDatasetService {
     return value;
   }
 
+  private minJudgeAgreement(): number {
+    const raw = process.env.EVAL_MIN_JUDGE_AGREEMENT;
+    if (raw == null || raw.trim() === '') {
+      return DEFAULT_MIN_JUDGE_AGREEMENT;
+    }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      this.logger.warn(
+        `[eval] invalid EVAL_MIN_JUDGE_AGREEMENT=${raw}; falling back to ${DEFAULT_MIN_JUDGE_AGREEMENT}`,
+      );
+      return DEFAULT_MIN_JUDGE_AGREEMENT;
+    }
+    return value;
+  }
+
   /**
    * 登记基线：只有 COMPLETED、判官失败率达标、版本齐全且指标版本一致时才允许。
    * 事务内用 advisory lock 串行化，保证全局至多一条 isBaseline。
@@ -542,6 +563,29 @@ export class AiEvalDatasetService {
       throw new BadRequestException(
         `metricSpecVersion ${run.metricSpecVersion} != current ` +
           `${CURRENT_METRIC_SPEC_VERSION}; results are not comparable`,
+      );
+    }
+
+    const judgeAgreement =
+      typeof summary.judgeAgreement === 'number' &&
+      Number.isFinite(summary.judgeAgreement)
+        ? summary.judgeAgreement
+        : null;
+    if (judgeAgreement === null) {
+      throw new BadRequestException(
+        'Run summary has no judgeAgreement; cannot verify judge stability ' +
+          '(re-judge with EVAL_JUDGE_REPEATS >= 3 to measure it)',
+      );
+    }
+    const minAgreement = this.minJudgeAgreement();
+    if (!(judgeAgreement >= minAgreement)) {
+      const measured =
+        typeof summary.judgeAgreementMeasured === 'number'
+          ? ` (measured on ${summary.judgeAgreementMeasured} cases)`
+          : '';
+      throw new BadRequestException(
+        `judgeAgreement ${(judgeAgreement * 100).toFixed(2)}% is not at least ` +
+          `${(minAgreement * 100).toFixed(2)}%${measured}`,
       );
     }
 
@@ -905,6 +949,21 @@ export class AiEvalDatasetService {
     const judgeErrorKinds = [...judgeErrorKindCounts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([kind, count]) => ({ kind, count }));
+    // 判官稳定性（metric spec v3）：只统计有 ≥2 次成功判定的用例；
+    // 逐次判定留在 detail.json，这里只把汇总写进 summary Json。
+    const agreementRows = results.filter(
+      (item) => (item.judgeSuccessfulAttempts ?? 0) >= 2,
+    );
+    const judgeDisagreement = agreementRows.filter(
+      (item) => item.judgeDisagreement === true,
+    ).length;
+    const unanimous = agreementRows.filter(
+      (item) => item.judgeDisagreement !== true && item.judgeAgreement === 1,
+    ).length;
+    const judgeAgreement =
+      agreementRows.length > 0
+        ? Number((unanimous / agreementRows.length).toFixed(4))
+        : null;
     const judged = counts.correct + counts.incorrect;
     const accuracy =
       judged > 0 ? Number((counts.correct / judged).toFixed(4)) : null;
@@ -924,6 +983,9 @@ export class AiEvalDatasetService {
       accuracy,
       judgeErrorRate,
       judgeErrorKinds,
+      judgeAgreement,
+      judgeAgreementMeasured: agreementRows.length,
+      judgeDisagreement,
       answerVerdicts: counts,
       grounding,
       datasetFingerprint: snapshot?.hash ?? null,

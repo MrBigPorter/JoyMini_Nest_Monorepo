@@ -5,6 +5,7 @@ import {
   CANNED_REPLIES,
   cannedReplyCheck,
   checkLanguage,
+  citedDocIdsFor,
   classifyGrounding,
   fingerprint,
   judgeActionCase,
@@ -13,7 +14,6 @@ import {
   judgeKnowledgeCase,
   languageProfile,
   leakCheck,
-  mergeJudgeDocIds,
   retrievalCheck,
   similarity,
   sourcesForJudge,
@@ -32,10 +32,10 @@ function round(question, answer, extra = {}) {
 }
 
 const stubAdmin = {
-  judgeFaithfulness: async ({ sources, expectedDocIds }) => {
+  judgeFaithfulness: async ({ sources, expectedDocIds, citedDocIds }) => {
     const sourceCount = Array.isArray(sources)
       ? sources.length
-      : (expectedDocIds?.length ?? 0);
+      : new Set([...(expectedDocIds ?? []), ...(citedDocIds ?? [])]).size;
     return {
       faithful: sourceCount > 0,
       score: 1,
@@ -104,6 +104,31 @@ test("judgeKnowledgeCase：没引用就不判忠实度，golden 一致性单独�
   assert.equal(result.goldenAgreement.faithful, true);
   assert.equal(result.retrieval.hitAt3, false);
   assert.equal(result.language.skipped, false);
+});
+
+test("judgeKnowledgeCase：把本轮引用、非 golden 的文档交给 golden 判定", async () => {
+  let payload = null;
+  const admin = {
+    judgeFaithfulness: async (input) => {
+      if (Array.isArray(input.expectedDocIds)) payload = input;
+      return { faithful: true, score: 1, reason: "ok", sourceCount: 2 };
+    },
+  };
+  await judgeKnowledgeCase({
+    admin,
+    testCase: { id: "k2", lang: "zh", expectedDocIds: ["golden"] },
+    rounds: [
+      round("q", "a", {
+        sources: [
+          { docId: "golden", content: "g" },
+          { docId: "cited", content: "c" },
+        ],
+      }),
+    ],
+    grounding: { kind: "kb" },
+  });
+  assert.deepEqual(payload.expectedDocIds, ["golden"]);
+  assert.deepEqual(payload.citedDocIds, ["cited"]);
 });
 
 test("judgeKnowledgeCase：回答为空不算已答，不发判定请求", async () => {
@@ -370,7 +395,7 @@ test("judgeKnowledgeCase：工具依据不判 golden 一致性，保留 answered
   assert.equal(called, 0);
 });
 
-test("judgeGoldenAgreement：只传 docId，由服务端挑来源并回传口径版本", async () => {
+test("judgeGoldenAgreement：golden 与引用文档分字段传，由服务端合并", async () => {
   let payload = null;
   const admin = {
     judgeFaithfulness: async (input) => {
@@ -390,16 +415,40 @@ test("judgeGoldenAgreement：只传 docId，由服务端挑来源并回传口径
     question: "TLS 1.3?",
     answer: "TLS 1.3",
     expectedDocIds: ["privacy-policy"],
-    extraDocIds: ["cited-doc"],
+    citedDocIds: ["cited-doc"],
   });
   assert.deepEqual(payload, {
     question: "TLS 1.3?",
     answer: "TLS 1.3",
-    expectedDocIds: ["privacy-policy", "cited-doc"],
+    expectedDocIds: ["privacy-policy"],
+    citedDocIds: ["cited-doc"],
   });
+  assert.deepEqual(result.sourceDocIds, ["privacy-policy", "cited-doc"]);
   assert.equal(result.sourceChunks, 3);
   assert.equal(result.judgeSpecVersion, "v2");
   assert.equal(result.judgeInputHash, "abc123");
+});
+
+test("judgeGoldenAgreement：没有引用文档时 citedDocIds 为空", async () => {
+  let payload = null;
+  const admin = {
+    judgeFaithfulness: async (input) => {
+      payload = input;
+      return { faithful: true, score: 1, reason: "ok", sourceCount: 1 };
+    },
+  };
+  await judgeGoldenAgreement({
+    admin,
+    question: "q",
+    answer: "a",
+    expectedDocIds: ["golden-doc"],
+  });
+  assert.deepEqual(payload, {
+    question: "q",
+    answer: "a",
+    expectedDocIds: ["golden-doc"],
+    citedDocIds: [],
+  });
 });
 
 test("judgeGoldenAgreement：服务端没取到 chunk 时标记缺失", async () => {
@@ -440,10 +489,20 @@ test("judgeGoldenAgreement：判官失败不冒充回答错误", async () => {
   assert.match(result.reason, /judge_error/);
 });
 
-test("mergeJudgeDocIds：golden 优先、去重、忽略空值", () => {
+test("citedDocIdsFor：只取非 golden 的引用文档，去重并忽略空值", () => {
   assert.deepEqual(
-    mergeJudgeDocIds(["shipping-policy"], ["return-shipping-faq", "shipping-policy", null, ""]),
-    ["shipping-policy", "return-shipping-faq"],
+    citedDocIdsFor(
+      ["shipping-policy"],
+      [
+        { docId: "return-shipping-faq" },
+        { docId: "shipping-policy" },
+        { docId: null },
+        { docId: "" },
+        { docId: "return-shipping-faq" },
+      ],
+    ),
+    ["return-shipping-faq"],
   );
-  assert.deepEqual(mergeJudgeDocIds([], []), []);
+  assert.deepEqual(citedDocIdsFor([], []), []);
+  assert.deepEqual(citedDocIdsFor(undefined, [{ docId: "a" }]), ["a"]);
 });

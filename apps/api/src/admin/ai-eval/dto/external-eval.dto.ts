@@ -1,12 +1,14 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -155,6 +157,26 @@ export class ExternalEvalResultDto {
   @IsString()
   @MaxLength(64)
   judgeInputHash?: string;
+
+  /**
+   * 判官重复采样的稳定性证据（metric spec v3）。
+   * 只有 `judgeSuccessfulAttempts >= 2` 的用例进入 judgeAgreement 分母；
+   * 这些字段不落 AiEvalResult 列，只用于计算 run summary。
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  judgeAgreement?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  judgeSuccessfulAttempts?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  judgeDisagreement?: boolean;
 
   @IsOptional()
   @IsString()
