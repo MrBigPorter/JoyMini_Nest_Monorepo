@@ -725,6 +725,27 @@ describe('AiEvalDatasetService', () => {
     expect(prisma.aiEvalCase.delete).not.toHaveBeenCalled();
   });
 
+  it('createDataset 拒绝 e2e 前缀并允许普通名称', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalDataset.create.mockImplementation((args: any) =>
+      Promise.resolve({ id: 'ds-new', name: args.data.name }),
+    );
+
+    await expect(
+      service.createDataset({ name: ' e2e:abc' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.aiEvalDataset.create).not.toHaveBeenCalled();
+
+    await service.createDataset({ name: '售后退款回归集' });
+    expect(prisma.aiEvalDataset.create).toHaveBeenCalledWith({
+      data: {
+        name: '售后退款回归集',
+        description: undefined,
+        createdBy: undefined,
+      },
+    });
+  });
+
   it('getDataset 会把超时 RUNNING 标成 FAILED', async () => {
     const { service, prisma } = makeService();
     prisma.aiEvalDataset.findUnique.mockResolvedValue({

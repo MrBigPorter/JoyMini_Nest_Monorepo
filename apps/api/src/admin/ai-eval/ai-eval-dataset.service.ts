@@ -205,6 +205,11 @@ export class AiEvalDatasetService {
     description?: string;
     createdBy?: string;
   }) {
+    if (input.name.trim().toLowerCase().startsWith(EXTERNAL_DATASET_PREFIX)) {
+      throw new BadRequestException(
+        'Dataset name prefix "e2e:" is reserved for harness snapshots',
+      );
+    }
     return this.prisma.aiEvalDataset.create({
       data: {
         name: input.name,
