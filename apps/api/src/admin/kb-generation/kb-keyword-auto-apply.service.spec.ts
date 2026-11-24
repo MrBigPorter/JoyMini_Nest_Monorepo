@@ -166,6 +166,44 @@ describe('KbKeywordAutoApplyService.applyForRun', () => {
   });
 });
 
+describe('KbKeywordAutoApplyService.applyPendingCandidate', () => {
+  function mockPending(prisma: any) {
+    prisma.kbGenerationCandidate.findUnique.mockResolvedValue({
+      ...CANDIDATE,
+      status: 'PENDING',
+    });
+  }
+
+  it('applies even when the document is already at the keyword cap', async () => {
+    // 自动生效必须守上限；人工批准时上限只是建议，否则 frontmatter 词一多，
+    // 这个文档的关键词候选就永远批不动，而界面上没有删词入口。
+    const { service, prisma } = build({
+      doc: { keywords: Array.from({ length: 20 }, (_, i) => `k${i}`) },
+    });
+    mockPending(prisma);
+
+    const result = await service.applyPendingCandidate('cand-1', 'admin-1');
+
+    expect(result.outcome).toBe('applied');
+    expect(prisma.kbGenerationCandidate.updateMany).toHaveBeenCalledWith({
+      where: { id: 'cand-1', status: 'PENDING' },
+      data: expect.objectContaining({ status: 'AUTO_APPLIED' }),
+    });
+  });
+
+  it('still refuses to apply to a document that is not indexed', async () => {
+    const { service, prisma, meilisearchService } = build({
+      doc: { processStatus: 'chunked' },
+    });
+    mockPending(prisma);
+
+    const result = await service.applyPendingCandidate('cand-1', 'admin-1');
+
+    expect(result.outcome).toBe('pending');
+    expect(meilisearchService.updateChunkMetadata).not.toHaveBeenCalled();
+  });
+});
+
 describe('KbKeywordAutoApplyService.rollbackKeyword', () => {
   it('removes only that candidate keyword and refreshes Meili', async () => {
     const { service, prisma, meilisearchService } = build();

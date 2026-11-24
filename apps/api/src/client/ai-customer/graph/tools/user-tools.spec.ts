@@ -1,4 +1,5 @@
 import { createUserTools } from './user-tools';
+import { getPreConfirm } from './pre-confirm';
 import { runWithContext } from '@api/common/logger/trace-context';
 
 /**
@@ -156,6 +157,32 @@ describe('user-tools 身份边界', () => {
     expect(addressService.update).not.toHaveBeenCalled();
     expect(addressService.delete).not.toHaveBeenCalled();
     expect(addressService.resolveGeoIds).not.toHaveBeenCalled();
+  });
+
+  it('弹卡前校验：addressId 是用户 ID 时拒绝，真实地址放行', async () => {
+    const check = getPreConfirm(getTool('deleteAddress'));
+    expect(check).toBeDefined();
+
+    // 线上事故：模型把 getUserProfile 的 id 当 addressId
+    addressService.detail.mockRejectedValueOnce(new Error('not found'));
+    const rejected = await runWithContext({ userId: 'user-A' }, () =>
+      check!({ addressId: 'user-id' }),
+    );
+    expect(rejected).toContain('does not exist');
+    expect(rejected).toContain('never use the user id');
+
+    // 真实地址：detail 命中，放行
+    const passed = await runWithContext({ userId: 'user-A' }, () =>
+      check!({ addressId: 'addr-1' }),
+    );
+    expect(passed).toBeNull();
+  });
+
+  it('弹卡前校验只挂在地址写工具上，createAddress 不需要', () => {
+    expect(getPreConfirm(getTool('updateAddress'))).toBeDefined();
+    expect(getPreConfirm(getTool('deleteAddress'))).toBeDefined();
+    expect(getPreConfirm(getTool('createAddress'))).toBeUndefined();
+    expect(getPreConfirm(getTool('listAddresses'))).toBeUndefined();
   });
 
   it('归属校验：地址不属于当前用户时结构化拒绝（2.6）', async () => {

@@ -2332,16 +2332,32 @@ export interface EvalRun {
   id: string;
   datasetId: string;
   status: string;
-  mode?: 'STORED' | 'LIVE';
+  /** EXTERNAL：结果由 tools/eval/e2e harness 写入，不属于管理端复跑 */
+  mode?: 'STORED' | 'LIVE' | 'EXTERNAL';
   baselineRunId?: string | null;
   createdBy: string | null;
+  datasetSnapshot?: Record<string, any> | null;
+  codeVersion?: string | null;
+  gateMode?: string | null;
+  judgeSpecVersion?: string | null;
+  metricSpecVersion?: string | null;
+  isBaseline?: boolean;
   summary: Record<string, any> | null;
   startedAt: string;
   finishedAt: string | null;
   results?: Array<{
     id: string;
-    verdict: string;
-    score: number;
+    /** 任务成功率；EXTERNAL run 为 null */
+    verdict: string | null;
+    /** 任务成功率分数；EXTERNAL run 为 null */
+    score: number | null;
+    /** 答案准确性（correct | incorrect | judge_error） */
+    answerVerdict?: 'correct' | 'incorrect' | 'judge_error' | null;
+    answerScore?: number | null;
+    grounding?: string | null;
+    judgeErrorKind?: string | null;
+    judgeInputHash?: string | null;
+    judgeSpecVersion?: string | null;
     reason: string;
     actualAnswer?: string | null;
     judgeModel?: string | null;

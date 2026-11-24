@@ -65,13 +65,27 @@ function createController() {
     // Return a fresh object on every call: redaction mutates in place.
     getDataset: jest.fn().mockImplementation(() => Promise.resolve(dataset())),
     getRun: jest.fn().mockImplementation(() => Promise.resolve(run())),
-    cancelRun: jest.fn().mockResolvedValue({ id: 'run-1', status: 'CANCELLED' }),
+    cancelRun: jest
+      .fn()
+      .mockResolvedValue({ id: 'run-1', status: 'CANCELLED' }),
+    createExternalRun: jest.fn().mockResolvedValue({
+      runId: 'run-ext-1',
+      status: 'RUNNING',
+      caseCount: 2,
+    }),
+    ingestExternalResults: jest.fn().mockResolvedValue({
+      id: 'run-ext-1',
+      status: 'COMPLETED',
+    }),
   };
   const judgeService = { judge: jest.fn() };
 
   return {
     datasetService,
-    controller: new AiEvalController(judgeService as any, datasetService as any),
+    controller: new AiEvalController(
+      judgeService as any,
+      datasetService as any,
+    ),
   };
 }
 
@@ -109,6 +123,74 @@ describe('AiEvalController 角色边界', () => {
     );
     expect(roles).not.toContain(Role.VIEWER);
     expect(roles).not.toContain(Role.EDITOR);
+  });
+});
+
+describe('AiEvalController 外部运行（harness 写入）', () => {
+  const originalEvalFlag = process.env.AI_EVAL_ENABLED;
+
+  beforeAll(() => {
+    process.env.AI_EVAL_ENABLED = 'true';
+  });
+
+  afterAll(() => {
+    if (originalEvalFlag === undefined) delete process.env.AI_EVAL_ENABLED;
+    else process.env.AI_EVAL_ENABLED = originalEvalFlag;
+  });
+
+  it('两个写入端点仅允许 SUPER_ADMIN / ADMIN', () => {
+    for (const method of [
+      AiEvalController.prototype.createExternalRun,
+      AiEvalController.prototype.ingestExternalResults,
+    ]) {
+      const roles = Reflect.getMetadata(ROLES_KEY, method) as Role[];
+      expect(roles).toEqual(
+        expect.arrayContaining([Role.SUPER_ADMIN, Role.ADMIN]),
+      );
+      expect(roles).not.toContain(Role.VIEWER);
+      expect(roles).not.toContain(Role.EDITOR);
+    }
+  });
+
+  it('创建外部运行：DTO 与操作人原样转发', async () => {
+    const { controller, datasetService } = createController();
+    const dto = {
+      datasetFingerprint: 'fp-1',
+      cases: [{ caseId: 'knowledge:delivery', question: '多久送达？' }],
+      codeVersion: 'abc1234',
+      gateMode: 'shadow',
+      judgeSpecVersion: 'v1',
+      metricSpecVersion: '1',
+    } as any;
+
+    await controller.createExternalRun(dto, 'admin-1');
+
+    expect(datasetService.createExternalRun).toHaveBeenCalledWith(
+      dto,
+      'admin-1',
+    );
+  });
+
+  it('写入外部结果：runId 与结果原样转发', async () => {
+    const { controller, datasetService } = createController();
+    const dto = {
+      status: 'COMPLETED',
+      cases: [
+        { caseId: 'knowledge:delivery', answerVerdict: 'correct' },
+        {
+          caseId: 'read:balance',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'not_applicable',
+        },
+      ],
+    } as any;
+
+    await controller.ingestExternalResults('run-ext-1', dto);
+
+    expect(datasetService.ingestExternalResults).toHaveBeenCalledWith(
+      'run-ext-1',
+      dto,
+    );
   });
 });
 
@@ -184,13 +266,70 @@ describe('AiEvalController VIEWER 脱敏', () => {
 
     const result: any = await controller.getRun('run-1', Role.ADMIN);
 
-    expect(result.results[0].actualAnswer).toBe(
-      'qa_eval_actual_answer_secret',
-    );
+    expect(result.results[0].actualAnswer).toBe('qa_eval_actual_answer_secret');
     expect(result.results[0].reason).toBe('qa_eval_reason_secret');
     expect(result.results[0].case.question).toBe('qa_eval_question_secret');
     expect(result.results[0].case.answer).toBe('qa_eval_answer_secret');
     expect(result.results[0].case.expected).toBe('应说明退款时效');
     expect(result.results[0].case.expect).toEqual({ mustMention: ['退款'] });
+  });
+
+  it('外部运行：VIEWER 仍能看到答案准确性三态，看不到判分理由与原文', async () => {
+    const { controller, datasetService } = createController();
+    datasetService.getRun.mockResolvedValueOnce({
+      id: 'run-ext-1',
+      datasetId: 'dataset-1',
+      mode: 'EXTERNAL',
+      status: 'COMPLETED',
+      summary: { total: 2, accuracy: 0.5, judgeErrorRate: 0 },
+      results: [
+        {
+          id: 'result-ext-1',
+          runId: 'run-ext-1',
+          caseId: 'case-1',
+          // 任务完成度两列在 EXTERNAL 下就是 null，不拿 0 冒充
+          verdict: null,
+          score: null,
+          answerVerdict: 'correct',
+          answerScore: 1,
+          judgeErrorKind: null,
+          grounding: 'kb',
+          reason: 'qa_eval_reason_secret',
+          actualAnswer: 'qa_eval_actual_answer_secret',
+          latencyMs: 900,
+          createdAt: new Date('2026-11-24T00:00:00Z'),
+          case: {
+            id: 'case-1',
+            datasetId: 'dataset-1',
+            question: 'qa_eval_question_secret',
+            answer: null,
+            expect: null,
+            expected: null,
+            tags: ['delivery'],
+            metadata: { source: 'harness' },
+            sourceFeedbackId: null,
+            source: 'external',
+            createdAt: new Date('2026-11-24T00:00:00Z'),
+          },
+        },
+      ],
+    });
+
+    const result: any = await controller.getRun('run-ext-1', Role.VIEWER);
+
+    expect(result.mode).toBe('EXTERNAL');
+    expect(result.results[0]).toMatchObject({
+      verdict: null,
+      score: null,
+      answerVerdict: 'correct',
+      answerScore: 1,
+      judgeErrorKind: null,
+      grounding: 'kb',
+      latencyMs: 900,
+      // 判分理由与原文仍按既有规则隐藏
+      reason: null,
+      actualAnswer: null,
+    });
+    expect(result.results[0].case.question).toBeNull();
   });
 });

@@ -2504,14 +2504,27 @@ model AiEvalCase {
 model AiEvalRun {
   id            String    @id @default(cuid()) @db.VarChar(32)
   datasetId     String    @map("dataset_id") @db.VarChar(32)
-  /// RUNNING | COMPLETED | FAILED
+  /// RUNNING | COMPLETED | FAILED | CANCELLED
   status        String    @default("RUNNING") @db.VarChar(16)
   /**
-   * STORED | LIVE
+   * STORED | LIVE | EXTERNAL
+   * EXTERNAL 由 tools/eval/e2e harness 分两段写入结果，不走队列。
    */
   mode          String    @default("STORED") @db.VarChar(16)
   baselineRunId String?   @map("baseline_run_id") @db.VarChar(32)
   createdBy     String?   @map("created_by") @db.VarChar(32)
+  /** 运行开始时的用例快照：{ hash, cases: [{ caseId, kind, question, expectedDocIds, lang }] } */
+  datasetSnapshot Json?   @map("dataset_snapshot")
+  /// 代码版本（git sha）
+  codeVersion   String?   @map("code_version") @db.VarChar(64)
+  /// 依据门禁模式（例如 enforce / shadow / off）
+  gateMode      String?   @map("gate_mode") @db.VarChar(32)
+  /// 判官输入规范版本（judge-input-spec）
+  judgeSpecVersion String? @map("judge_spec_version") @db.VarChar(32)
+  /// 指标定义版本（tools/eval/e2e/metrics-spec）
+  metricSpecVersion String? @map("metric_spec_version") @db.VarChar(32)
+  /// 当前基线：全局至多一条，由 promote 接口维护
+  isBaseline    Boolean   @default(false) @map("is_baseline")
   summary       Json?
   startedAt     DateTime  @default(now()) @map("started_at")
   finishedAt    DateTime? @map("finished_at")
@@ -2520,6 +2533,7 @@ model AiEvalRun {
   results AiEvalResult[]
 
   @@index([datasetId, startedAt])
+  @@index([isBaseline])
   @@map("ai_eval_runs")
 }
 
@@ -2527,8 +2541,22 @@ model AiEvalResult {
   id                String   @id @default(cuid()) @db.VarChar(32)
   runId             String   @map("run_id") @db.VarChar(32)
   caseId            String   @map("case_id") @db.VarChar(32)
-  verdict           String   @db.VarChar(16)
-  score             Float
+  /// 任务成功率（solved | partial | unsolved），与 answerVerdict 是两个维度；EXTERNAL run 为 null
+  verdict           String?  @db.VarChar(16)
+  /// 任务成功率分数；EXTERNAL run 为 null
+  score             Float?
+  /// 答案准确性（correct | incorrect | judge_error）
+  answerVerdict     String?  @map("answer_verdict") @db.VarChar(16)
+  /// 答案准确性分数；judge_error 记 0
+  answerScore       Float?   @map("answer_score")
+  /// 依据分型（kb | tool | none | fallback | unknown）
+  grounding         String?  @db.VarChar(32)
+  /// 判官失败类型（auth | rate_limit | timeout | output_format | policy）
+  judgeErrorKind    String?  @map("judge_error_kind") @db.VarChar(32)
+  /// 判官输入内容 hash（sha256），用于判断口径是否一致
+  judgeInputHash    String?  @map("judge_input_hash") @db.VarChar(64)
+  /// 判官输入规范版本
+  judgeSpecVersion  String?  @map("judge_spec_version") @db.VarChar(32)
   reason            String   @db.Text
   actualAnswer      String?  @map("actual_answer") @db.Text
   judgeModel        String?  @map("judge_model") @db.VarChar(100)

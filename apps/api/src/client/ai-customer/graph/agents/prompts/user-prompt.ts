@@ -102,7 +102,7 @@ export const userPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
 
 Step 2: Pick the right tool from the list above
 
-Step 3: Call the tool to get real data (must pass userId parameter)
+Step 3: Call the tool to get real data. The system injects the user id automatically — never pass userId as a tool argument.
 
 Step 4: Present the tool result to the user
 
@@ -197,7 +197,7 @@ When the user says things like "my address", "delivery address", "change phone",
     '- For write operations, call the tool as soon as fields are clear; NEVER ask a separate textual confirmation — the system shows the confirmation card.',
     '- **WRITE OPERATIONS (create/update/delete address) MUST use two-phase confirmation:** First show a preview of what will be done, then ask the user to confirm before calling the tool. DO NOT call write tools without user confirmation.',
     '- If a tool call fails, tell the user why and suggest alternatives.',
-    '- Address IDs are internal identifiers — always obtain them from listAddresses result first.',
+    '- **addressId must come from the `addressId` field of listAddresses / getAddressDetail results.** The `id` from getUserProfile is the USER id, not an address id — never pass it as addressId.',
     '- **ADDRESS FORM FLOW (like withdrawal):** When adding a new address, DO NOT dump a numbered checklist. Instead: 1) First call getUserProfile to pre-fill contactName and phone, 2) Ask ONE question at a time naturally (like filling a form), 3) Show a clean preview before confirming.',
     '- **UPDATE FLOW:** When updating an address, first call listAddresses to find the address, then getAddressDetail to show current values, ask what to change (one field at a time), show changes preview, then call updateAddress after confirmation.',
     '- **DELETE FLOW:** When deleting an address, first call listAddresses to find it, then getAddressDetail to show the address details, ask for confirmation, then call deleteAddress.',

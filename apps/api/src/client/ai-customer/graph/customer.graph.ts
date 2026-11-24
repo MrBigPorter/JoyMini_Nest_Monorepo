@@ -31,6 +31,7 @@ import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import type { QueryRewriteService } from '@api/client/ai-customer/knowledge/query-rewrite.service';
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 import { takeKbVersionNotice } from '@api/client/ai-customer/knowledge/kb-version-notice';
 import { RedisService } from '@api/common/redis/redis.service';
@@ -148,6 +149,8 @@ export function buildCustomerGraph(
    * checkpointer 决定 thread_id 的状态是否跨进程/重启保留。
    */
   checkpointer?: BaseCheckpointSaver,
+  /** 查询改写（中文 → 英文），用于双语检索；不传则只用原问句 */
+  queryRewriteService?: QueryRewriteService,
 ) {
   const workflow = new StateGraph(AgentState)
 
@@ -170,6 +173,7 @@ export function buildCustomerGraph(
         promptResolver,
         // 跨版本告知：知识库切换过版本时，提醒模型以最新内容为准
         (userId) => takeKbVersionNotice(redisService, userId),
+        queryRewriteService,
       ),
     )
 

@@ -1034,8 +1034,9 @@ describe('handleStreamError · 配额', () => {
       expect.objectContaining({ conversationId: 'c1' }),
     );
 
+    // 用户问句是英文（'hi'）：配额话术也要是英文
     expect(routeNormal).toHaveBeenCalledWith(
-      [{ type: 'ai', content: expect.stringContaining('已达到 AI 使用上限') }],
+      [{ type: 'ai', content: expect.stringContaining('AI usage limit') }],
       'u1',
       'c1',
       [],

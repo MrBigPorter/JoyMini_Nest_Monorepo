@@ -26,6 +26,10 @@ import {
   UpdateEvalCaseDto,
 } from './dto/eval-dataset.dto';
 import {
+  CreateExternalRunDto,
+  IngestExternalResultsDto,
+} from './dto/external-eval.dto';
+import {
   CurrentRole,
   CurrentUserId,
 } from '@api/common/decorators/user.decorator';
@@ -112,17 +116,16 @@ export class AiEvalController {
   @Delete('datasets/:id/cases/:caseId')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '删除评测用例' })
-  async deleteCase(
-    @Param('id') id: string,
-    @Param('caseId') caseId: string,
-  ) {
+  async deleteCase(@Param('id') id: string, @Param('caseId') caseId: string) {
     this.assertEnabled();
     return this.datasetService.deleteCase(id, caseId);
   }
 
   @Post('datasets/:id/runs')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: '启动一次批量评测（STORED 历史回答 / LIVE 实时跑 AI）' })
+  @ApiOperation({
+    summary: '启动一次批量评测（STORED 历史回答 / LIVE 实时跑 AI）',
+  })
   async startRun(
     @Param('id') id: string,
     @CurrentUserId() adminId: string,
@@ -133,6 +136,33 @@ export class AiEvalController {
       mode: dto.mode,
       baselineRunId: dto.baselineRunId,
     });
+  }
+
+  /**
+   * 外部（harness）运行：先建 RUNNING 头，再分段写结果。
+   * 必须显式 `runs/external`，不能与 `runs/:id` 混用。
+   */
+  @Post('runs/external')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '创建一次外部评测运行（harness 写入）' })
+  async createExternalRun(
+    @Body() dto: CreateExternalRunDto,
+    @CurrentUserId() adminId: string,
+  ) {
+    this.assertEnabled();
+    return this.datasetService.createExternalRun(dto, adminId);
+  }
+
+  @Post('runs/:id/external-results')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '写入外部评测结果并收尾' })
+  async ingestExternalResults(
+    @Param('id') id: string,
+    @Body() dto: IngestExternalResultsDto,
+  ) {
+    this.assertEnabled();
+    return this.datasetService.ingestExternalResults(id, dto);
   }
 
   @Post('runs/:id/cancel')

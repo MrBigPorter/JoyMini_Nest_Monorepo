@@ -25,6 +25,7 @@ import { ToolMessage } from '@langchain/core/messages/tool';
 import { Runnable } from '@langchain/core/runnables';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { stripToolResult } from '@api/client/ai-customer/graph/tools/tool-result';
+import { getPreConfirm } from '@api/client/ai-customer/graph/tools/pre-confirm';
 import { ToolCallInfo } from '@api/client/ai-customer/graph/utils/tool-facts';
 import { MAX_ITERATIONS } from '@api/client/ai-customer/graph/constants';
 import { AgentStep } from '@api/client/ai-customer/graph/types/agent-types';
@@ -262,8 +263,29 @@ export async function runAgentLoop(
           extractFlowData(toolCall, flowDataAccumulator);
         }
 
-        // 需要用户确认的写操作 → 截停（不 invoke！）
+        const foundTool = tools.find((t) => t.name === toolCall.name);
+
+        // 需要用户确认的写操作 → 先校验参数，再截停（不 invoke！）
+        //
+        // 为什么要先校验：截停意味着工具函数体不会执行，函数体里的归属校验
+        // 在这条链路上是死代码。模型填错参数（例如把 userId 当 addressId）
+        // 时如果不拦，用户会先看到一张参数错误的确认卡，点确认才报错。
+        // 这里把错误当工具失败喂回模型，让它改用真实 ID 重试或反问用户。
         if (confirmRequiredTools?.has(toolCall.name)) {
+          const invalidReason = await runPreConfirm(foundTool, toolCall.args);
+          if (invalidReason) {
+            logger.warn(
+              `[${agentName}] ${toolCall.name} pre-confirm check failed: ${invalidReason}`,
+            );
+            currentMessages = [
+              ...currentMessages,
+              new ToolMessage(
+                `Error: ${invalidReason}`,
+                toolCall.id ?? '',
+              ),
+            ];
+            continue;
+          }
           pendingToolCall = {
             name: toolCall.name,
             args: toolCall.args,
@@ -271,7 +293,6 @@ export async function runAgentLoop(
           intercepted = true;
           break;
         }
-        const foundTool = tools.find((t) => t.name === toolCall.name);
         if (foundTool) {
           const result = await (foundTool as any).invoke(toolCall.args);
           lastToolCallInfo = {
@@ -356,6 +377,27 @@ export async function runAgentLoop(
 // ============================================================
 // Helpers
 // ============================================================
+
+/**
+ * runPreConfirm — 执行工具挂载的「弹卡前校验」
+ *
+ * 校验函数本身抛错按失败处理（fail-closed）：宁可让模型换一条路，
+ * 也不把未校验的参数写进确认卡。返回的字符串会作为 ToolMessage 喂回模型。
+ */
+async function runPreConfirm(
+  foundTool: DynamicStructuredTool | undefined,
+  args: Record<string, any> | undefined,
+): Promise<string | null> {
+  const check = getPreConfirm(foundTool);
+  if (!check) return null;
+  try {
+    return (await check(args ?? {})) ?? null;
+  } catch (err) {
+    return `pre-confirm validation failed, please retry: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
+  }
+}
 
 /**
  * extractFlowData — 从工具调用中提取 flow data/status

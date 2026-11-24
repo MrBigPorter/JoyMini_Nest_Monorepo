@@ -8,13 +8,29 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { redactPiiText } from '@api/common/utils/pii-redaction';
 import type { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { runWithContext } from '@api/common/logger/trace-context';
 import { AiEvalJudgeService } from './ai-eval-judge.service';
 import { AddEvalCasesDto } from './dto/eval-dataset.dto';
+import {
+  CreateExternalRunDto,
+  ExternalEvalCaseSnapshotDto,
+  ExternalEvalResultDto,
+  IngestExternalResultsDto,
+} from './dto/external-eval.dto';
 import { AI_EVAL_QUEUE, AI_EVAL_RUN_JOB, AiEvalJobData } from './ai-eval.queue';
 
-export type EvalMode = 'STORED' | 'LIVE';
+export type EvalMode = 'STORED' | 'LIVE' | 'EXTERNAL';
+
+/** 外部运行物化出的数据集名前缀；同时用于阻止对 harness 数据集启动 STORED/LIVE 重跑。 */
+export const EXTERNAL_DATASET_PREFIX = 'e2e:';
+
+/** EXTERNAL run 可能跑几小时，stale 清扫阈值放宽到 24 小时。 */
+export const EXTERNAL_RUN_STALE_MS = 24 * 60 * 60 * 1000;
+
+/** 内部 run 的 stale 阈值。 */
+export const INTERNAL_RUN_STALE_MS = 30 * 60 * 1000;
 
 /** 注入令牌：避免评测服务直接依赖客服 graph 的庞大运行时依赖。 */
 export const AI_EVAL_LIVE_AI = 'AI_EVAL_LIVE_AI';
@@ -94,7 +110,24 @@ export interface StartRunOptions {
 
 interface BaselineSnapshot {
   passRate: number;
-  verdictByCase: Map<string, string>;
+  verdictByCase: Map<string, string | null>;
+}
+
+interface AnswerBaselineSnapshot {
+  accuracy: number | null;
+  verdictByCase: Map<string, string | null>;
+}
+
+/** run.datasetSnapshot 的结构；hash 存的是 harness 传来的 datasetFingerprint。 */
+interface ExternalDatasetSnapshot {
+  hash: string;
+  cases: Array<{
+    caseId: string;
+    kind?: string;
+    question: string;
+    expectedDocIds: string[];
+    lang?: string;
+  }>;
 }
 
 interface CaseVerdict {
@@ -225,12 +258,20 @@ export class AiEvalDatasetService {
     return this.getDataset(datasetId);
   }
 
-  /** 进程重启后遗留的 RUNNING：超过 30 分钟统一标 FAILED。 */
+  /**
+   * 进程重启后遗留的 RUNNING 统一标 FAILED。
+   * - 内部 run（STORED/LIVE）：30 分钟。
+   * - EXTERNAL run：harness 可能跑几小时，阈值 24 小时，且不受内部清扫影响。
+   */
   private async recoverStaleRuns(): Promise<void> {
-    const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+    const now = Date.now();
     await this.prisma.aiEvalRun
       .updateMany({
-        where: { status: 'RUNNING', startedAt: { lt: cutoff } },
+        where: {
+          status: 'RUNNING',
+          mode: { not: 'EXTERNAL' },
+          startedAt: { lt: new Date(now - INTERNAL_RUN_STALE_MS) },
+        },
         data: {
           status: 'FAILED',
           finishedAt: new Date(),
@@ -240,6 +281,27 @@ export class AiEvalDatasetService {
       .catch((err) =>
         this.logger.warn(
           `[eval] stale run recovery failed: ${err?.message ?? err}`,
+        ),
+      );
+    await this.prisma.aiEvalRun
+      .updateMany({
+        where: {
+          status: 'RUNNING',
+          mode: 'EXTERNAL',
+          startedAt: { lt: new Date(now - EXTERNAL_RUN_STALE_MS) },
+        },
+        data: {
+          status: 'FAILED',
+          finishedAt: new Date(),
+          summary: {
+            mode: 'EXTERNAL',
+            error: 'run interrupted: stale EXTERNAL run',
+          },
+        },
+      })
+      .catch((err) =>
+        this.logger.warn(
+          `[eval] stale external run recovery failed: ${err?.message ?? err}`,
         ),
       );
   }
@@ -254,6 +316,15 @@ export class AiEvalDatasetService {
       include: { cases: true },
     });
     if (!dataset) throw new NotFoundException('Eval dataset not found');
+    // harness 物化的数据集只有快照，没有可复用的历史回答/期望；只能走外部写入。
+    if (
+      typeof dataset.name === 'string' &&
+      dataset.name.startsWith(EXTERNAL_DATASET_PREFIX)
+    ) {
+      throw new BadRequestException(
+        'External harness datasets cannot be started from the admin console',
+      );
+    }
     if (dataset.cases.length === 0) {
       throw new NotFoundException('Eval dataset has no cases');
     }
@@ -268,8 +339,9 @@ export class AiEvalDatasetService {
     }
 
     await this.recoverStaleRuns();
+    // EXTERNAL run 由 harness 写入，不占用「每数据集仅一个 RUNNING」的名额。
     const running = await this.prisma.aiEvalRun.findFirst({
-      where: { datasetId, status: 'RUNNING' },
+      where: { datasetId, status: 'RUNNING', mode: { not: 'EXTERNAL' } },
       select: { id: true },
     });
     if (running) {
@@ -386,6 +458,374 @@ export class AiEvalDatasetService {
   }
 
   /**
+   * 创建一次外部（harness）运行：只落 RUNNING 头，结果稍后分段写入。
+   *
+   * 首次遇到某个 datasetFingerprint 时，把它物化成 `e2e:<fingerprint>` 数据集，
+   * 这样 AiEvalRun.datasetId / AiEvalResult.caseId 的非空外键不用放松；
+   * 同一 fingerprint 的后续 run 复用同一数据集与用例行。
+   */
+  async createExternalRun(input: CreateExternalRunDto, createdBy?: string) {
+    if (input.cases.length === 0) {
+      throw new BadRequestException('external run requires at least one case');
+    }
+    const seen = new Set<string>();
+    for (const item of input.cases) {
+      if (seen.has(item.caseId)) {
+        throw new BadRequestException(`duplicate caseId: ${item.caseId}`);
+      }
+      seen.add(item.caseId);
+    }
+
+    const dataset = await this.ensureExternalDataset(
+      input.datasetFingerprint,
+      input.cases,
+      createdBy,
+    );
+
+    const baselineRunId = input.baselineRunId?.trim() || null;
+    if (baselineRunId) {
+      await this.assertBaselineRun(baselineRunId, dataset.id);
+    }
+
+    const snapshot: ExternalDatasetSnapshot = {
+      hash: input.datasetFingerprint,
+      cases: input.cases.map((item) => ({
+        caseId: item.caseId,
+        ...(item.kind ? { kind: item.kind } : {}),
+        question: redactPiiText(item.question) ?? '',
+        expectedDocIds: item.expectedDocIds ?? [],
+        ...(item.lang ? { lang: item.lang } : {}),
+      })),
+    };
+
+    return this.prisma.aiEvalRun.create({
+      data: {
+        datasetId: dataset.id,
+        createdBy,
+        mode: 'EXTERNAL',
+        baselineRunId,
+        datasetSnapshot: snapshot as any,
+        codeVersion: input.codeVersion,
+        gateMode: input.gateMode,
+        judgeSpecVersion: input.judgeSpecVersion,
+        metricSpecVersion: input.metricSpecVersion,
+      },
+    });
+  }
+
+  /**
+   * 写入外部运行的结果并收尾。只接受 RUNNING 的 EXTERNAL run，且结果不可修改；
+   * 需要重跑只能新建 run，避免历史报告被静默改写。
+   */
+  async ingestExternalResults(runId: string, dto: IngestExternalResultsDto) {
+    const run = await this.prisma.aiEvalRun.findUnique({
+      where: { id: runId },
+      include: { dataset: { include: { cases: true } } },
+    });
+    if (!run) throw new NotFoundException('Eval run not found');
+    if (run.mode !== 'EXTERNAL') {
+      throw new BadRequestException(
+        'Only EXTERNAL runs accept externally written results',
+      );
+    }
+    if (run.status !== 'RUNNING') {
+      throw new BadRequestException(
+        `Run is ${run.status}; external results are immutable`,
+      );
+    }
+    const snapshot = run.datasetSnapshot as ExternalDatasetSnapshot | null;
+    if (!snapshot || !Array.isArray(snapshot.cases)) {
+      throw new BadRequestException('Run has no dataset snapshot');
+    }
+    const results = dto.cases ?? [];
+
+    if (dto.status === 'FAILED') {
+      await this.prisma.aiEvalRun.updateMany({
+        where: { id: runId, status: 'RUNNING' },
+        data: {
+          status: 'FAILED',
+          finishedAt: new Date(),
+          summary: {
+            mode: 'EXTERNAL',
+            datasetFingerprint: snapshot.hash,
+            codeVersion: run.codeVersion,
+            gateMode: run.gateMode,
+            judgeSpecVersion: run.judgeSpecVersion,
+            metricSpecVersion: run.metricSpecVersion,
+            error: dto.error ?? 'external run failed',
+          },
+        },
+      });
+      return this.getRun(runId);
+    }
+
+    if (results.length !== snapshot.cases.length) {
+      throw new BadRequestException(
+        `Expected ${snapshot.cases.length} results, received ${results.length}`,
+      );
+    }
+
+    const caseIdByExternalId = this.mapExternalCaseIds(run.dataset.cases);
+    const seen = new Set<string>();
+    const rows = results.map((item) => {
+      if (seen.has(item.caseId)) {
+        throw new BadRequestException(
+          `duplicate result caseId: ${item.caseId}`,
+        );
+      }
+      seen.add(item.caseId);
+      const caseId = caseIdByExternalId.get(item.caseId);
+      if (!caseId) {
+        throw new BadRequestException(`unknown caseId: ${item.caseId}`);
+      }
+      if (item.answerVerdict === 'judge_error' && !item.judgeErrorKind) {
+        throw new BadRequestException(
+          `judge_error requires judgeErrorKind (case ${item.caseId})`,
+        );
+      }
+      return {
+        runId,
+        caseId,
+        answerVerdict: item.answerVerdict,
+        answerScore: item.answerScore ?? this.defaultAnswerScore(item),
+        grounding: item.grounding ?? 'unknown',
+        judgeErrorKind: item.judgeErrorKind ?? null,
+        judgeInputHash: item.judgeInputHash ?? null,
+        judgeSpecVersion: run.judgeSpecVersion,
+        reason: item.reason,
+        traceId: item.traceId ?? null,
+        latencyMs: item.latencyMs ?? null,
+      };
+    });
+
+    const summary = await this.buildExternalSummary(run, results);
+
+    await this.prisma.$transaction(async (tx) => {
+      const current = await tx.aiEvalRun.findUnique({
+        where: { id: runId },
+        select: { status: true },
+      });
+      if (current?.status !== 'RUNNING') {
+        throw new BadRequestException(
+          `Run is ${current?.status ?? 'missing'}; external results are immutable`,
+        );
+      }
+      await tx.aiEvalResult.createMany({ data: rows });
+      await tx.aiEvalRun.update({
+        where: { id: runId },
+        data: {
+          status: 'COMPLETED',
+          finishedAt: new Date(),
+          summary: summary as any,
+        },
+      });
+    });
+
+    return this.getRun(runId);
+  }
+
+  /** 首次物化 e2e 数据集；同 fingerprint 的后续调用复用并校验用例一致。 */
+  private async ensureExternalDataset(
+    fingerprint: string,
+    cases: ExternalEvalCaseSnapshotDto[],
+    createdBy?: string,
+  ) {
+    const name = `${EXTERNAL_DATASET_PREFIX}${fingerprint}`;
+    const existing = await this.prisma.aiEvalDataset.findUnique({
+      where: { name },
+      include: { cases: true },
+    });
+    if (existing) {
+      if (existing.cases.length !== cases.length) {
+        throw new BadRequestException(
+          `Dataset snapshot mismatch: dataset has ${existing.cases.length} cases, snapshot has ${cases.length}`,
+        );
+      }
+      const existingIds = this.mapExternalCaseIds(existing.cases);
+      for (const item of cases) {
+        if (!existingIds.has(item.caseId)) {
+          throw new BadRequestException(
+            `Dataset snapshot mismatch: caseId ${item.caseId} not found in dataset`,
+          );
+        }
+      }
+      return existing;
+    }
+
+    try {
+      return await this.prisma.aiEvalDataset.create({
+        data: {
+          name,
+          description: `External e2e harness dataset (${fingerprint})`,
+          createdBy,
+          cases: {
+            create: cases.map((item) => ({
+              question: redactPiiText(item.question) ?? '',
+              // harness 用例没有历史回答/任务期望；空值会让 startRun 拒绝重跑。
+              answer: '',
+              expect: {} as any,
+              expected: (item.expectedDocIds?.length
+                ? item.expectedDocIds
+                : undefined) as any,
+              tags: (item.kind ? [item.kind] : []) as any,
+              source: 'e2e',
+              metadata: {
+                e2eCaseId: item.caseId,
+                datasetFingerprint: fingerprint,
+              } as any,
+            })),
+          },
+        },
+        include: { cases: true },
+      });
+    } catch (err: any) {
+      // 并发创建同 fingerprint 时唯一约束失败：回读已建好的那条。
+      if (err?.code === 'P2002') {
+        const raced = await this.prisma.aiEvalDataset.findUnique({
+          where: { name },
+          include: { cases: true },
+        });
+        if (raced) return raced;
+      }
+      throw err;
+    }
+  }
+
+  /** AIEvalCase.metadata.e2eCaseId → 数据库 caseId（外部 id 不是主键）。 */
+  private mapExternalCaseIds(
+    cases: Array<{ id: string; metadata: unknown }>,
+  ): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const item of cases) {
+      const meta = (item.metadata ?? null) as { e2eCaseId?: unknown } | null;
+      if (meta && typeof meta.e2eCaseId === 'string') {
+        map.set(meta.e2eCaseId, item.id);
+      }
+    }
+    return map;
+  }
+
+  private defaultAnswerScore(item: ExternalEvalResultDto): number {
+    return item.answerVerdict === 'correct' ? 1 : 0;
+  }
+
+  /**
+   * 外部运行汇总：准确率分母只含 correct + incorrect，judge_error 单独计错误率。
+   * 任务成功率字段（solved/partial/unsolved）不在这里出现。
+   */
+  private async buildExternalSummary(
+    run: {
+      id: string;
+      baselineRunId: string | null;
+      datasetSnapshot: unknown;
+      codeVersion: string | null;
+      gateMode: string | null;
+      judgeSpecVersion: string | null;
+      metricSpecVersion: string | null;
+    },
+    results: ExternalEvalResultDto[],
+  ): Promise<Record<string, any>> {
+    const counts = { correct: 0, incorrect: 0, judge_error: 0 };
+    const grounding: Record<string, number> = {};
+    for (const item of results) {
+      counts[item.answerVerdict] += 1;
+      const kind = item.grounding ?? 'unknown';
+      grounding[kind] = (grounding[kind] ?? 0) + 1;
+    }
+    const judged = counts.correct + counts.incorrect;
+    const accuracy =
+      judged > 0 ? Number((counts.correct / judged).toFixed(4)) : null;
+    const judgeErrorRate =
+      results.length > 0
+        ? Number((counts.judge_error / results.length).toFixed(4))
+        : 0;
+    const snapshot = run.datasetSnapshot as ExternalDatasetSnapshot | null;
+
+    const summary: Record<string, any> = {
+      mode: 'EXTERNAL',
+      total: results.length,
+      correct: counts.correct,
+      incorrect: counts.incorrect,
+      judgeError: counts.judge_error,
+      accuracy,
+      judgeErrorRate,
+      answerVerdicts: counts,
+      grounding,
+      datasetFingerprint: snapshot?.hash ?? null,
+      codeVersion: run.codeVersion,
+      gateMode: run.gateMode,
+      judgeSpecVersion: run.judgeSpecVersion,
+      metricSpecVersion: run.metricSpecVersion,
+      baselineRunId: run.baselineRunId,
+    };
+
+    if (!run.baselineRunId) return summary;
+
+    const baseline = await this.loadAnswerBaseline(run.baselineRunId);
+    if (!baseline) return summary;
+
+    return {
+      ...summary,
+      ...this.buildAnswerComparison(results, baseline),
+    };
+  }
+
+  private async loadAnswerBaseline(
+    runId: string,
+  ): Promise<AnswerBaselineSnapshot | null> {
+    const baseline = await this.prisma.aiEvalRun.findUnique({
+      where: { id: runId },
+      select: {
+        summary: true,
+        results: { select: { caseId: true, answerVerdict: true } },
+      },
+    });
+    if (!baseline) return null;
+    const verdictByCase = new Map<string, string | null>();
+    for (const item of baseline.results) {
+      verdictByCase.set(item.caseId, item.answerVerdict);
+    }
+    const summary = (baseline.summary ?? {}) as Record<string, any>;
+    return {
+      accuracy: typeof summary.accuracy === 'number' ? summary.accuracy : null,
+      verdictByCase,
+    };
+  }
+
+  private buildAnswerComparison(
+    results: ExternalEvalResultDto[],
+    baseline: AnswerBaselineSnapshot,
+  ): Record<string, any> {
+    let newFailures = 0;
+    let fixed = 0;
+    for (const item of results) {
+      const previous = baseline.verdictByCase.get(item.caseId);
+      if (previous === undefined) continue;
+      const wasCorrect = previous === 'correct';
+      const isCorrect = item.answerVerdict === 'correct';
+      if (wasCorrect && !isCorrect) newFailures += 1;
+      if (!wasCorrect && isCorrect) fixed += 1;
+    }
+    const judged = results.filter(
+      (item) => item.answerVerdict !== 'judge_error',
+    ).length;
+    const correct = results.filter(
+      (item) => item.answerVerdict === 'correct',
+    ).length;
+    const accuracy = judged > 0 ? Number((correct / judged).toFixed(4)) : null;
+    const delta =
+      accuracy !== null && baseline.accuracy !== null
+        ? Number((accuracy - baseline.accuracy).toFixed(4))
+        : null;
+    return {
+      baselineAccuracy: baseline.accuracy,
+      delta,
+      newFailures,
+      fixed,
+    };
+  }
+
+  /**
    * 由 BullMQ processor 调用（也可直接调用，便于测试/手动重放）。
    *
    * 幂等保护：只有 RUNNING 的 run 会执行；重复投递、已取消、已终态的
@@ -397,6 +837,8 @@ export class AiEvalDatasetService {
       include: { dataset: { include: { cases: true } } },
     });
     if (!run) return;
+    // EXTERNAL run 的结果由 harness 通过接口写入，队列重跑会覆盖判定口径。
+    if (run.mode === 'EXTERNAL') return;
     if (run.status !== 'RUNNING') return;
 
     const mode: EvalMode = run.mode === 'LIVE' ? 'LIVE' : 'STORED';
@@ -755,7 +1197,7 @@ export class AiEvalDatasetService {
     if (!baseline) {
       return { passRate: 0, verdictByCase: new Map() };
     }
-    const verdictByCase = new Map<string, string>();
+    const verdictByCase = new Map<string, string | null>();
     for (const item of baseline.results) {
       verdictByCase.set(item.caseId, item.verdict);
     }

@@ -52,7 +52,7 @@ function build(options: { candidate?: any; candidates?: any[] } = {}) {
   } as any;
 
   const keywordAutoApply = {
-    applyPendingCandidate: jest.fn(async () => 'applied'),
+    applyPendingCandidate: jest.fn(async () => ({ outcome: 'applied' })),
     rollbackKeyword: jest.fn(),
   } as any;
 
@@ -154,6 +154,20 @@ describe('KbCandidatesService.approve', () => {
     expect(keywordAutoApply.applyPendingCandidate).toHaveBeenCalledWith(
       'cand-1',
       'admin-1',
+    );
+  });
+
+  it('surfaces the exact keyword guard reason on approval', async () => {
+    const { service, keywordAutoApply } = build({
+      candidate: { ...PENDING_EXAMPLE, kind: 'KEYWORD' },
+    });
+    keywordAutoApply.applyPendingCandidate.mockResolvedValue({
+      outcome: 'pending',
+      reason: 'keyword quota reached (20/20); remove some keywords first',
+    });
+
+    await expect(service.approve('cand-1', {}, 'admin-1')).rejects.toThrow(
+      'keyword quota reached (20/20)',
     );
   });
 
@@ -270,6 +284,22 @@ describe('KbCandidatesService.batch', () => {
       failed: [],
     });
     expect(keywordAutoApply.applyPendingCandidate).not.toHaveBeenCalled();
+  });
+
+  it('still rejects needsReview candidates in a batch', async () => {
+    // 驳回的用途就是清掉可疑候选，不该被「重点复核」这道批准门槛挡住。
+    const { service, prisma } = build({
+      candidates: [{ ...PENDING_EXAMPLE, id: 'a', needsReview: true }],
+    });
+
+    const result = await service.batch(
+      { ids: ['a'], action: 'reject', confirm: true, reason: 'duplicate' } as any,
+      'admin-1',
+    );
+
+    expect(result.rejected).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(prisma.kbGenerationCandidate.updateMany).toHaveBeenCalled();
   });
 
   it('blocks example batches that grow a domain by more than 10%', async () => {

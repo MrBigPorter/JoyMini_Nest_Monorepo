@@ -37,6 +37,7 @@ import {
   AgentState,
   DebugAgentExecution,
   OrchestratorStateUpdate,
+  PromptBinding,
   RagCitation,
 } from '@api/client/ai-customer/graph/state';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
@@ -66,6 +67,10 @@ import {
 
 import { resolveExecutionOrder } from './orchestrator-utils/dependency-resolver';
 import {
+  awaitWithTimeout,
+  readPrefetchWaitMs,
+} from './orchestrator-utils/await-with-timeout';
+import {
   mapToolToAction,
   buildConfirmSummary,
   NEGATIVE_KEYWORDS,
@@ -74,7 +79,10 @@ import { decideMultiIntentWithLLM } from './orchestrator-utils/multi-intent-deci
 import {
   handleGeneralChat,
   handleRagQuery,
+  retrieveKnowledge,
 } from './orchestrator-utils/direct-handlers';
+import type { RetrievedChunk } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import type { QueryRewriteService } from '@api/client/ai-customer/knowledge/query-rewrite.service';
 import {
   synthesizeAnswers,
   pushAgentResult,
@@ -82,7 +90,12 @@ import {
   AGENT_ERROR_MSG,
   AgentOutput,
 } from './orchestrator-utils/result-utils';
-import { shouldUseKnowledgeFallback } from './orchestrator-utils/knowledge-fallback';
+import {
+  isInformationalQuestion,
+  KNOWLEDGE_CONSULT_INTENTS,
+  shouldConsultKnowledge,
+  shouldUseKnowledgeFallback,
+} from './orchestrator-utils/knowledge-fallback';
 import {
   evaluateTurnFailure,
   nextRepeatCount,
@@ -214,12 +227,36 @@ export const createOrchestratorNode =
      * 只有 RAG 分支会用；拿不到（Redis 故障）就当没有。
      */
     getKbVersionNotice?: (userId: string) => Promise<string | null>,
+    /** 查询改写（中文 → 英文）；不传则只用原问句检索 */
+    queryRewriteService?: QueryRewriteService,
   ) =>
   async (state: typeof AgentState.State): Promise<OrchestratorStateUpdate> => {
     // 意图决策耗时从这里开始算（#89 FR-3：进入节点 → 决策完成）
     const nodeStartedAt = Date.now();
     const logger = new Logger('Orchestrator');
     const labels = state.labels ?? [];
+
+    /**
+     * 本轮检索元信息。默认「没检索」，每一条返回路径都必须显式带走，
+     * 否则上一轮的 attempted=true 会残留到这一轮的 trace 里。
+     */
+    let retrievalMeta: {
+      attempted: boolean;
+      skipReason: string | null;
+      timedOut?: boolean;
+    } = {
+      attempted: false,
+      skipReason: 'not_informational',
+    };
+
+    /**
+     * 本轮提示词归因：
+     * - promptBindings 收集所有标准 agent（按执行顺序）；
+     * - mainPromptBinding 取第一个成功执行的标准 agent，或 direct handler 的绑定；
+     * - 每条返回路径都必须显式带走，防止上一轮绑定跨轮残留。
+     */
+    let mainPromptBinding: PromptBinding | null = null;
+    let promptBindings: PromptBinding[] = [];
 
     // ── flowState 的真正写入起点 ──
     // 上一轮状态在这里恢复；本轮 Agent 的 updateFlowData/updateFlowStatus
@@ -249,6 +286,46 @@ export const createOrchestratorNode =
     //   → "我要转人工" 反而永远转不出去。
     // 所以先看"是不是要找人工"，再看他"要办什么业务"。
     const userInput = extractUserInput(state);
+
+    /**
+     * 闲聊兜底之前的知识库兜底。
+     *
+     * 场景：意图分类器把这句话判成业务/知识意图（`state.intent`），但向量
+     * 标签分数低于执行门槛，编排落到 generalChat —— 此时模型是凭自带知识
+     * 回答政策题，正是「无依据作答」。2026-11-24 shadow 全量里 29 条
+     * `none` 有 7 条属于这种「明明是信息题却因分数低走了闲聊」。
+     *
+     * 只要问句是信息类、知识库有命中，就先走 RAG；命不中保持原闲聊路径，
+     * `retrievalMeta` 记为「检索了、0 候选」，与「没检索」可区分。
+     */
+    const consultKnowledgeBeforeGeneralChat =
+      async (): Promise<OrchestratorStateUpdate | null> => {
+        if (!ragRetrievalService) return null;
+        if (!state.intent || !KNOWLEDGE_CONSULT_INTENTS.has(state.intent)) {
+          return null;
+        }
+        if (!isInformationalQuestion(userInput)) return null;
+        try {
+          const result = await handleRagQuery(
+            state,
+            llmConfig,
+            ragRetrievalService,
+            null,
+            { queryRewriteService },
+          );
+          retrievalMeta = { attempted: true, skipReason: null };
+          const sources = result.ragSources ?? [];
+          if (sources.length === 0) return null;
+          return { ...result, ragSources: sources, retrievalMeta };
+        } catch (err: any) {
+          logger.warn(
+            `[orchestrator] general-chat knowledge consult failed: ${err?.message ?? err}`,
+          );
+          retrievalMeta = { attempted: false, skipReason: 'service_error' };
+          return null;
+        }
+      };
+
     // 结构化对话状态每轮更新：改口覆盖旧实体，旧实体只进 corrections。
     const contextUpdate = updateContextState(state.contextState, userInput);
     let nextContextState = contextUpdate.state;
@@ -297,8 +374,16 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          retrievalMeta,
           flowState: preserveFlowState(state),
           contextState: nextContextState,
+          promptBinding: {
+            name: 'transfer',
+            version: null,
+            source: 'code',
+            agent: 'transfer',
+          },
+          promptBindings: [],
         };
       } catch (err) {
         logger.warn(
@@ -312,8 +397,11 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          retrievalMeta,
           flowState: preserveFlowState(state),
           contextState: nextContextState,
+          promptBinding: null,
+          promptBindings: [],
         };
       }
     }
@@ -339,6 +427,9 @@ export const createOrchestratorNode =
         ragSources: [],
         flowState: preserveFlowState(state),
         contextState: nextContextState,
+        // 澄清文案由规则生成，没有调用提示词。
+        promptBinding: null,
+        promptBindings: [],
       };
     }
 
@@ -353,11 +444,26 @@ export const createOrchestratorNode =
         latencyMs: Date.now() - nodeStartedAt,
       });
       logger.log('[orchestrator] no labels, falling back to general chat');
+      // 分类器没给出向量标签，但意图是业务/知识类、问句是信息题时，先问知识库
+      const knowledgeReply = await consultKnowledgeBeforeGeneralChat();
+      if (knowledgeReply) {
+        logger.log(
+          `[orchestrator] no labels, answered from knowledge base: sources=${knowledgeReply.ragSources?.length ?? 0}`,
+        );
+        return {
+          ...knowledgeReply,
+          previousIntent: state.intent,
+          repeatCount: 0,
+          flowState: finalizeFlowState(flowAccumulator, targetFlowType),
+          contextState: nextContextState,
+        };
+      }
       return {
         ...(await handleGeneralChat(state, llmConfig)),
         previousIntent: state.intent,
         repeatCount: 0,
         ragSources: [],
+        retrievalMeta,
         flowState: finalizeFlowState(flowAccumulator, targetFlowType),
         contextState: nextContextState,
       };
@@ -421,6 +527,20 @@ export const createOrchestratorNode =
           destination: 'general_chat',
         })}`,
       );
+      // 分数不够派 Agent，但「业务意图 + 信息题」仍然应该先查知识库
+      const knowledgeReply = await consultKnowledgeBeforeGeneralChat();
+      if (knowledgeReply) {
+        logger.log(
+          `[orchestrator] below_min_score, answered from knowledge base: sources=${knowledgeReply.ragSources?.length ?? 0}`,
+        );
+        return {
+          ...knowledgeReply,
+          previousIntent: state.intent,
+          repeatCount: 0,
+          flowState: finalizeFlowState(flowAccumulator, targetFlowType),
+          contextState: nextContextState,
+        };
+      }
       return {
         ...(await handleGeneralChat(state, llmConfig)),
         previousIntent: state.intent,
@@ -508,8 +628,16 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          retrievalMeta,
           flowState: preserveFlowState(state),
           contextState: nextContextState,
+          promptBinding: {
+            name: 'clarification',
+            version: null,
+            source: 'code',
+            agent: 'clarification',
+          },
+          promptBindings: [],
         };
       }
 
@@ -548,6 +676,48 @@ export const createOrchestratorNode =
       `[orchestrator] execution order: ${executionOrder.join(' → ')} ` +
         `(from effective labels: ${effectiveLabels.join(', ')})`,
     );
+
+    // ================================================================
+    // 2.5 信息类问题预取知识库
+    // ================================================================
+    // 业务域 Agent 只绑了域工具，回答「多久发货 / 要什么材料」这类政策题时
+    // 容易凭模型自带知识作答。这里在流水线跑起来之前先把知识库检索发出去，
+    // 和 Agent 并行，收尾时再取结果参与合成 —— 不额外拉长主链路。
+    const currentIntent = executionOrder[0] ?? state.intent;
+    let ragPrefetch: Promise<RetrievedChunk[]> | null = null;
+
+    if (!ragRetrievalService) {
+      retrievalMeta = { attempted: false, skipReason: 'service_unavailable' };
+    } else if (state.pendingConfirm) {
+      // 确认卡场景不能插一段政策回答，会干扰用户确认
+      retrievalMeta = { attempted: false, skipReason: 'pending_confirm' };
+    } else if (executionOrder.includes('rag')) {
+      // 知识库意图本身会走 direct handler 检索（不论问句形态），不重复预取。
+      // 必须在 shouldConsultKnowledge 之前判断：否则「rag 意图 + 非信息类问句」
+      // 会被记成 not_informational，而实际上 handler 已经检索过。
+      retrievalMeta = { attempted: true, skipReason: null };
+    } else if (!shouldConsultKnowledge(currentIntent, userInput)) {
+      retrievalMeta = {
+        attempted: false,
+        skipReason: isInformationalQuestion(userInput)
+          ? 'general_chat'
+          : 'not_informational',
+      };
+    } else {
+      retrievalMeta = { attempted: true, skipReason: null };
+      ragPrefetch = retrieveKnowledge(
+        userInput,
+        ragRetrievalService,
+        queryRewriteService,
+      ).catch((err: any) => {
+        // 预取失败不阻塞回答：本轮退回「无依据」路径，由发布门禁兜底
+        logger.warn(
+          `[orchestrator] rag prefetch failed: ${err?.message ?? err}`,
+        );
+        retrievalMeta = { attempted: false, skipReason: 'service_error' };
+        return [] as RetrievedChunk[];
+      });
+    }
 
     // ================================================================
     // 3. 流水线执行
@@ -601,6 +771,9 @@ export const createOrchestratorNode =
           const directHandlers: Record<string, () => Promise<boolean>> = {
             general: async () => {
               const result = await handleGeneralChat(state, llmConfig);
+              if (!mainPromptBinding && result.promptBinding) {
+                mainPromptBinding = result.promptBinding;
+              }
               pushDirectResult(entry.label, result, agentOutputs, debugAgents);
               return true;
             },
@@ -622,8 +795,12 @@ export const createOrchestratorNode =
                 llmConfig,
                 ragRetrievalService,
                 versionNotice,
+                { queryRewriteService },
               );
               ragSources = result.ragSources ?? [];
+              if (!mainPromptBinding && result.promptBinding) {
+                mainPromptBinding = result.promptBinding;
+              }
               pushDirectResult(entry.label, result, agentOutputs, debugAgents);
               return true;
             },
@@ -675,6 +852,19 @@ export const createOrchestratorNode =
               actionContext: state.actionContext,
               userMemory: state.userMemory,
             });
+
+          // 提示词归因：DB override 用真实 name/version；代码内置回退 tag。
+          const binding: PromptBinding = {
+            name: mergedResult.promptName ?? entry.tag,
+            version: mergedResult.version,
+            source: mergedResult.promptName ? 'db' : 'code',
+            agent: entry.label,
+          };
+          promptBindings = [...promptBindings, binding];
+          // 主绑定 = 第一个成功执行的标准 agent；失败的不占主位。
+          if (!mainPromptBinding && !result.error) {
+            mainPromptBinding = binding;
+          }
 
           // 工具事实确定性落盘：couponId / channelId / 余额等下一轮还要用的少量字段。
           // 只保留白名单，避免把整份业务对象塞进上下文。
@@ -783,6 +973,9 @@ export const createOrchestratorNode =
         labels: [],
         pendingConfirm: hasPendingConfirm,
         ragSources: [],
+        retrievalMeta,
+        promptBinding: mainPromptBinding,
+        promptBindings,
         flowState: finalizeFlowState(flowAccumulator, targetFlowType, {
           forceStep: 'CONFIRMING',
         }),
@@ -791,30 +984,61 @@ export const createOrchestratorNode =
       return orchestratorResult;
     }
 
-    // 知识兜底：所有 Agent 都说“不在范围”，但用户问的是流程/规则/政策，
-    // 且知识库有命中时，用 RAG 回答，避免“知识库明明有却拒答”。
+    // 知识补充：两条入口共用同一份预取结果
+    //   1. 强制检索（业务意图 + 信息类问题）：追加到输出，与工具事实并存
+    //   2. 旧知识兜底（所有 Agent 都说不在范围）：替换输出
     let finalOutputs = agentOutputs;
+    // 有界等待：检索比 Agent 慢时最多等 2500ms，超时按「0 候选」继续。
+    // 否则工具类问题会被检索/改写拖成串行，p95 超预算（见 await-with-timeout.ts）。
+    const prefetched = ragPrefetch
+      ? await awaitWithTimeout<RetrievedChunk[]>(
+          ragPrefetch,
+          readPrefetchWaitMs(),
+          [],
+        )
+      : null;
+    const prefetchedRag = prefetched?.value ?? null;
+    if (prefetched?.timedOut) {
+      retrievalMeta = { attempted: true, skipReason: null, timedOut: true };
+      logger.warn(
+        `[orchestrator] rag prefetch timed out after ${readPrefetchWaitMs()}ms, continue without knowledge`,
+      );
+    }
+    const forcedKnowledgeAvailable = (prefetchedRag?.length ?? 0) > 0;
+    const legacyKnowledgeFallback =
+      !!ragRetrievalService &&
+      ragSources.length === 0 &&
+      shouldUseKnowledgeFallback(synthesizeInput, agentOutputs);
+
     if (
       ragRetrievalService &&
-      shouldUseKnowledgeFallback(synthesizeInput, agentOutputs)
+      ragSources.length === 0 &&
+      (forcedKnowledgeAvailable || legacyKnowledgeFallback)
     ) {
       try {
         const ragResult = await handleRagQuery(
           state,
           llmConfig,
           ragRetrievalService,
+          null,
+          {
+            queryRewriteService,
+            prefetchedResults: prefetchedRag ?? undefined,
+          },
         );
-        const lastMessage =
-          ragResult.messages?.[ragResult.messages.length - 1];
+        const lastMessage = ragResult.messages?.[ragResult.messages.length - 1];
         const ragContent =
-          typeof lastMessage?.content === 'string'
-            ? lastMessage.content
-            : '';
+          typeof lastMessage?.content === 'string' ? lastMessage.content : '';
         if ((ragResult.ragSources?.length ?? 0) > 0 && ragContent) {
-          finalOutputs = [{ label: 'rag', content: ragContent }];
+          finalOutputs = forcedKnowledgeAvailable
+            ? // 工具事实 + 知识依据同时进入合成，替换会丢掉余额/订单等事实
+              [...agentOutputs, { label: 'rag', content: ragContent }]
+            : [{ label: 'rag', content: ragContent }];
           ragSources = ragResult.ragSources ?? [];
           logger.log(
-            `[orchestrator] knowledge fallback used: sources=${ragSources.length}`,
+            `[orchestrator] knowledge ${
+              forcedKnowledgeAvailable ? 'forced retrieval' : 'fallback'
+            } used: sources=${ragSources.length}`,
           );
         }
       } catch (err: any) {
@@ -855,8 +1079,7 @@ export const createOrchestratorNode =
       previousIntent: state.intent,
       labels: [],
       pendingConfirm: null,
-      transferToHuman: hasTransferRequest,
-      // 第二条转人工路径：某个 agent 结果带 forceTransfer（工具侧判定要转）
+      transferToHuman: hasTransferRequest, // 第二条转人工路径：某个 agent 结果带 forceTransfer（工具侧判定要转）
       // 没有这个字段的话，服务端只能记成 'unknown'，转人工原因分布就会多出一个黑洞
       transferReason: hasTransferRequest ? 'agent_request' : '',
       repeatCount: nextRepeatCount(
@@ -865,6 +1088,9 @@ export const createOrchestratorNode =
         hasTransferRequest,
       ),
       ragSources,
+      retrievalMeta,
+      promptBinding: mainPromptBinding,
+      promptBindings,
       // 转人工的结果仍保留原流程数据，方便人工接手时看到用户填到哪一步。
       flowState: hasTransferRequest
         ? preserveFlowState(state)

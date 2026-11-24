@@ -1,5 +1,9 @@
 import { SocketEvents } from '@lucky/shared';
-import { degradeToHuman, AI_FAILURE_REPLY } from './ai-failure-handler';
+import {
+  degradeToHuman,
+  AI_FAILURE_REPLY,
+  handoffReply,
+} from './ai-failure-handler';
 
 /**
  * N-15 回归 —— 模型/链路挂了，用户不能只是"什么都收不到"
@@ -54,7 +58,12 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
 
     await degradeToHuman(
       { prisma: prisma as any, gateway: gateway as any, eventEmitter: eventEmitter as any, logger },
-      { conversationId: 'conv-1', userId: 'user-1', memberIds },
+      {
+        conversationId: 'conv-1',
+        userId: 'user-1',
+        memberIds,
+        userText: '你好，我的订单什么时候到？',
+      },
     );
 
     // ① 兜底话术走和正常回复同一条链路（落库 + 双通道广播）
@@ -148,6 +157,67 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
       SocketEvents.AI_TRANSFER,
       { conversationId: 'conv-1', reason: 'ai_error', mode: 'online' },
     );
+  });
+
+  it('英文提问时兜底话术也是英文（否则英文用户收到中文）', async () => {
+    const { prisma, gateway, eventEmitter, logger } = makeDeps();
+
+    await degradeToHuman(
+      { prisma: prisma as any, gateway: gateway as any, eventEmitter: eventEmitter as any, logger },
+      {
+        conversationId: 'conv-1',
+        userId: 'user-1',
+        memberIds: ['user-1'],
+        userText: 'My order has not arrived yet, can you check?',
+      },
+    );
+
+    const published = (publishAiReply as jest.Mock).mock.calls[0][4] as any[];
+    expect(published[0].content).toBe(
+      handoffReply('ai_failure', 'My order has not arrived yet, can you check?'),
+    );
+    expect(published[0].content).not.toMatch(/[一-鿿]/);
+  });
+
+  it('中文问句里带地址 id 仍按中文兜底（2026-11-24 真实轮次发现）', () => {
+    // 26 个拉丁字母曾把中文占比压到 32% → 判成 mixed → 用户收到英文。
+    // id 是数据不是语言，不能参与语言判定。
+    const question = '帮我删掉收货地址 cmwu8yfd9000k3m2n1p0q9r8s 可以吗';
+    const reply = handoffReply('quota_exceeded', question);
+    expect(reply).toMatch(/[一-鿿]/);
+    expect(reply).toBe(handoffReply('quota_exceeded', '你好'));
+  });
+
+  it('英文问句里带订单号仍按英文兜底', () => {
+    const reply = handoffReply(
+      'no_evidence',
+      'Can you refund order #ORD20261124001 for me?',
+    );
+    expect(reply).not.toMatch(/[一-鿿]/);
+    expect(reply).toBe(handoffReply('no_evidence', 'hello'));
+  });
+
+  it('菲律宾语提问走英文兜底（拉丁文字，比中文更有用）', async () => {
+    expect(handoffReply('offline_handoff', 'Kailan darating ang order ko?')).toBe(
+      handoffReply('offline_handoff', 'When will my order arrive?'),
+    );
+  });
+
+  it('中英文兜底话术都不含金额/时效/政策断言', () => {
+    for (const kind of [
+      'ai_failure',
+      'offline_handoff',
+      'quota_exceeded',
+      'no_evidence',
+    ] as const) {
+      for (const text of [
+        handoffReply(kind, '你好'),
+        handoffReply(kind, 'hello'),
+      ]) {
+        expect(text).not.toMatch(/\d+\s*(元|天|小时|%|days?|hours?|php|₱)/i);
+        expect(text).not.toMatch(/政策|规则|余额|policy|rules|balance/i);
+      }
+    }
   });
 
   it('成员列表为空时，至少推给提问者本人', async () => {

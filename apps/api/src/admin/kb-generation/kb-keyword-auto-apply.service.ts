@@ -25,6 +25,16 @@ export interface AutoApplyOutcome {
   failed: number;
 }
 
+/**
+ * 单条候选的处理结果。
+ * 带上 reason：自动生效走后台批量，没人看日志；但人工批准失败时，
+ * 「document state/quota」这种笼统提示根本没法定位，必须说清是哪道护栏。
+ */
+export interface ApplyCandidateResult {
+  outcome: keyof AutoApplyOutcome;
+  reason?: string;
+}
+
 interface DocumentRow {
   id: string;
   version: number;
@@ -87,7 +97,14 @@ export class KbKeywordAutoApplyService {
 
     for (const candidate of candidates) {
       const result = await this.applyCandidate(candidate);
-      outcome[result] += 1;
+      outcome[result.outcome] += 1;
+      if (result.outcome !== 'applied') {
+        this.logger.log(
+          `[kb-keyword] candidate=${candidate.id} ${result.outcome}: ${
+            result.reason ?? 'unknown'
+          }`,
+        );
+      }
     }
 
     if (outcome.applied > 0) {
@@ -106,7 +123,7 @@ export class KbKeywordAutoApplyService {
   async applyPendingCandidate(
     candidateId: string,
     actorId: string,
-  ): Promise<keyof AutoApplyOutcome> {
+  ): Promise<ApplyCandidateResult> {
     const candidate = await this.prisma.kbGenerationCandidate.findUnique({
       where: { id: candidateId },
       select: {
@@ -124,8 +141,8 @@ export class KbKeywordAutoApplyService {
       throw new BadRequestException('Only PENDING candidates can be applied');
     }
 
-    const result = await this.applyCandidate(candidate);
-    if (result === 'applied') {
+    const result = await this.applyCandidate(candidate, { enforceQuota: false });
+    if (result.outcome === 'applied') {
       await this.prisma.kbGenerationCandidate.update({
         where: { id: candidate.id },
         data: {
@@ -169,15 +186,24 @@ export class KbKeywordAutoApplyService {
       if (!reclaimed.count) continue;
 
       const result = await this.applyCandidate(candidate);
-      outcome[result] += 1;
+      outcome[result.outcome] += 1;
     }
 
     return outcome;
   }
 
+  /**
+   * 单条候选的生效流程。
+   *
+   * `enforceQuota` 分两种口径：自动生效无人值守，必须严守单文档关键词上限；
+   * 人工批准是人看过的决定，上限只当建议——把审核者卡在一个他界面上根本
+   * 改不掉的配额上（frontmatter 来自源文件，没有删词入口），这份文档就永远
+   * 批不动了。超限时记 warn，行为本身仍然走同一套 CAS/快照/回滚逻辑。
+   */
   private async applyCandidate(
     candidate: KeywordCandidateLike,
-  ): Promise<keyof AutoApplyOutcome> {
+    options: { enforceQuota: boolean } = { enforceQuota: true },
+  ): Promise<ApplyCandidateResult> {
     const limits = keywordAutoApplyLimits();
     const word = candidate.text.trim();
 
@@ -186,7 +212,10 @@ export class KbKeywordAutoApplyService {
       word.length > limits.maxLength ||
       detectInjection(word).detected
     ) {
-      return 'pending';
+      return {
+        outcome: 'pending',
+        reason: `keyword "${word}" failed the length/injection filter`,
+      };
     }
 
     const doc = await this.prisma.knowledgeDocument.findUnique({
@@ -210,7 +239,14 @@ export class KbKeywordAutoApplyService {
       doc.processStatus !== 'indexed' ||
       doc.version !== candidate.documentVersion
     ) {
-      return 'pending';
+      return {
+        outcome: 'pending',
+        reason: `document is not ready (deleted, processStatus=${
+          doc?.processStatus ?? 'missing'
+        }, doc version=${doc?.version ?? '?'} vs candidate version=${
+          candidate.documentVersion
+        })`,
+      };
     }
 
     const current = effectiveKeywords(doc.keywords, doc.autoKeywords);
@@ -218,7 +254,16 @@ export class KbKeywordAutoApplyService {
       (keyword) => keyword.toLowerCase() === word.toLowerCase(),
     );
     if (!alreadyPresent && current.length >= limits.maxTotal) {
-      return 'pending';
+      if (options.enforceQuota) {
+        return {
+          outcome: 'pending',
+          reason: `keyword quota reached (${current.length}/${limits.maxTotal}); remove some keywords from the document first`,
+        };
+      }
+      this.logger.warn(
+        `[kb-keyword] manual approval exceeds the quota for doc=${doc.id} ` +
+          `(${current.length}/${limits.maxTotal}); applying "${word}" anyway`,
+      );
     }
 
     // CAS：同一候选只允许一个执行者。
@@ -226,7 +271,12 @@ export class KbKeywordAutoApplyService {
       where: { id: candidate.id, status: 'PENDING' },
       data: { status: 'AUTO_APPLIED', autoApplied: true, appliedBy: 'SYSTEM' },
     });
-    if (!claimed.count) return 'pending';
+    if (!claimed.count) {
+      return {
+        outcome: 'pending',
+        reason: 'candidate was already claimed by another worker',
+      };
+    }
 
     let updated: Array<{ auto_keywords: string[]; keywords: string[] }> = [];
     if (!alreadyPresent) {
@@ -270,7 +320,10 @@ export class KbKeywordAutoApplyService {
           where: { id: candidate.id },
           data: { status: 'PENDING', autoApplied: false, appliedBy: null },
         });
-        return 'pending';
+        return {
+          outcome: 'pending',
+          reason: 'document was deleted or re-versioned during apply',
+        };
       }
       keywords = effectiveKeywords(latest.keywords, latest.autoKeywords);
     }
@@ -295,7 +348,10 @@ export class KbKeywordAutoApplyService {
           (error as Error).message
         }`,
       );
-      return 'failed';
+      return {
+        outcome: 'failed',
+        reason: `Meilisearch update failed: ${(error as Error).message}`,
+      };
     }
 
     await this.prisma.kbGenerationCandidate.update({
@@ -313,7 +369,7 @@ export class KbKeywordAutoApplyService {
       },
     });
 
-    return 'applied';
+    return { outcome: 'applied' };
   }
 
   /**

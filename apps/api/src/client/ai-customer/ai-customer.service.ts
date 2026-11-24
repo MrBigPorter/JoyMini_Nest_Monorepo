@@ -25,6 +25,7 @@ import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import { QueryRewriteService } from '@api/client/ai-customer/knowledge/query-rewrite.service';
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
@@ -35,10 +36,7 @@ import {
   localizeClaimError,
 } from './coupon-claim-errors';
 import { resolveTurnStatus } from './turn-status';
-import {
-  CLAIM_NOT_EXECUTED_REPLY,
-  detectCompletionClaim,
-} from './claim-guard';
+import { CLAIM_NOT_EXECUTED_REPLY, detectCompletionClaim } from './claim-guard';
 import { AiActionLifecycleService } from './ai-action-lifecycle.service';
 import {
   AiActionContextService,
@@ -88,12 +86,23 @@ import {
 } from '@api/admin/ai-traces/ai-traces.service';
 import {
   degradeToHuman,
+  handoffReply,
   mergeHandoffCallback,
-  OFFLINE_HANDOFF_REPLY,
-  QUOTA_EXCEEDED_REPLY,
 } from './ai-failure-handler';
 import { HandoffPresenceService } from '@api/common/chat/handoff/handoff-presence.service';
 import { isSensitiveRequest } from '@api/common/utils/sensitive-content';
+import {
+  classifyGrounding,
+  countSuccessfulToolCalls,
+  decideGroundingGate,
+  hasFactualAssertion,
+  isCannedReply,
+  isClarificationOnly,
+  NO_EVIDENCE_HANDOFF_REPLY,
+  readGroundingGateMode,
+  type GroundingGateDecision,
+  type GroundingType,
+} from '@api/client/ai-customer/graph/nodes/orchestrator-utils/grounding-gate';
 import { policyFallback } from './policy-fallback';
 import {
   setHandoffCallbackPending,
@@ -219,6 +228,12 @@ export class AiCustomerService implements OnModuleDestroy {
         apiKey,
       };
       const checkpointer = await this.createCheckpointer();
+      // 改写需要与聊天模型同一套配置；放在这里实例化，避免在 DI 层复制
+      // 「AI_LLM_TYPE / DEEPSEEK key」的选择逻辑。
+      const queryRewriteService = new QueryRewriteService(
+        this.llmConfig,
+        this.redisService,
+      );
       this.compiledGraph = buildCustomerGraph(
         this.llmConfig,
         this.registry,
@@ -229,6 +244,7 @@ export class AiCustomerService implements OnModuleDestroy {
         this.promptResolver,
         this.redisService,
         checkpointer,
+        queryRewriteService,
       );
     } catch (error) {
       this.logger.error('Failed to compile AiCustomer Graph', error);
@@ -790,6 +806,8 @@ export class AiCustomerService implements OnModuleDestroy {
         streamUsage.totalTokens,
         memberIds,
         triggerMessageId,
+        streamUsage,
+        message,
       );
 
       // 链路追踪：一次回复一条 trace，best-effort，不影响对话结果。
@@ -1121,6 +1139,9 @@ export class AiCustomerService implements OnModuleDestroy {
     tokenTotal: number,
     memberIds: string[],
     triggerMessageId?: string,
+    streamUsage?: StreamUsageSummary,
+    /** 用户本轮提问原文：门禁降级话术跟随它的语言 */
+    userText?: string,
   ): Promise<{
     status: 'SUCCESS' | 'TRANSFERRED' | 'CONFIRM' | 'CONFIRM_REJECTED';
     finalState: any;
@@ -1184,8 +1205,73 @@ export class AiCustomerService implements OnModuleDestroy {
     // IM 消息由 AiReplyPublisher 写入 ChatMessage（这里不再维护 ai:hot 缓存）。
 
     // 先判定走向，再执行副作用；最后统一记一条 chat.done。
-    const transferred = Boolean(finalState?.values?.transferToHuman);
+    let transferred = Boolean(finalState?.values?.transferToHuman);
     const confirmCard = Boolean(finalState?.values?.pendingConfirm);
+
+    // ── 依据门禁 ──
+    // 只在「最终回复已经生成、准备发布」这个单点判定，不散落在各个节点里。
+    // shadow 只记录决定；enforce 才把「业务意图 + 完全无依据 + 非澄清」的回答
+    // 换成转人工话术。确认卡与已转人工的轮次不改写（告别语本来就转人工）。
+    const gateMode = readGroundingGateMode();
+    if (gateMode !== 'off' && finalState?.values) {
+      const finalReply = this.extractText(newMessages.at(-1)?.content) ?? '';
+      const grounding = classifyGrounding({
+        canned: isCannedReply(finalReply),
+        ragSourceCount: ragSources.length,
+        toolCallCount: countSuccessfulToolCalls(streamUsage?.toolSpans),
+      });
+      const clarificationOnly = isClarificationOnly(finalReply);
+      const factualAssertion = hasFactualAssertion(finalReply);
+      const intent =
+        typeof finalState.values.intent === 'string'
+          ? finalState.values.intent
+          : null;
+      const decision = decideGroundingGate({
+        grounding,
+        intent,
+        clarificationOnly,
+        factualAssertion,
+      });
+
+      finalState.values.groundingGate = {
+        mode: gateMode,
+        decision,
+        grounding,
+        intent,
+        clarificationOnly,
+        factualAssertion,
+      };
+
+      if (gateMode === 'enforce' && decision === 'degrade' && !transferred && !confirmCard) {
+        // 模型没坏、知识库没命中：先确认再回答，别硬编。
+        // 话术跟随问句语言：英文问题被降级后收到中文，等于这条链路对他不可用。
+        const replacement = {
+          type: 'ai',
+          content: handoffReply('no_evidence', userText),
+        };
+        if (newMessages.length > 0) {
+          newMessages[newMessages.length - 1] = replacement;
+        } else {
+          newMessages.push(replacement);
+        }
+        finalState.values.transferToHuman = true;
+        finalState.values.transferReason = 'no_evidence';
+        finalState.values.pendingConfirm = null;
+        transferred = true;
+        emitStage(
+          'transfer',
+          { source: 'grounding_gate', reason: 'no_evidence' },
+          'warn',
+        );
+        incCounter('handoff_escalations_total', {
+          reason: 'no_evidence',
+          source: 'grounding_gate',
+        });
+        this.logger.warn(
+          `[grounding-gate] degraded ungrounded reply: conv=${conversationId ?? 'n/a'}, intent=${intent ?? 'unknown'}`,
+        );
+      }
+    }
     // 真正发出去的卡片才算 CONFIRM；守卫拦下（如序号当 ID）记 CONFIRM_REJECTED。
     let confirmCardCreated = false;
     // 原因由 orchestrator 经 transferReason 带下来（explicit_request / negative_sentiment / repeated_attempts）
@@ -1205,6 +1291,7 @@ export class AiCustomerService implements OnModuleDestroy {
         memberIds,
         newMessages,
         triggerMessageId,
+        userText,
       );
     } else if (confirmCard) {
       // 路由 B — 确认卡片（只发提问者本人的私有房间，见 routeConfirm 注释）
@@ -1254,11 +1341,7 @@ export class AiCustomerService implements OnModuleDestroy {
     });
 
     return {
-      status: resolveTurnStatus(
-        transferred,
-        confirmCard,
-        confirmCardCreated,
-      ),
+      status: resolveTurnStatus(transferred, confirmCard, confirmCardCreated),
       finalState,
       newMessages,
       ragSources,
@@ -1314,6 +1397,55 @@ export class AiCustomerService implements OnModuleDestroy {
             select: { id: true },
           })
         : null;
+
+      // 依据分型：这轮回答到底靠什么支撑（kb / tool / none / fallback）。
+      // canned 必须用未脱敏原文判定——脱敏只改落库 snippet，不改「是不是兜底话术」。
+      const toolCallCount = countSuccessfulToolCalls(
+        params.streamUsage?.toolSpans,
+      );
+      const grounding: GroundingType = classifyGrounding({
+        canned: isCannedReply(output),
+        ragSourceCount: params.ragSources.length,
+        toolCallCount,
+      });
+
+      // 检索是否尝试过、为什么跳过（未尝试 ≠ 尝试了但 0 候选）。
+      const retrievalMeta =
+        (values.retrievalMeta as
+          | {
+              attempted?: boolean;
+              skipReason?: string | null;
+              timedOut?: boolean;
+            }
+          | undefined) ?? null;
+
+      // 门禁决定由 finalizeAfterStream 写入 state；这里只负责落库。
+      const groundingGate =
+        (values.groundingGate as
+          | {
+              mode: string;
+              decision: GroundingGateDecision;
+              grounding: GroundingType;
+              intent: string | null;
+              clarificationOnly: boolean;
+              factualAssertion?: boolean;
+            }
+          | undefined) ?? null;
+
+      // 提示词归因：主绑定写 trace 列，全部绑定写 metadata，供多 agent 场景下钻。
+      const promptBinding =
+        (values.promptBinding as
+          | { name: string; version: number | null; source: 'db' | 'code' }
+          | null
+          | undefined) ?? null;
+      const promptBindings = Array.isArray(values.promptBindings)
+        ? (values.promptBindings as Array<{
+            name: string;
+            version: number | null;
+            source: 'db' | 'code';
+            agent?: string;
+          }>)
+        : [];
 
       // 工具调用留痕：type=tool，含工具名、状态、耗时与脱敏参数摘要。
       // 放在 rag 之后、llm 之前，时间线上就是「检索 → 调工具 → 生成回答」。
@@ -1388,12 +1520,28 @@ export class AiCustomerService implements OnModuleDestroy {
         latencyMs,
         promptTokens: params.streamUsage?.promptTokens,
         completionTokens: params.streamUsage?.completionTokens,
+        // 列字段只存主绑定；多 agent 全部绑定见 metadata.promptBindings。
+        promptName: promptBinding?.name ?? null,
+        promptVersion: promptBinding?.version ?? null,
         metadata: {
+          promptSource: promptBinding?.source ?? null,
+          promptBindings: promptBindings.length > 0 ? promptBindings : undefined,
           flow: flow.activeFlow || undefined,
           step: flow.step || undefined,
           transferReason:
             params.status === 'TRANSFERRED' ? params.transferReason : undefined,
           ragSourceCount: params.ragSources.length,
+          // 依据分型是验收口径的运行时来源；评测优先读它，缺失才回退推断。
+          grounding,
+          toolCallCount,
+          retrieval: retrievalMeta
+            ? {
+                attempted: Boolean(retrievalMeta.attempted),
+                skipReason: retrievalMeta.skipReason ?? null,
+                timedOut: Boolean(retrievalMeta.timedOut),
+              }
+            : undefined,
+          groundingGate: groundingGate ?? undefined,
           handoffState:
             params.status === 'TRANSFERRED' ? 'WAITING_HUMAN' : 'AI_ACTIVE',
           handoffReason: params.transferReason ?? undefined,
@@ -1512,6 +1660,8 @@ export class AiCustomerService implements OnModuleDestroy {
      */
     newMessages: any[] = [],
     triggerMessageId?: string,
+    /** 用户本轮提问原文：兜底/离线话术跟随它的语言 */
+    userText?: string,
   ): Promise<void> {
     let targetConvId = conversationId;
 
@@ -1556,6 +1706,7 @@ export class AiCustomerService implements OnModuleDestroy {
           reason,
           memberIds,
           triggerMessageId,
+          userText,
         );
       } else {
         await this.prismaService.conversation.update({
@@ -1653,7 +1804,8 @@ export class AiCustomerService implements OnModuleDestroy {
    * 检查关闭、探测器缺失或探测异常时都按在线处理（fail-open）。
    */
   private async resolveTransferMode(): Promise<'online' | 'offline'> {
-    if (!this.isPresenceCheckEnabled() || !this.handoffPresence) return 'online';
+    if (!this.isPresenceCheckEnabled() || !this.handoffPresence)
+      return 'online';
     try {
       const presence = await this.handoffPresence.isAnyAgentOnline();
       return presence.online ? 'online' : 'offline';
@@ -1675,6 +1827,8 @@ export class AiCustomerService implements OnModuleDestroy {
     reason: string,
     memberIds: string[],
     triggerMessageId?: string,
+    /** 用户本轮提问原文：离线留言提示要跟随它的语言 */
+    userText?: string,
   ): Promise<void> {
     const requestedAt = new Date();
 
@@ -1699,7 +1853,7 @@ export class AiCustomerService implements OnModuleDestroy {
         this.eventsGateway,
         this.eventEmitter,
         targetConvId,
-        [{ type: 'ai', content: OFFLINE_HANDOFF_REPLY }],
+        [{ type: 'ai', content: handoffReply('offline_handoff', userText) }],
         userId,
         memberIds,
         undefined,
@@ -2192,7 +2346,13 @@ export class AiCustomerService implements OnModuleDestroy {
   }
 
   private recordConfirmationGateTrace(
-    args: { userId: string; conversationId: string; startedAt: number; message: string; triggerMessageId?: string },
+    args: {
+      userId: string;
+      conversationId: string;
+      startedAt: number;
+      message: string;
+      triggerMessageId?: string;
+    },
     status:
       | 'CONFIRM_REISSUED'
       | 'CONFIRM_REJECTED'
@@ -2220,9 +2380,7 @@ export class AiCustomerService implements OnModuleDestroy {
         spans: [],
       })
       .catch((err: any) => {
-        this.logger.warn(
-          `[confirm-gate] trace failed: ${err?.message ?? err}`,
-        );
+        this.logger.warn(`[confirm-gate] trace failed: ${err?.message ?? err}`);
       });
   }
 
@@ -2342,7 +2500,8 @@ export class AiCustomerService implements OnModuleDestroy {
 
     // 提现已经确认、正在等 OTP 时，卡片 token 已被消费。
     // 此时取消应该撤销待执行任务，而不是报“token 无效”。
-    const pending = await this.aiActionConfirmService.peekPendingExecution(userId);
+    const pending =
+      await this.aiActionConfirmService.peekPendingExecution(userId);
     if (!pending) {
       throw new BadRequestException('Confirm token invalid or expired');
     }
@@ -2373,9 +2532,8 @@ export class AiCustomerService implements OnModuleDestroy {
 
   /** 重新发送提现验证码（仍绑定当前待执行任务）。 */
   async resendWithdrawOtp(userId: string) {
-    const pending = await this.aiActionConfirmService.peekPendingExecution(
-      userId,
-    );
+    const pending =
+      await this.aiActionConfirmService.peekPendingExecution(userId);
     if (!pending) {
       throw new BadRequestException('No pending withdraw action found');
     }
@@ -2457,13 +2615,7 @@ export class AiCustomerService implements OnModuleDestroy {
       deleteAddress: (uid, addressId) =>
         this.addressService.delete(uid, addressId),
       startWithdrawOtp: (uid, params, summary, requestId, conversationId) =>
-        this.startWithdrawOtp(
-          uid,
-          params,
-          summary,
-          requestId,
-          conversationId,
-        ),
+        this.startWithdrawOtp(uid, params, summary, requestId, conversationId),
     };
   }
 
@@ -2775,7 +2927,7 @@ export class AiCustomerService implements OnModuleDestroy {
       );
       if (conversationId && userId) {
         await this.routeNormalCompletion(
-          [{ type: 'ai', content: QUOTA_EXCEEDED_REPLY }],
+          [{ type: 'ai', content: handoffReply('quota_exceeded', message) }],
           userId,
           conversationId,
           memberIds,
@@ -2842,7 +2994,7 @@ export class AiCustomerService implements OnModuleDestroy {
         presenceCheckEnabled: this.isPresenceCheckEnabled(),
         aiFeedback: this.aiFeedbackService,
       },
-      { conversationId, userId, memberIds, triggerMessageId },
+      { conversationId, userId, memberIds, triggerMessageId, userText: message },
     );
 
     callbacks?.onTransfer?.('ai_error');

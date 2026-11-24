@@ -189,3 +189,192 @@ describe('AiCustomerService · trace coverage', () => {
     });
   });
 });
+
+describe('AiCustomerService · 依据分型落库', () => {
+  beforeEach(() => resetMetricsForTest());
+
+  const reply = (content: string) => [{ type: 'ai', content }];
+  const toolSpan = (status: 'OK' | 'ERROR') => ({
+    name: 'getWalletBalance',
+    status,
+    durationMs: 5,
+    argsSummary: null,
+    startedAt: Date.now(),
+  });
+
+  async function record(options: {
+    content: string;
+    ragSourceCount?: number;
+    toolSpans?: any[];
+    retrievalMeta?: any;
+  }) {
+    const recordTrace = jest.fn(async (_input: any) => ({ id: 'trace-1' }));
+    const { service } = makeService(recordTrace);
+    await (service as any).recordReplyTrace({
+      message: '问题',
+      userId: 'u1',
+      conversationId: 'c1',
+      triggerMessageId: 'm1',
+      startedAt: Date.now() - 10,
+      status: 'SUCCESS',
+      finalState: {
+        values: {
+          intent: 'order',
+          messages: reply(options.content),
+          retrievalMeta: options.retrievalMeta,
+        },
+      },
+      newMessages: reply(options.content),
+      ragSources: Array.from(
+        { length: options.ragSourceCount ?? 0 },
+        (_, n) => ({ docId: `doc-${n}`, content: 'x' }),
+      ),
+      streamUsage: {
+        promptTokens: 1,
+        completionTokens: 1,
+        totalTokens: 2,
+        toolSpans: options.toolSpans,
+      },
+    });
+    return (recordTrace.mock.calls[0]![0] as any).metadata;
+  }
+
+  it('检索到知识库 → kb', async () => {
+    const metadata = await record({ content: '3-5 天', ragSourceCount: 2 });
+    expect(metadata).toMatchObject({ grounding: 'kb', toolCallCount: 0 });
+  });
+
+  it('工具成功调用 → tool', async () => {
+    const metadata = await record({
+      content: '余额 100 元',
+      toolSpans: [toolSpan('OK')],
+    });
+    expect(metadata).toMatchObject({ grounding: 'tool', toolCallCount: 1 });
+  });
+
+  it('工具全失败 → 不算依据，落 none', async () => {
+    const metadata = await record({
+      content: '稍等',
+      toolSpans: [toolSpan('ERROR')],
+    });
+    expect(metadata).toMatchObject({ grounding: 'none', toolCallCount: 0 });
+  });
+
+  it('既没检索也没工具 → none', async () => {
+    const metadata = await record({ content: '退款需要 3-5 个工作日。' });
+    expect(metadata).toMatchObject({ grounding: 'none', toolCallCount: 0 });
+  });
+
+  it('兜底话术 → fallback（即使调过工具）', async () => {
+    const metadata = await record({
+      content: '抱歉，我这边暂时处理不了你的问题，已经帮你转接人工客服，请稍等。',
+      toolSpans: [toolSpan('OK')],
+    });
+    expect(metadata.grounding).toBe('fallback');
+  });
+
+  it('检索跳过原因写进 metadata.retrieval', async () => {
+    const metadata = await record({
+      content: '你好',
+      retrievalMeta: { attempted: false, skipReason: 'pending_confirm' },
+    });
+    expect(metadata.retrieval).toEqual({
+      attempted: false,
+      skipReason: 'pending_confirm',
+      timedOut: false,
+    });
+  });
+
+  it('预取超时写进 metadata.retrieval.timedOut', async () => {
+    const metadata = await record({
+      content: '好的，我马上为您处理。',
+      retrievalMeta: { attempted: true, skipReason: null, timedOut: true },
+    });
+    expect(metadata.retrieval).toEqual({
+      attempted: true,
+      skipReason: null,
+      timedOut: true,
+    });
+  });
+});
+
+/**
+ * 提示词归因落库 —— trace 的 prompt_name / prompt_version 是「回答→提示词」
+ * 的唯一连接点。列只存主绑定，全部绑定留在 metadata 供多 agent 下钻。
+ */
+describe('AiCustomerService · 提示词归因落库', () => {
+  beforeEach(() => resetMetricsForTest());
+
+  async function record(values: Record<string, unknown>) {
+    const recordTrace = jest.fn(async (_input: any) => ({ id: 'trace-1' }));
+    const { service } = makeService(recordTrace);
+    await (service as any).recordReplyTrace({
+      message: '我的余额是多少',
+      userId: 'u1',
+      conversationId: 'c1',
+      triggerMessageId: 'm1',
+      startedAt: Date.now() - 10,
+      status: 'SUCCESS',
+      finalState: { values: { intent: 'wallet', ...values } },
+      newMessages: [{ content: '余额 100 元' }],
+      ragSources: [],
+    });
+    return recordTrace.mock.calls[0]![0] as any;
+  }
+
+  it('DB 覆盖：主绑定写列，全部绑定写 metadata', async () => {
+    const input = await record({
+      promptBinding: {
+        name: 'wallet',
+        version: 3,
+        source: 'db',
+        agent: 'walletAgent',
+      },
+      promptBindings: [
+        { name: 'wallet', version: 3, source: 'db', agent: 'walletAgent' },
+        { name: 'coupon', version: null, source: 'code', agent: 'couponAgent' },
+      ],
+    });
+
+    expect(input.promptName).toBe('wallet');
+    expect(input.promptVersion).toBe(3);
+    expect(input.metadata).toMatchObject({ promptSource: 'db' });
+    expect(input.metadata.promptBindings).toHaveLength(2);
+    expect(input.metadata.promptBindings[1]).toMatchObject({
+      name: 'coupon',
+      source: 'code',
+    });
+  });
+
+  it('代码内置：列存 tag，version 为 null，source=code', async () => {
+    const input = await record({
+      promptBinding: {
+        name: 'general-chat',
+        version: null,
+        source: 'code',
+        agent: 'general-chat',
+      },
+      promptBindings: [
+        {
+          name: 'general-chat',
+          version: null,
+          source: 'code',
+          agent: 'general-chat',
+        },
+      ],
+    });
+
+    expect(input.promptName).toBe('general-chat');
+    expect(input.promptVersion).toBeNull();
+    expect(input.metadata).toMatchObject({ promptSource: 'code' });
+  });
+
+  it('本轮没有绑定：列与 metadata 都不残留', async () => {
+    const input = await record({});
+
+    expect(input.promptName).toBeNull();
+    expect(input.promptVersion).toBeNull();
+    expect(input.metadata).toMatchObject({ promptSource: null });
+    expect(input.metadata.promptBindings).toBeUndefined();
+  });
+});

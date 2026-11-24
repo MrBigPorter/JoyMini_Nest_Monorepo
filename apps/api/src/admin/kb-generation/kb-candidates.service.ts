@@ -236,7 +236,10 @@ export class KbCandidatesService {
     const eligible = candidates.filter(
       (candidate) =>
         candidate.status === 'PENDING' &&
-        (dto.includeNeedsReview || !candidate.needsReview),
+        // 「重点复核」只是批准的前置：驳回本来就是把可疑候选清掉，不需要再加一道门槛。
+        (dto.action === 'reject' ||
+          dto.includeNeedsReview ||
+          !candidate.needsReview),
     );
     const skipped = candidates.length - eligible.length;
 
@@ -298,14 +301,16 @@ export class KbCandidatesService {
       candidate.id,
       actorId,
     );
-    if (result === 'pending') {
+    if (result.outcome === 'pending') {
+      // 直接把是哪道护栏告诉你：配额满了要删词、文档没索引要先跑索引。
       throw new BadRequestException(
-        'Keyword did not pass auto-apply guards (document state/quota)',
+        result.reason ?? 'Keyword did not pass apply guards',
       );
     }
-    if (result === 'failed') {
+    if (result.outcome === 'failed') {
       throw new BadRequestException(
-        'Meilisearch update failed; candidate marked FAILED for retry',
+        result.reason ??
+          'Meilisearch update failed; candidate marked FAILED for retry',
       );
     }
     return this.get(candidate.id);

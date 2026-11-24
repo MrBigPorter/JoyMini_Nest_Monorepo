@@ -83,6 +83,10 @@ export function KbCandidatesClient() {
   const [confirmRollback, setConfirmRollback] = useState(false);
   const [allowGrowth, setAllowGrowth] = useState(false);
   const [includeNeedsReview, setIncludeNeedsReview] = useState(false);
+  /** 上次批量被「单域增长 >10%」挡住，显示一键重试 */
+  const [growthBlocked, setGrowthBlocked] = useState(false);
+  /** 上次批量因候选全是「重点复核」被全部跳过，显示一键重试 */
+  const [reviewBlocked, setReviewBlocked] = useState(false);
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -154,6 +158,18 @@ export function KbCandidatesClient() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  }
+
+  /** 全选/取消全选当前页（只影响本页，跨页仍逐页处理） */
+  function toggleAllOnPage(select: boolean) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      for (const item of items) {
+        if (select) next.add(item.id);
+        else next.delete(item.id);
+      }
       return next;
     });
   }
@@ -264,33 +280,60 @@ export function KbCandidatesClient() {
     setPendingBatch(action);
   }
 
-  async function executeBatch() {
-    if (!pendingBatch || checkedItems.length === 0) return;
-    const action = pendingBatch;
+  async function executeBatch(
+    action: 'approve' | 'reject',
+    overrideGrowth = false,
+    overrideReview = false,
+  ) {
+    if (checkedItems.length === 0) return;
     const ids = checkedItems.map((item) => item.id);
     setActing(true);
     setActionError(null);
     setNotice(null);
+    setGrowthBlocked(false);
+    setReviewBlocked(false);
     try {
       const result = await kbCandidatesApi.batch({
         ids,
         action,
         confirm: true,
         reason: action === 'reject' ? batchReason.trim() : undefined,
-        allowDomainGrowth: allowGrowth,
-        includeNeedsReview,
+        allowDomainGrowth: overrideGrowth || allowGrowth,
+        includeNeedsReview: overrideReview || includeNeedsReview,
       });
       setChecked(new Set());
       setBatchReason('');
-      setNotice(
+      const nothingDone =
+        result.applied === 0 &&
+        result.rejected === 0 &&
+        result.skipped > 0 &&
+        result.failed.length === 0;
+      const message =
         `批量完成：生效 ${result.applied}，驳回 ${result.rejected}，跳过 ${result.skipped}` +
-          (result.failed.length
-            ? `，失败 ${result.failed.length}（${result.failed[0]?.error ?? ''}）`
-            : ''),
-      );
+        (result.failed.length
+          ? `，失败 ${result.failed.length}（${result.failed[0]?.error ?? ''}）`
+          : '');
+      if (nothingDone) {
+        // 一条都没处理时不能只显示绿色的「完成」，否则看起来像没刷新。
+        setActionError(
+          `${message}。跳过的是「重点复核」候选（与已有示例近乎同义），` +
+            '批量默认不动它们，避免重复计入同一主题。',
+        );
+        setReviewBlocked(true);
+        setNotice(null);
+      } else {
+        setNotice(message);
+        setActionError(null);
+      }
       await Promise.all([refresh(), refreshDetail()]);
     } catch (error: any) {
-      setActionError(error?.message ?? '批量操作失败，请重试');
+      const message: string = error?.message ?? '批量操作失败，请重试';
+      setActionError(message);
+      // 增长护栏是唯一「换个参数就能过」的错误，直接给一键重试，
+      // 不用让人回头找那个复选框。
+      if (/allowDomainGrowth|grow "|by more than/i.test(message)) {
+        setGrowthBlocked(true);
+      }
     } finally {
       setActing(false);
       setPendingBatch(null);
@@ -468,6 +511,58 @@ export function KbCandidatesClient() {
               清空
             </Button>
           </div>
+          {reviewBlocked && !pendingBatch ? (
+            <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+              <AlertTriangle size={14} />
+              选中的候选都被标为「重点复核」（与已有示例近乎同义），建议先逐条看一眼。
+              <div className="ml-auto flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setIncludeNeedsReview(true);
+                    void executeBatch('approve', false, true);
+                  }}
+                  disabled={acting}
+                >
+                  仍然批准
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setReviewBlocked(false)}
+                  disabled={acting}
+                >
+                  取消
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {growthBlocked && !pendingBatch ? (
+            <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+              <AlertTriangle size={14} />
+              这批会让目标域的示例数增长超过 10%（护栏），确认要放行吗？
+              <div className="ml-auto flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setAllowGrowth(true);
+                    void executeBatch('approve', true);
+                  }}
+                  disabled={acting}
+                >
+                  允许增长并重试
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setGrowthBlocked(false)}
+                  disabled={acting}
+                >
+                  取消
+                </Button>
+              </div>
+            </div>
+          ) : null}
           {pendingBatch ? (
             <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               <AlertTriangle size={14} />
@@ -476,7 +571,7 @@ export function KbCandidatesClient() {
               <div className="ml-auto flex gap-2">
                 <Button
                   size="sm"
-                  onClick={() => void executeBatch()}
+                  onClick={() => void executeBatch(pendingBatch)}
                   disabled={acting}
                 >
                   {acting ? '执行中…' : '确认执行'}
@@ -513,6 +608,20 @@ export function KbCandidatesClient() {
                 </span>
               ) : null}
             </h2>
+            <div className="mt-3 flex items-center justify-between border-b border-gray-100 pb-2 dark:border-white/10">
+              <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={items.length > 0 && items.every((item) => checked.has(item.id))}
+                  onChange={(event) => toggleAllOnPage(event.target.checked)}
+                  aria-label="全选本页"
+                />
+                全选本页
+              </label>
+              <span className="text-xs text-gray-400">
+                本页 {items.length} 条
+              </span>
+            </div>
             <div className="mt-3 max-h-[62vh] space-y-2 overflow-y-auto pr-1">
               {items.map((item) => {
                 const active = item.id === selectedId;

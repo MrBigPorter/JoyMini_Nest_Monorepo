@@ -95,6 +95,10 @@ tools/eval/task/reports/
 # Synthetic AI traffic simulator runtime (accounts.json contains tokens)
 tools/simulator/.runtime/
 
+# End-to-end acceptance runtime (accounts.json tokens) + generated reports
+tools/eval/e2e/.runtime/
+tools/eval/e2e/reports/
+
 # QA local environment and runtime logs (may contain test secrets)
 qa/.env.qa
 qa/logs/

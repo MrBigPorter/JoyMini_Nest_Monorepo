@@ -1,4 +1,34 @@
-import { shouldUseKnowledgeFallback } from './knowledge-fallback';
+import {
+  isInformationalQuestion,
+  shouldUseKnowledgeFallback,
+} from './knowledge-fallback';
+
+describe('isInformationalQuestion', () => {
+  it.each([
+    '退款流程是怎样的？',
+    '要上传哪些材料',
+    '提现需要什么材料',
+    '退款要几天到账',
+  ])('中文信息题：%s', (input) => {
+    expect(isInformationalQuestion(input)).toBe(true);
+  });
+
+  it.each([
+    'How do I contact customer support?',
+    'What is the refund policy?',
+    'Where can I find my coupons?',
+    'Do I need to upload documents?',
+  ])('英文信息题：%s', (input) => {
+    expect(isInformationalQuestion(input)).toBe(true);
+  });
+
+  it.each(['你好', '帮我提现 500 到银行卡', 'Show me the product list'])(
+    '非信息题：%s',
+    (input) => {
+      expect(isInformationalQuestion(input)).toBe(false);
+    },
+  );
+});
 
 describe('shouldUseKnowledgeFallback', () => {
   it('信息题 + Agent 说不在范围 → 走知识兜底', () => {

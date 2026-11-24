@@ -1,7 +1,11 @@
 // 依赖链会加载 meilisearch（ESM 包），先占位替掉。
 jest.mock('meilisearch', () => ({ Meilisearch: class {} }));
 
-import { RagRetrievalService } from './rag-retrieval.service';
+import {
+  buildQueryList,
+  mergeChunksByChunkId,
+  RagRetrievalService,
+} from './rag-retrieval.service';
 
 /**
  * Task 5：检索必须只看「当前对外版本」。
@@ -827,5 +831,105 @@ describe('RagRetrievalService 相关性门卫', () => {
 
     const results = await service.retrieve('无关问题', { topK: 3 });
     expect(results.map((r: any) => r.docId)).toEqual(['v']);
+  });
+});
+
+/**
+ * 双语检索：同一问题可以有多个问法（原句 + 英文改写）。
+ * 要求是「变体命中也能进候选」且「同一 chunk 不重复」，排序口径不变。
+ */
+describe('RagRetrievalService 多问法检索', () => {
+  const chunk = (docId: string, score: number, chunkId = `${docId}-c1`) => ({
+    chunkId,
+    chunkIndex: 0,
+    content: `${docId} content`,
+    documentId: `${docId}-d`,
+    title: docId,
+    domain: 'common',
+    docId,
+    keywords: [],
+    priority: 'P0',
+    contentType: 'faq',
+    score,
+  });
+
+  const build = () => {
+    const prisma = {
+      $queryRawUnsafe: jest.fn(),
+      knowledgeDocument: { findMany: jest.fn() },
+    };
+    const aiService = { generateEmbedding: jest.fn().mockResolvedValue([0.1]) };
+    const meilisearchService = { searchChunks: jest.fn(), isAvailable: true };
+    const configService = { get: jest.fn().mockReturnValue(undefined) };
+    return new RagRetrievalService(
+      prisma as any,
+      aiService as any,
+      meilisearchService as any,
+      configService as any,
+    );
+  };
+
+  it('buildQueryList 去重并保留顺序', () => {
+    expect(buildQueryList('抽奖券怎么获得', ['how to get tickets'])).toEqual([
+      '抽奖券怎么获得',
+      'how to get tickets',
+    ]);
+    expect(
+      buildQueryList('抽奖券怎么获得', ['抽奖券怎么获得', '  ', 'how to get']),
+    ).toEqual(['抽奖券怎么获得', 'how to get']);
+  });
+
+  it('mergeChunksByChunkId 只留最高分', () => {
+    const merged = mergeChunksByChunkId([
+      [chunk('a', 0.4, 'same')],
+      [chunk('a', 0.8, 'same'), chunk('b', 0.2, 'b-1')],
+    ]);
+    expect(merged).toHaveLength(2);
+    expect(merged.find((r) => r.chunkId === 'same')?.score).toBe(0.8);
+  });
+
+  it('变体命中、原问句不命中时仍能取到文档', async () => {
+    const service: any = build();
+    jest
+      .spyOn(service, 'vectorSearch')
+      .mockImplementation(async (q: unknown) =>
+        q === 'how to get lucky draw tickets' ? [chunk('lucky', 0.8)] : [],
+      );
+    service.meilisearchService.searchChunks.mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.rerank = jest.fn(async (_q: string, c: any[]) => ({
+      results: c,
+      used: true,
+    }));
+
+    const results = await service.retrieve('抽奖券怎么获得', {
+      topK: 3,
+      queryVariants: ['how to get lucky draw tickets'],
+    });
+
+    expect(service.vectorSearch).toHaveBeenCalledTimes(2);
+    expect(results.map((r: any) => r.docId)).toEqual(['lucky']);
+  });
+
+  it('两个问句命中同一 chunk 时只保留一条', async () => {
+    const service: any = build();
+    jest
+      .spyOn(service, 'vectorSearch')
+      .mockResolvedValue([chunk('lucky', 0.8, 'lucky-c1')]);
+    service.meilisearchService.searchChunks.mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.rerank = jest.fn(async (_q: string, c: any[]) => ({
+      results: c,
+      used: true,
+    }));
+
+    const results = await service.retrieve('抽奖券怎么获得', {
+      topK: 3,
+      queryVariants: ['how to get lucky draw tickets'],
+    });
+
+    expect(results).toHaveLength(1);
   });
 });

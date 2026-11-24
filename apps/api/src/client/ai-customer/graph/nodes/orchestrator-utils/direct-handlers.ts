@@ -11,6 +11,7 @@ import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-us
 import { formatMessage } from '@api/client/ai-customer/graph/utils/format-message-preview';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import type { RetrievedChunk } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import type { QueryRewriteService } from '@api/client/ai-customer/knowledge/query-rewrite.service';
 import {
   RAG_PROMPT,
   RAG_FALLBACK_PROMPT,
@@ -52,6 +53,14 @@ export async function handleGeneralChat(
     previousIntent: state.intent,
     labels: [],
     pendingConfirm: null,
+    // 通用闲聊走代码内置 prompt，没有 DB 版本可归因。
+    promptBinding: {
+      name: 'general-chat',
+      version: null,
+      source: 'code',
+      agent: 'general-chat',
+    },
+    promptBindings: [],
   };
 }
 
@@ -73,6 +82,33 @@ export function toRagCitations(results: RetrievedChunk[]): RagCitation[] {
   }));
 }
 
+export interface RagQueryOptions {
+  /** 查询改写（中文 → 英文），失败时按 null 处理，不影响原问句检索 */
+  queryRewriteService?: QueryRewriteService;
+  /** 编排层已预取的检索结果；传入时不再检索一次 */
+  prefetchedResults?: RetrievedChunk[];
+}
+
+/**
+ * 检索知识库：原问句 + 英文改写变体。
+ *
+ * 单独抽出来是为了让「预取」和「真正生成回答」共用同一次检索，
+ * 而不是在编排收尾再查一遍。
+ */
+export async function retrieveKnowledge(
+  userInput: string,
+  ragRetrievalService: RagRetrievalService,
+  queryRewriteService?: QueryRewriteService,
+): Promise<RetrievedChunk[]> {
+  const rewritten = queryRewriteService
+    ? await queryRewriteService.rewrite(userInput).catch(() => null)
+    : null;
+  return ragRetrievalService.retrieve(userInput, {
+    topK: 3,
+    queryVariants: rewritten ? [rewritten] : undefined,
+  });
+}
+
 export async function handleRagQuery(
   state: typeof AgentState.State,
   llmConfig: LlmProviderConfig,
@@ -82,10 +118,17 @@ export async function handleRagQuery(
    * 放在文档块最前面，模型会把它当作本次检索的上下文提示。
    */
   versionNotice?: string | null,
+  options?: RagQueryOptions,
 ): Promise<OrchestratorStateUpdate> {
   const logger = new Logger('Orchestrator');
   const userInput = extractUserInput(state);
-  const results = await ragRetrievalService.retrieve(userInput, { topK: 3 });
+  const results =
+    options?.prefetchedResults ??
+    (await retrieveKnowledge(
+      userInput,
+      ragRetrievalService,
+      options?.queryRewriteService,
+    ));
   if (results.length === 0) {
     logger.log(
       '[orchestrator] RAG: no relevant documents found, using fallback',
@@ -104,6 +147,13 @@ export async function handleRagQuery(
       labels: [],
       pendingConfirm: null,
       ragSources: [],
+      promptBinding: {
+        name: 'rag-fallback',
+        version: null,
+        source: 'code',
+        agent: 'rag',
+      },
+      promptBindings: [],
     };
   }
   const documents = [
@@ -128,5 +178,12 @@ export async function handleRagQuery(
     labels: [],
     pendingConfirm: null,
     ragSources: toRagCitations(results),
+    promptBinding: {
+      name: 'rag',
+      version: null,
+      source: 'code',
+      agent: 'rag',
+    },
+    promptBindings: [],
   };
 }

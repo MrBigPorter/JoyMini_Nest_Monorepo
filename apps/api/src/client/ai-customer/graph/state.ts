@@ -250,6 +250,17 @@ export interface RagCitation {
 // ============================================================
 
 /** 一次对话内的结构化状态：当前实体、槽位、纠正历史、未解决问题。 */
+/** 一次回答实际使用的提示词来源；用于把 trace / 评测结果归因到具体版本。 */
+export interface PromptBinding {
+  /** DB override 用真实 prompt name；代码内置时回退到 agent tag */
+  name: string;
+  /** DB 版本号；代码内置为 null */
+  version: number | null;
+  source: 'db' | 'code';
+  /** 产生该绑定的 agent 标签（direct handler 用固定名） */
+  agent?: string;
+}
+
 export interface ConversationContextState {
   /** 当前有效实体（用户改口后被覆盖） */
   activeEntity: string;
@@ -524,6 +535,49 @@ export const AgentState = Annotation.Root({
     reducer: (_a: RagCitation[], b: RagCitation[]) => b ?? [],
     default: () => [],
   }),
+
+  /**
+   * retrievalMeta — 本轮「有没有检索、没检索的原因」
+   *
+   * 「未检索」和「检索了但 0 命中」在质量分析里是两件事：前者通常是
+   * 意图/问句判定没触发或服务不可用，后者是知识库覆盖问题。只看
+   * ragSources 为空无法区分，所以单独记一层。
+   */
+  retrievalMeta: Annotation<{
+    attempted: boolean;
+    skipReason: string | null;
+    /** 预取超时被丢弃：检索发出去了，但收尾没等到结果 */
+    timedOut?: boolean;
+  }>({
+    reducer: (_a, b) => b,
+    default: () => ({ attempted: false, skipReason: null }),
+  }),
+
+  /**
+   * promptBinding — 本轮主提示词绑定（用于 trace 归因）
+   *
+   * 取「第一个成功执行的标准 agent」的绑定；没有 DB override 时 name 回退到
+   * agent 的 tag、source='code'、version=null。本轮没有标准 agent（闲聊/转人工/
+   * 澄清/纯 RAG）时为 null。
+   *
+   * ⚠️ 与 pendingConfirm 同类：reducer 后写覆盖，且每条 orchestrator 返回路径
+   * 必须显式写（含 null），否则上一轮的绑定会跨轮残留。
+   */
+  promptBinding: Annotation<PromptBinding | null>({
+    reducer: (a, b) => b,
+    default: () => null,
+  }),
+
+  /**
+   * promptBindings — 本轮所有标准 agent 的提示词绑定（按执行顺序）
+   *
+   * 主绑定只反映一条，多 agent 场景（如 wallet + coupon）需要全部留痕，
+   * 收尾时写入 trace.metadata.promptBindings。
+   */
+  promptBindings: Annotation<PromptBinding[]>({
+    reducer: (_a, b) => b ?? [],
+    default: () => [],
+  }),
 });
 
 // ============================================================
@@ -546,7 +600,9 @@ export const AgentState = Annotation.Root({
  */
 export type OrchestratorStateUpdate = Omit<
   Partial<typeof AgentState.State>,
-  'pendingConfirm'
+  'pendingConfirm' | 'promptBinding' | 'promptBindings'
 > & {
   pendingConfirm: (typeof AgentState.State)['pendingConfirm'];
+  promptBinding: (typeof AgentState.State)['promptBinding'];
+  promptBindings: (typeof AgentState.State)['promptBindings'];
 };

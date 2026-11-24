@@ -12,6 +12,12 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
 import { diagnoseFeedbackRow } from '@/lib/ai-ops-feedback-diagnosis';
 import {
+  evalDeltaText,
+  evalHeadline,
+  evalPassRateText,
+  evalPercentText,
+} from '@/lib/ai-ops-eval';
+import {
   applyFeedbackFilters,
   buildQualityHref,
   hasFeedbackFilters,
@@ -169,6 +175,13 @@ const RESULT_VERDICT_LABELS: Record<string, string> = {
   unsolved: '未解决',
 };
 
+/** 答案准确性三态（与任务成功率 solved/partial/unsolved 分栏展示）。 */
+const ANSWER_VERDICT_LABELS: Record<string, string> = {
+  correct: '正确',
+  incorrect: '错误',
+  judge_error: '判官未判定',
+};
+
 const SCORE_LABELS: Record<string, string> = {
   excellent: '优秀',
   good: '良好',
@@ -197,17 +210,9 @@ function expectedText(item: {
   return Array.isArray(mustMention) ? mustMention.join('；') : '';
 }
 
-function formatPassRate(summary?: Record<string, any> | null): string {
-  const rate = summary?.passRate;
-  return typeof rate === 'number' ? `${(rate * 100).toFixed(1)}%` : '-';
-}
-
-/** 基线差值：正数表示通过率提升，带符号展示。 */
-function formatDelta(value?: number | null): string {
-  if (typeof value !== 'number') return '-';
-  const sign = value > 0 ? '+' : '';
-  return `${sign}${(value * 100).toFixed(1)}%`;
-}
+const formatPassRate = evalPassRateText;
+const formatRate = evalPercentText;
+const formatDelta = evalDeltaText;
 
 function reviewStatusLabel(raw?: string | null): string {
   return raw ? (REVIEW_STATUS_LABELS[raw as ReviewStatus] ?? raw) : '-';
@@ -1713,11 +1718,24 @@ function EvalPanel() {
               {labelOf(RUN_STATUS_LABELS, runData.status)}
             </span>
             <span className="rounded-lg border px-2 py-0.5 text-xs dark:border-white/10">
-              模式：{runData.mode === 'LIVE' ? '实时跑 AI' : '历史回答'}
+              模式：
+              {runData.mode === 'LIVE'
+                ? '实时跑 AI'
+                : runData.mode === 'EXTERNAL'
+                  ? '外部 harness'
+                  : '历史回答'}
             </span>
             <span className="text-xs text-gray-500">
-              通过率 {formatPassRate(runData.summary)}
+              {(() => {
+                const headline = evalHeadline(runData);
+                return `${headline.label} ${headline.value}`;
+              })()}
             </span>
+            {typeof runData.summary?.judgeErrorRate === 'number' ? (
+              <span className="text-xs text-gray-500">
+                判官错误率 {formatRate(runData.summary.judgeErrorRate)}
+              </span>
+            ) : null}
             {runData.status === 'RUNNING' && canStartRun ? (
               <Button
                 size="sm"
@@ -1729,12 +1747,21 @@ function EvalPanel() {
               </Button>
             ) : null}
             {runData.summary?.total != null ? (
-              <span className="text-xs text-gray-500">
-                共 {runData.summary.total} 条 · 解决{' '}
-                {runData.summary.solved ?? 0} · 部分{' '}
-                {runData.summary.partial ?? 0} · 未解决{' '}
-                {runData.summary.unsolved ?? 0}
-              </span>
+              runData.mode === 'EXTERNAL' ? (
+                <span className="text-xs text-gray-500">
+                  共 {runData.summary.total} 条 · 正确{' '}
+                  {runData.summary.correct ?? 0} · 错误{' '}
+                  {runData.summary.incorrect ?? 0} · 判官失败{' '}
+                  {runData.summary.judgeError ?? 0}
+                </span>
+              ) : (
+                <span className="text-xs text-gray-500">
+                  共 {runData.summary.total} 条 · 解决{' '}
+                  {runData.summary.solved ?? 0} · 部分{' '}
+                  {runData.summary.partial ?? 0} · 未解决{' '}
+                  {runData.summary.unsolved ?? 0}
+                </span>
+              )
             ) : null}
             {typeof runData.summary?.baselinePassRate === 'number' ? (
               <span className="text-xs text-gray-500">
@@ -1743,6 +1770,14 @@ function EvalPanel() {
                   passRate: runData.summary.baselinePassRate,
                 })}{' '}
                 · 变化 {formatDelta(runData.summary.delta)} · 新增失败{' '}
+                {runData.summary.newFailures ?? 0} · 修复{' '}
+                {runData.summary.fixed ?? 0}
+              </span>
+            ) : null}
+            {typeof runData.summary?.baselineAccuracy === 'number' ? (
+              <span className="text-xs text-gray-500">
+                基线准确率 {formatRate(runData.summary.baselineAccuracy)} · 变化{' '}
+                {formatDelta(runData.summary.delta)} · 新增错误{' '}
                 {runData.summary.newFailures ?? 0} · 修复{' '}
                 {runData.summary.fixed ?? 0}
               </span>
@@ -1766,24 +1801,40 @@ function EvalPanel() {
                   : '暂无结果。'}
               </div>
             ) : (
-              (runData.results ?? []).map((r) => (
-                <div
-                  key={r.id}
-                  className="rounded-lg border p-2 dark:border-white/10"
-                >
-                  <div className="font-medium">
-                    {labelOf(RESULT_VERDICT_LABELS, r.verdict)} · 分数 {r.score}{' '}
-                    · {r.latencyMs ?? '-'}ms
-                  </div>
-                  <div>{r.case?.question}</div>
-                  {r.actualAnswer ? (
-                    <div className="text-gray-500">
-                      实际回答：{r.actualAnswer}
+              (runData.results ?? []).map((r) => {
+                // EXTERNAL run 只有答案判定；内部 run 只有任务判定。两者不混算。
+                const verdictLabels = r.answerVerdict
+                  ? ANSWER_VERDICT_LABELS
+                  : RESULT_VERDICT_LABELS;
+                const verdict = r.answerVerdict ?? r.verdict;
+                const score = r.answerScore ?? r.score;
+                const judgeErrorKind = (r as any).judgeErrorKind as
+                  | string
+                  | undefined;
+                const grounding = (r as any).grounding as string | undefined;
+                return (
+                  <div
+                    key={r.id}
+                    className="rounded-lg border p-2 dark:border-white/10"
+                  >
+                    <div className="font-medium">
+                      {labelOf(verdictLabels, verdict)} · 分数{' '}
+                      {score ?? '-'} · {r.latencyMs ?? '-'}ms
+                      {judgeErrorKind ? ` · 判官错误：${judgeErrorKind}` : ''}
                     </div>
-                  ) : null}
-                  <div className="text-gray-500">{r.reason}</div>
-                </div>
-              ))
+                    <div>{r.case?.question}</div>
+                    {r.actualAnswer ? (
+                      <div className="text-gray-500">
+                        实际回答：{r.actualAnswer}
+                      </div>
+                    ) : null}
+                    {grounding ? (
+                      <div className="text-gray-500">依据分型：{grounding}</div>
+                    ) : null}
+                    <div className="text-gray-500">{r.reason}</div>
+                  </div>
+                );
+              })
             )}
           </div>
           <details className="mt-3">

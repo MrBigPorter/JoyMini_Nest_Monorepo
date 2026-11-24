@@ -108,6 +108,7 @@ describe('routeTransfer · 在线检查与离线留言（Task 3）', () => {
       ['user-1'],
       [{ type: 'ai', content: '正在为您转接人工客服' }],
       'msg-1',
+      '我想找人工客服',
     );
 
     // ① 不进入排队态：不写 handlerId/transferredAt
@@ -280,6 +281,7 @@ describe('degradeToHuman · 在线检查与离线留言（Task 3）', () => {
       conversationId: 'conv-1',
       userId: 'user-1',
       memberIds: ['user-1'],
+      userText: '我想找人工客服',
     });
 
     expect(publishAiReply).toHaveBeenCalledTimes(1);
@@ -323,6 +325,7 @@ describe('degradeToHuman · 在线检查与离线留言（Task 3）', () => {
       conversationId: 'conv-1',
       userId: 'user-1',
       memberIds: ['user-1'],
+      userText: '我想找人工客服',
     });
 
     expect((publishAiReply as jest.Mock).mock.calls[0][4]).toEqual([

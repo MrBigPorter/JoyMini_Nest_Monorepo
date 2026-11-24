@@ -14,6 +14,7 @@ import {
 } from './kb-candidate-text.util';
 import {
   KB_GENERATION_PROMPT_VERSION,
+  KB_NEEDS_REVIEW_SIMILARITY,
   generationLimits,
   isKbGenerationEnabled,
 } from './kb-generation.constants';
@@ -314,14 +315,9 @@ export class KbGenerationService {
     }
 
     const limits = generationLimits();
-    if (!limits.supportedContentTypes.includes(doc.contentType)) {
-      // 终态跳过：推 lastCandidateVersion，避免补偿扫描每 10 分钟重捞一遍。
-      await this.markCandidateVersion(doc.id, run.documentVersion);
-      await this.finishRun(run.id, 'SKIPPED', {
-        error: `content_type_unsupported:${doc.contentType}`,
-      });
-      return;
-    }
+    // 不按 contentType 拦截：体裁（policy / how-to / troubleshooting / reference…）
+    // 不能预测候选质量，真正有效的闸门是下面的每小时上限、单文档配额，
+    // 以及生成后的长度/指令特征过滤、去重和人工审核。
 
     const hourStart = new Date(Date.now() - 60 * 60 * 1000);
     const recentRuns = await this.prisma.kbGenerationRun.count({
@@ -445,7 +441,9 @@ export class KbGenerationService {
           nearestScore: draft.nearestScore,
           source: 'LLM',
           promptVersion: KB_GENERATION_PROMPT_VERSION,
-          needsReview: draft.kind !== 'KEYWORD',
+          // 只有近重复风险才需要额外看一眼；按 kind 标会让每条示例都带徽标。
+          needsReview:
+            (draft.nearestScore ?? 0) >= KB_NEEDS_REVIEW_SIMILARITY,
           idempotencyKey: sha256(
             `${run.id}:${draft.kind}:${draft.normalizedHash}`,
           ),

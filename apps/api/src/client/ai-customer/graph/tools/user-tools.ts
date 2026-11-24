@@ -21,6 +21,7 @@ import {
   MISSING_USER_CONTEXT,
   requireToolUserId,
 } from '@api/client/ai-customer/graph/tools/tool-identity';
+import { attachPreConfirm } from '@api/client/ai-customer/graph/tools/pre-confirm';
 import { toResultChain } from '@lucky/shared';
 
 /**
@@ -30,12 +31,49 @@ import { toResultChain } from '@lucky/shared';
  * userId 从请求上下文（AsyncLocalStorage）读取，不再作为 tool 参数
  * 暴露给 LLM。模型无法通过传参查看/修改别人的资料或地址。
  */
+/**
+ * 地址类写工具的「弹卡前校验」：addressId 必须是当前用户真实存在的地址。
+ *
+ * ── 为什么校验要挂在工具上，而不是只写在函数体里？ ──
+ * 写工具被 Agent 循环截停时不执行函数体，函数体里的归属校验在确认卡链路
+ * 上是死代码。线上出现过模型把 userId（getUserProfile 返回的 id）
+ * 当成 addressId 传进来，卡片照样弹出、点确认才 500。
+ * agent-runner 会在截停前调用这里，失败则把提示喂回模型重试。
+ */
+function ownedAddressCheck(
+  addressService: AddressService,
+  toolName: string,
+): (args: Record<string, any>) => Promise<string | null> {
+  return async ({ addressId }: Record<string, any>) => {
+    const userId = requireToolUserId(toolName);
+    if (!userId) return MISSING_USER_CONTEXT;
+    if (typeof addressId !== 'string' || addressId.trim() === '') {
+      return 'addressId is required. Call listAddresses and use the addressId field from its result.';
+    }
+    try {
+      await addressService.detail(userId, addressId);
+      return null;
+    } catch {
+      emitStage(
+        'tool.denied',
+        { tool: toolName, reason: 'not_owned' },
+        'warn',
+      );
+      return (
+        `address "${addressId}" does not exist for this user. ` +
+        'Call listAddresses and use the addressId field from its result; ' +
+        'never use the user id returned by getUserProfile as an addressId.'
+      );
+    }
+  };
+}
+
 export const createUserTools = (
   authService: AuthService,
   addressService: AddressService,
 ): TaggedTool[] => {
   const logger = new Logger('UserTools');
-  return [
+  const tools: TaggedTool[] = [
     /**
      * 获取当前用户的个人信息
      */
@@ -455,4 +493,16 @@ export const createUserTools = (
       tags: ['user'],
     },
   ];
+
+  // 涉及已有地址的写工具：弹卡前先确认 addressId 属于当前用户。
+  for (const entry of tools) {
+    if (entry.tool.name === 'updateAddress' || entry.tool.name === 'deleteAddress') {
+      attachPreConfirm(
+        entry.tool,
+        ownedAddressCheck(addressService, entry.tool.name),
+      );
+    }
+  }
+
+  return tools;
 };

@@ -5,7 +5,7 @@ import {
   QueryAddressListDto,
   UpdateAddressDto,
 } from '@api/client/address/dto/address.dto';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/edge';
+import { isPrismaNotFoundError } from '@api/common/prisma/prisma-error';
 import { RegionService } from '@api/common/region/region.service';
 
 @Injectable()
@@ -169,7 +169,9 @@ export class AddressService {
         }
 
         // Update address
-        return ctx.userAddress.update({
+        // 必须 await：直接 return 一个 rejected promise 时，下面的 catch
+        // 接不到 P2025，会漏成 500（delete 的老写法就是这个问题）。
+        return await ctx.userAddress.update({
           where: {
             addressId,
             userId,
@@ -192,10 +194,8 @@ export class AddressService {
           },
         });
       } catch (error: unknown) {
-        if (
-          error instanceof PrismaClientKnownRequestError &&
-          error.code === 'P2025'
-        ) {
+        // 只认错误码：跨 runtime 的 instanceof 判定在生产会失效（见 prisma-error.ts）
+        if (isPrismaNotFoundError(error)) {
           throw new BadRequestException('Address not found');
         }
         throw error;
@@ -205,27 +205,28 @@ export class AddressService {
 
   /**
    * Delete an address for the user.
-   * @param userId
-   * @param addressId
+   *
+   * 用 deleteMany + count 而不是 delete + 捕获 P2025：
+   *   - 返回值就是「删掉了几条」，语义明确，不依赖异常控制流；
+   *   - where 同时带 userId，越权删除（别人的 addressId）与「不存在」同样返回 0，
+   *     不会把记录删掉，也不泄露地址归属。
+   *
+   * @param userId 当前登录用户（来自 JWT，不来自请求参数）
+   * @param addressId 地址 ID
    */
   async delete(userId: string, addressId: string) {
-    try {
-      await this.prismaService.userAddress.delete({
-        where: {
-          addressId,
-          userId,
-        },
-      });
-      return true;
-    } catch (error: unknown) {
-      if (
-        error instanceof PrismaClientKnownRequestError &&
-        error.code === 'P2025'
-      ) {
-        throw new BadRequestException('Address not found');
-      }
-      throw error;
+    const result = await this.prismaService.userAddress.deleteMany({
+      where: {
+        addressId,
+        userId,
+      },
+    });
+
+    if (result.count === 0) {
+      throw new BadRequestException('Address not found');
     }
+
+    return true;
   }
 
   /**

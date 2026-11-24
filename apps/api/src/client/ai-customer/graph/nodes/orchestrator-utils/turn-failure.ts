@@ -4,7 +4,7 @@
  * 用于连续失败计数（repeatCount）：只有 tool_error / 拒绝 / 无证据才累加，
  * 正常回答、换意图、转人工都会清零。判定只看可观测输出，不交给模型自由判断。
  */
-import { INFORMATIONAL, SCOPE_REFUSAL } from './knowledge-fallback';
+import { isInformationalQuestion, SCOPE_REFUSAL } from './knowledge-fallback';
 
 export type TurnFailureReason = 'tool_error' | 'refusal' | 'no_evidence' | null;
 
@@ -24,7 +24,7 @@ const NO_EVIDENCE =
   /(没有找到|没找到|找不到|查不到|无法确认|无法查询|没有权限查询)/i;
 
 export function isInformational(text: string): boolean {
-  return INFORMATIONAL.test(text);
+  return isInformationalQuestion(text);
 }
 
 export function isScopeRefusal(text: string): boolean {
@@ -58,7 +58,6 @@ export function evaluateTurnFailure(
 
   return { failed: false, reason: null };
 }
-
 
 export function nextRepeatCount(
   state: { intent: string; previousIntent?: string; repeatCount?: number },

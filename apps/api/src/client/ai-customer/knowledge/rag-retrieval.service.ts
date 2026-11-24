@@ -110,6 +110,44 @@ export interface RetrievalOptions {
   minScore?: number;
   /** false 时跳过 reranker，用原始分排序（评测/降级用） */
   useRerank?: boolean;
+  /**
+   * 同一问题的其他问法（典型：中文问句的英文改写）。
+   * 各召回层对每个变体分别检索，层内按 chunkId 去重保留高分，
+   * 再进入同一次 RRF + rerank —— 排序口径不变，只是候选更全。
+   */
+  queryVariants?: string[];
+}
+
+/** 把原问句与变体合成去重后的检索问句列表；空值忽略。 */
+export function buildQueryList(query: string, variants?: string[]): string[] {
+  const seen = new Set<string>();
+  const list: string[] = [];
+  for (const candidate of [query, ...(variants ?? [])]) {
+    const text = candidate?.trim();
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push(text);
+  }
+  return list.length > 0 ? list : [query];
+}
+
+/** 合并多个问法的同层结果：同一 chunk 只留最高分。 */
+export function mergeChunksByChunkId(
+  lists: RetrievedChunk[][],
+): RetrievedChunk[] {
+  const merged = new Map<string, RetrievedChunk>();
+  for (const list of lists) {
+    for (const chunk of list) {
+      const key = chunk.chunkId || chunk.docId;
+      const existing = merged.get(key);
+      if (!existing || chunk.score > existing.score) {
+        merged.set(key, chunk);
+      }
+    }
+  }
+  return Array.from(merged.values());
 }
 
 // =============================================================================
@@ -187,6 +225,7 @@ export class RagRetrievalService {
       topK = 5,
       minScore = 0.1,
       useRerank = true,
+      queryVariants,
     } = options ?? {};
 
     if (!query || query.trim().length === 0) {
@@ -216,33 +255,46 @@ export class RagRetrievalService {
     // =====================================================================
     const collectK = Math.max(topK * 4, 20); // 至少收集 20 个候选
 
-    // -------------------- Layer 1: pgvector 语义检索 --------------------
-    const vectorResults = await this.vectorSearch(query, domain, collectK);
+    // 原问句 + 变体（如英文改写）。只有一个问句时行为与旧实现完全一致。
+    const queryList = buildQueryList(query, queryVariants);
+    const tokensByQuery = queryList.map((q) => this.tokenize(q));
+    const tokens = Array.from(new Set(tokensByQuery.flat()));
 
-    // -------------------- Layer 1.5: Meilisearch BM25 全文检索 --------------------
-    const meiliResults = await this.meilisearchService.searchChunks(
-      query,
-      domain,
-      collectK,
-    );
-
-    // 分词用于 Layer 2 / Layer 3
-    const tokens = this.tokenize(query);
-
-    // -------------------- Layer 2: Chunk 关键字检索 --------------------
-    let chunkResults: RetrievedChunk[] = [];
-    if (tokens.length > 0) {
-      chunkResults = await this.keywordSearchChunks(tokens, domain, collectK);
-    }
-
-    // -------------------- Layer 3: 完整文档关键字检索 --------------------
-    const docResults = await this.keywordSearchDocs(
-      query,
-      tokens,
-      domain,
-      collectK,
-      minScore,
-    );
+    // 四层并发跑完所有问法，再在层内合并：不同问法的分数量纲相同
+    // （同一模型/同一索引），取最高分不会把两套分数混在一起。
+    const [vectorResults, meiliResults, chunkResults, docResults] =
+      await Promise.all([
+        // -------------------- Layer 1: pgvector 语义检索 --------------------
+        Promise.all(
+          queryList.map((q) => this.vectorSearch(q, domain, collectK)),
+        ).then(mergeChunksByChunkId),
+        // -------------------- Layer 1.5: Meilisearch BM25 全文检索 --------------------
+        Promise.all(
+          queryList.map((q) =>
+            this.meilisearchService.searchChunks(q, domain, collectK),
+          ),
+        ).then(mergeChunksByChunkId),
+        // -------------------- Layer 2: Chunk 关键字检索 --------------------
+        Promise.all(
+          tokensByQuery.map((queryTokens) =>
+            queryTokens.length > 0
+              ? this.keywordSearchChunks(queryTokens, domain, collectK)
+              : Promise.resolve([] as RetrievedChunk[]),
+          ),
+        ).then(mergeChunksByChunkId),
+        // -------------------- Layer 3: 完整文档关键字检索 --------------------
+        Promise.all(
+          queryList.map((q, index) =>
+            this.keywordSearchDocs(
+              q,
+              tokensByQuery[index],
+              domain,
+              collectK,
+              minScore,
+            ),
+          ),
+        ).then(mergeChunksByChunkId),
+      ]);
 
     // =====================================================================
     // Merge & Deduplicate: 按 chunkId 去重，保留最高分
