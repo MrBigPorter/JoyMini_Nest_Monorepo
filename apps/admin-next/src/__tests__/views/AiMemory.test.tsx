@@ -234,7 +234,7 @@ describe('AiMemoryPage', () => {
     openByDirectUserId();
 
     expect(screen.getByText('该用户暂无长期记忆')).toBeTruthy();
-    expect(screen.getByText('暂无会话摘要')).toBeTruthy();
+    expect(screen.getByText('暂无摘要落库')).toBeTruthy();
   });
 
   it('hides every delete action when the role cannot delete memories', () => {

@@ -560,7 +560,7 @@ export default function AiMemoryPage() {
                 <div className="space-y-2">
                   {summaries.length === 0 ? (
                     <div className="py-4 text-center text-sm text-gray-400">
-                      暂无会话摘要
+                      暂无摘要落库
                     </div>
                   ) : (
                     summaries.map((summary) => (
