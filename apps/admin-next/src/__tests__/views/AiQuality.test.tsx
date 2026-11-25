@@ -2488,4 +2488,49 @@ describe('AiQualityPage', () => {
       expect(within(card).getByText(/未纳入比对 2 条/)).toBeTruthy();
     });
   });
+
+  describe('幽灵值与量纲', () => {
+    const baseRun = {
+      id: 'base-run-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      scope: 'full',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { total: 1, processed: 1, judged: 1 },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    };
+
+    function openRun(run: unknown) {
+      const enterEval = wireEvalTab(evalDatasetDetail, run);
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+      fireEvent.change(screen.getByLabelText('选择评测集'), {
+        target: { value: 'ds-1' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+    }
+
+    it('不展示没有产出路径的 QUEUED 状态文案', async () => {
+      openRun({ ...baseRun, status: 'QUEUED' });
+
+      await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+      // 评测运行只会是 RUNNING/COMPLETED/FAILED/CANCELLED；
+      // 「排队中」是永不会出现的幽灵状态，不得出现在页面上。
+      expect(screen.queryByText(/排队中/)).toBeNull();
+    });
+
+    it('运行卡消费执行失败类别并给出中文说明', async () => {
+      openRun({ ...baseRun, executionErrorKind: 'live_call' });
+
+      await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+      expect(
+        screen.getByText(/执行错误：实时调用失败（live_call）/),
+      ).toBeTruthy();
+    });
+  });
 });

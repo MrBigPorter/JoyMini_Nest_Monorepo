@@ -698,6 +698,8 @@ export class AiFeedbackService {
             messageId: updated.messageId ?? null,
             traceId: updated.traceId ?? null,
             source: 'HUMAN',
+            // 分诊分是 0/1 判定，与评测的 0..1 连续分不同量纲。
+            valueKind: 'binary',
             value:
               updated.verdict === 'correct'
                 ? 1

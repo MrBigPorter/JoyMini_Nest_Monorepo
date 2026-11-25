@@ -247,6 +247,13 @@ describe('AiEvalDatasetService', () => {
     expect(summaryOf(prisma).executionErrorKinds).toMatchObject({
       live_call: 1,
     });
+    // 评测分是 0..1 连续分，与分诊的 0/1 判定不同量纲，必须显式标 graded。
+    expect(prisma.aiScore.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        source: 'LLM',
+        valueKind: 'graded',
+      }),
+    });
   });
 
   it('基线对比产出 baselinePassRate / delta / newFailures / fixed', async () => {

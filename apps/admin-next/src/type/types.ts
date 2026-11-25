@@ -2627,12 +2627,12 @@ export interface AiSpanRow {
 
 export interface AiScoreRow {
   id: string;
-  configId: string | null;
   traceId: string | null;
-  spanId: string | null;
   conversationId: string | null;
   messageId: string | null;
   source: string;
+  /** 量纲：binary=0/1 判定，graded=0..1 连续分；展示分数前先看这里 */
+  valueKind: 'binary' | 'graded';
   value: number | null;
   stringValue: string | null;
   comment: string | null;

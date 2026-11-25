@@ -435,6 +435,13 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
       }),
     );
     expect(prisma.aiScore.create).toHaveBeenCalledTimes(1);
+    // 分诊分是 0/1 判定，量纲必须显式标 binary，不能与 0..1 连续分混读。
+    expect(prisma.aiScore.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        source: 'HUMAN',
+        valueKind: 'binary',
+      }),
+    });
   });
 
   it('updateTriage 只改备注：不重复写 score、不写 reviewedBy', async () => {

@@ -194,11 +194,18 @@ const RESOLUTION_OPTIONS = Object.entries(RESOLUTION_LABELS).map(
 );
 
 const RUN_STATUS_LABELS: Record<string, string> = {
-  QUEUED: '排队中',
   RUNNING: '运行中',
   COMPLETED: '已完成',
   FAILED: '失败',
   CANCELLED: '已取消',
+};
+
+/**
+ * 运行级执行失败类别（与 unsolved / judge_error 分账）。
+ * 只登记有产出路径的值：executeRun 收尾时写 live_call。
+ */
+const EXECUTION_ERROR_LABELS: Record<string, string> = {
+  live_call: '实时调用失败',
 };
 
 /** 终态：轮询停止，且数据集卡片与基线下拉需要刷新。 */
@@ -231,6 +238,12 @@ const SCORE_LABELS: Record<string, string> = {
 function labelOf(map: Record<string, string>, raw?: string | null): string {
   if (!raw) return '-';
   return map[raw] ?? raw;
+}
+
+/** 中文说明 + 原始码：既让人看懂，又能对着日志查；未登记的码原样显示。 */
+function labeledCode(map: Record<string, string>, raw: string): string {
+  const label = map[raw];
+  return label ? `${label}（${raw}）` : raw;
 }
 
 /** 与后端 DTO 同口径的输入上限；前端先挡一次，避免白跑请求。 */
@@ -2568,6 +2581,11 @@ function EvalPanel() {
             <span className="text-xs text-gray-500">
               失败类别：{runData.summary?.failureCategory ?? '未记录'}
             </span>
+            {runData.executionErrorKind ? (
+              <span className="text-xs text-gray-500">
+                执行错误：{labeledCode(EXECUTION_ERROR_LABELS, runData.executionErrorKind)}
+              </span>
+            ) : null}
             {runData.mode !== 'EXTERNAL' &&
             typeof runData.judgeSampleCount === 'number' ? (
               <span className="text-xs text-gray-500">

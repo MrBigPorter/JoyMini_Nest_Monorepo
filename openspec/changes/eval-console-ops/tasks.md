@@ -42,7 +42,7 @@
 
 ## 7. 幽灵值与验证
 
-- [ ] 7.1 清理或接线：`QUEUED`、`executionErrorKind`、`summary.usage`、`metadata.evalRunId`、`AiScore.configId/spanId` 与 `source=CODE/API`；`AiScore` 增 `valueKind`；验证：`quality-contract` 注册表测试通过，grep 无未登记 key [Req: 枚举与摘要字段不得有幽灵值]
+- [x] 7.1 清理或接线：`QUEUED`、`executionErrorKind`、`summary.usage`、`metadata.evalRunId`、`AiScore.configId/spanId` 与 `source=CODE/API`；`AiScore` 增 `valueKind`；验证：`quality-contract` 注册表测试通过，grep 无未登记 key [Req: 枚举与摘要字段不得有幽灵值]
 - [ ] 7.2 全量验证：`openspec validate "eval-console-ops" --strict`、两端 tsc、api jest（ai-feedback/ai-eval/rag）、admin vitest、curl 分页边界；验证：全部命令以 0 退出，`resultsPageSize=10000` 返回 400 且 `results` 仍为数组 [Req: 评测与回归读取必须分页且有上限]
 - [ ] 7.3 校准与阈值演练：构造 25 条标注（含 5 条分歧）与 10 条标注两组数据，确认前者返回一致率与明细、后者返回样本不足；验证：两组断言符合预期 [Req: 判官校准必须可计算且可见]
 

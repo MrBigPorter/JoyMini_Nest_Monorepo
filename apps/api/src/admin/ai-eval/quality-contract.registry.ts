@@ -109,12 +109,38 @@ export const ENUM_VALUES = {
   'run.mode': ['STORED', 'LIVE', 'EXTERNAL'],
   'run.scope': ['full', 'subset'],
   'run.metricFamily': ['verdict3', 'answer_accuracy-v3'],
+  // 产出路径：executeRun 收尾时若存在执行失败，写 'live_call'。
+  // 新增类别必须先有写入方，否则就是永不出现的幽灵值。
+  'run.executionErrorKind': ['live_call'],
   'feedback.reviewStatus': ['PENDING', 'REVIEWED', 'IGNORED'],
   'feedback.resolution': FEEDBACK_RESOLUTIONS,
   'feedback.failureKind': FEEDBACK_FAILURE_KINDS,
   'result.verdict': ['solved', 'partial', 'unsolved'],
   'result.answerVerdict': ANSWER_VERDICTS,
   'result.judgeErrorKind': JUDGE_ERROR_KINDS,
+  // 统一评分来源：只有人工分诊（HUMAN）与评测判官（LLM）会写。
+  // 「代码/API 评分」无产出路径，不登记；要接入先补写入方与量纲。
+  'aiScore.source': ['HUMAN', 'LLM'],
+  // 量纲：binary=0/1 判定，graded=0..1 连续分。消费方必须按量纲解释。
+  'aiScore.valueKind': ['binary', 'graded'],
+} as const;
+
+/**
+ * 只写不读的字段登记（`pendingConsumer`）。
+ *
+ * 这些字段有真实产出路径，但当前没有任何消费方。按契约要么接消费、
+ * 要么移除；在两者之间时先在这里登记，避免「看起来像在用」的错觉。
+ * 新增字段时先问：谁读它？答不上来就先登记到这里，并写明归属。
+ */
+export const PENDING_CONSUMERS = {
+  'summary.usage': {
+    owner: 'ai-ops-usage',
+    reason: '估算 token 与预算只写进 run.summary，用量看板尚未按 evalRunId 汇总。',
+  },
+  'metadata.evalRunId': {
+    owner: 'ai-traces',
+    reason: 'AiScore.metadata.evalRunId 已写入，但 trace 详情尚未按它反查评测结果。',
+  },
 } as const;
 
 /**

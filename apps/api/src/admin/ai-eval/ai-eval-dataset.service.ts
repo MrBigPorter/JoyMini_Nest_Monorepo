@@ -2427,6 +2427,8 @@ export class AiEvalDatasetService {
               conversationId: null,
               messageId: null,
               source: 'LLM',
+              // 评测分是 0..1 连续分；分诊分是 0/1 判定，两者不能混读。
+              valueKind: 'graded',
               value: verdict.score,
               stringValue: verdict.verdict,
               comment: verdict.reason.slice(0, 500),

@@ -2396,15 +2396,15 @@ model AiScoreConfig {
   @@map("ai_score_configs")
 }
 
-/// 统一评分：人工 / LLM / 代码 / API。
+/// 统一评分：人工 / LLM（代码与 API 评分无产出路径，未接入）。
 model AiScore {
   id             String   @id @default(cuid()) @db.VarChar(32)
-  configId       String?  @map("config_id") @db.VarChar(32)
   traceId        String?  @map("trace_id") @db.VarChar(32)
-  spanId         String?  @map("span_id") @db.VarChar(32)
   conversationId String?  @map("conversation_id") @db.VarChar(64)
   messageId      String?  @map("message_id") @db.VarChar(64)
   source         String   @db.VarChar(16)
+  /// 量纲：binary=0/1 判定；graded=0..1 连续分
+  valueKind      String   @default("binary") @map("value_kind") @db.VarChar(16)
   value          Float?
   stringValue    String?  @map("string_value") @db.VarChar(500)
   comment        String?  @db.VarChar(500)
@@ -2414,7 +2414,6 @@ model AiScore {
 
   @@index([traceId, createdAt])
   @@index([conversationId, createdAt])
-  @@index([configId, createdAt])
   @@map("ai_scores")
 }
 

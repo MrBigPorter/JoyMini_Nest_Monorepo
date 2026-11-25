@@ -4,6 +4,7 @@ import {
   ENUM_VALUES,
   ENTRY_STATES,
   METRIC_FAMILIES,
+  PENDING_CONSUMERS,
   STATE_TRANSITIONS,
   SUMMARY_KEYS,
   TERMINAL_STATES,
@@ -335,6 +336,34 @@ describe('quality-contract 注册表', () => {
       expect(
         comparabilityIssues(base, { ...base, scope: 'subset' }),
       ).toEqual(['scope mismatch']);
+    });
+  });
+
+  describe('2.5 幽灵值清理与登记', () => {
+    it('运行级执行失败类别只登记实际产出值', () => {
+      // 产出路径：executeRun 在 COMPLETED/CANCELLED 收尾时写 'live_call'。
+      // 没有第二个写入方，登记表必须与写入值一一对应。
+      expect(ENUM_VALUES['run.executionErrorKind']).toEqual(['live_call']);
+    });
+
+    it('AiScore 来源与量纲已登记；代码/API 评分未接入不登记', () => {
+      // 写入方只有两人：人工分诊（HUMAN）与评测判官（LLM）。
+      expect(ENUM_VALUES['aiScore.source']).toEqual(['HUMAN', 'LLM']);
+      // binary：0/1 判定；graded：0..1 连续分。两者不能混读。
+      expect(ENUM_VALUES['aiScore.valueKind']).toEqual(['binary', 'graded']);
+    });
+
+    it('只写不读的字段登记为待接入，且仍有产出路径', () => {
+      expect(Object.keys(PENDING_CONSUMERS).sort()).toEqual([
+        'metadata.evalRunId',
+        'summary.usage',
+      ]);
+      for (const entry of Object.values(PENDING_CONSUMERS)) {
+        expect(entry.owner.trim()).not.toBe('');
+        expect(entry.reason.trim()).not.toBe('');
+      }
+      // 待接入不等于未产出：usage 仍必须出现在 summary 注册表里。
+      expect(SUMMARY_KEYS.verdict3).toContain('usage');
     });
   });
 
