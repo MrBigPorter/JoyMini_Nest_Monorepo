@@ -1941,6 +1941,10 @@ export const aiQualityApi = {
       `/v1/admin/ai-eval/runs/${id}/history`,
       { caseId },
     ),
+  getRunCalibration: (id: string) =>
+    http.get<import('@/type/types').RunCalibration>(
+      `/v1/admin/ai-eval/runs/${id}/calibration`,
+    ),
   cancelRun: (id: string) =>
     http.post<import('@/type/types').EvalRun>(
       `/v1/admin/ai-eval/runs/${id}/cancel`,

@@ -25,6 +25,7 @@ const mockGetDataset = vi.hoisted(() => vi.fn());
 const mockGetRun = vi.hoisted(() => vi.fn());
 const mockGetRunDiff = vi.hoisted(() => vi.fn());
 const mockGetCaseHistory = vi.hoisted(() => vi.fn());
+const mockGetRunCalibration = vi.hoisted(() => vi.fn());
 const mockStartRun = vi.hoisted(() => vi.fn());
 const mockCancelRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
@@ -60,6 +61,7 @@ vi.mock('@/api', () => ({
     getRun: (...args: unknown[]) => mockGetRun(...args),
     getRunDiff: (...args: unknown[]) => mockGetRunDiff(...args),
     getCaseHistory: (...args: unknown[]) => mockGetCaseHistory(...args),
+    getRunCalibration: (...args: unknown[]) => mockGetRunCalibration(...args),
     cancelRun: (...args: unknown[]) => mockCancelRun(...args),
     ragSearch: (...args: unknown[]) => mockRagSearch(...args),
     kbRegressionStatus: mockKbStatus,
@@ -333,6 +335,7 @@ function wireEvalTab(
   datasetsData: unknown = datasets,
   kbStatusData: unknown = kbRegressionStatus,
   diffData: unknown = null,
+  calibrationData: unknown = null,
 ) {
   let index = 0;
   let inEval = false;
@@ -356,13 +359,14 @@ function wireEvalTab(
         };
       return { ...makeUseRequest(datasets), refreshAsync: vi.fn() };
     }
-    const slot = index % 5;
+    const slot = index % 6;
     index += 1;
     if (slot === 0) return makeUseRequest(datasetsData);
     if (slot === 1) return makeUseRequest(detail);
     if (slot === 2) return makeUseRequest(runData);
     if (slot === 3) return makeUseRequest(null);
-    return makeUseRequest(diffData);
+    if (slot === 4) return makeUseRequest(diffData);
+    return makeUseRequest(calibrationData);
   });
   return () => {
     inEval = true;
@@ -396,7 +400,7 @@ function wireEvalTransitions(
         return makeUseRequest({ list: [feedback], total: 1 });
       return makeUseRequest(datasets);
     }
-    const slot = index % 5;
+    const slot = index % 6;
     index += 1;
     if (slot === 0)
       return { ...makeUseRequest(datasets), refresh: refreshDatasets };
@@ -2397,6 +2401,91 @@ describe('AiQualityPage', () => {
 
       expect(screen.getByText('已修复待验证')).toBeTruthy();
       expect(screen.getByText('待验')).toBeTruthy();
+    });
+  });
+
+  describe('判官校准只读卡', () => {
+    const completedRun = {
+      id: 'run-cal-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      scope: 'full',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { total: 0, solved: 0, partial: 0, unsolved: 0 },
+      startedAt: '2026-01-03T00:00:00.000Z',
+      finishedAt: '2026-01-03T00:10:00.000Z',
+      results: [],
+    };
+
+    function openWithCalibration(calibration: unknown) {
+      const enterEval = wireEvalTab(
+        { ...evalDatasetDetail, runs: [completedRun] },
+        completedRun,
+        datasets,
+        kbRegressionStatus,
+        null,
+        calibration,
+      );
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+      fireEvent.change(screen.getByLabelText('选择评测集'), {
+        target: { value: 'ds-1' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /run-cal/ }));
+    }
+
+    it('样本不足时显示「样本不足」且不渲染任何百分比', async () => {
+      openWithCalibration({
+        runId: 'run-cal-1',
+        datasetId: 'ds-1',
+        metricFamily: 'verdict3',
+        status: 'insufficientSample',
+        threshold: 20,
+        n: 10,
+        excluded: 0,
+        disagreements: [
+          {
+            caseId: 'case-1',
+            question: '退货怎么退',
+            judgeVerdict: 'solved',
+            humanCorrectness: 'unsolved',
+            judgeReason: '判官认为已给出步骤',
+            humanComment: '实际没解决',
+            labelerId: 'admin-1',
+          },
+        ],
+        note: '样本不足（10/20）：不下结论，仅列出分歧明细供人工判断。',
+      });
+
+      const card = await screen.findByTestId('run-calibration');
+      expect(within(card).getByText(/需 ≥20 条/)).toBeTruthy();
+      expect(within(card).getByText(/样本不足（10\/20）/)).toBeTruthy();
+      // 样本不足不得出现一致率百分比。
+      expect(within(card).queryByText(/%/)).toBeNull();
+      expect(within(card).getByText(/实际没解决/)).toBeTruthy();
+    });
+
+    it('样本充足时显示一致率与未纳入条数', async () => {
+      openWithCalibration({
+        runId: 'run-cal-1',
+        datasetId: 'ds-1',
+        metricFamily: 'verdict3',
+        status: 'ok',
+        threshold: 20,
+        n: 22,
+        excluded: 2,
+        agreements: 17,
+        agreementRate: 77.3,
+        disagreements: [],
+        note: '一致率只用于评估判官口径，不进入任何指标或发布证据。',
+      });
+
+      const card = await screen.findByTestId('run-calibration');
+      expect(within(card).getByText(/一致率 77.3%/)).toBeTruthy();
+      expect(within(card).getByText(/未纳入比对 2 条/)).toBeTruthy();
     });
   });
 });

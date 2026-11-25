@@ -1982,6 +1982,23 @@ function EvalPanel() {
     },
     { refreshDeps: [runId, (run as EvalRun | null | undefined)?.baselineRunId] },
   );
+  // 判官校准：运行结束后才读；后端在样本 <20 时结构上不给百分比。
+  const { data: calibration } = useRequest(
+    () => {
+      const current = run as EvalRun | null | undefined;
+      return runId && current?.status === 'COMPLETED'
+        ? aiQualityApi.getRunCalibration(runId)
+        : Promise.resolve(null);
+    },
+    { refreshDeps: [runId, (run as EvalRun | null | undefined)?.status] },
+  );
+  // 只渲染真正的校准结果：老后端/异常返回没有 status 时不猜测、不崩。
+  const calibrationCard =
+    calibration &&
+    (calibration.status === 'ok' ||
+      calibration.status === 'insufficientSample')
+      ? calibration
+      : null;
   const loadCaseHistory = async (caseId: string) => {
     setHistoryError('');
     setHistory(null);
@@ -2647,6 +2664,52 @@ function EvalPanel() {
                 {runDiff.comparability.missingBaseline} 条
               </div>
               <div className="mt-1 text-xs text-gray-400">{runDiff.note}</div>
+            </div>
+          ) : null}
+          {calibrationCard ? (
+            <div
+              data-testid="run-calibration"
+              className="mt-3 rounded-lg border p-3 dark:border-white/10"
+            >
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold">判官校准</span>
+                <span className="text-xs text-gray-500">
+                  可比对人工标注 {calibrationCard.n} 条
+                  {calibrationCard.status === 'ok'
+                    ? ` · 一致率 ${calibrationCard.agreementRate}%`
+                    : ''}
+                </span>
+                {calibrationCard.status === 'insufficientSample' ? (
+                  <span className="rounded border border-amber-300 px-2 py-0.5 text-xs text-amber-700 dark:border-amber-500/30 dark:text-amber-300">
+                    样本不足（需 ≥{calibrationCard.threshold} 条），不下结论
+                  </span>
+                ) : null}
+                {calibrationCard.excluded > 0 ? (
+                  <span className="text-xs text-gray-500">
+                    未纳入比对 {calibrationCard.excluded} 条
+                  </span>
+                ) : null}
+              </div>
+              {calibrationCard.disagreements.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                  {calibrationCard.disagreements.map((item) => (
+                    <li key={`${item.caseId}-${item.labelerId}`}>
+                      用例 <span className="font-mono">{item.caseId}</span>
+                      ：判官{' '}
+                      {RESULT_VERDICT_LABELS[item.judgeVerdict] ??
+                        item.judgeVerdict}{' '}
+                      / 人工{' '}
+                      {RESULT_VERDICT_LABELS[item.humanCorrectness] ??
+                        item.humanCorrectness}
+                      {item.judgeReason ? ` · 判官理由：${item.judgeReason}` : ''}
+                      {item.humanComment ? ` · 人工备注：${item.humanComment}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="mt-1 text-xs text-gray-400">
+                {calibrationCard.note}
+              </div>
             </div>
           ) : null}
           {runData.summary?.error ? (

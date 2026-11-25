@@ -29,6 +29,7 @@ import {
   INTERNAL_METRIC_FAMILY,
   INTERNAL_METRIC_SPEC_VERSION,
 } from './judge-spec';
+import { PRELABEL_LABELER } from './annotation-labels';
 import { AddEvalCasesDto } from './dto/eval-dataset.dto';
 import {
   CreateExternalRunDto,
@@ -66,6 +67,48 @@ export interface CaseDiffItem {
   baselineVerdict: string | null;
   currentVerdict: string | null;
 }
+
+/** 判官三分类结论；只有这些值能与人工标注比对。 */
+const JUDGE_VERDICT_VALUES = new Set(['solved', 'partial', 'unsolved']);
+
+/** 校准最小样本量：低于它只报「样本不足」，不给百分比结论。 */
+export const CALIBRATION_MIN_SAMPLE = 20;
+
+export interface RunCalibrationDisagreement {
+  caseId: string;
+  question: string | null;
+  judgeVerdict: string;
+  humanCorrectness: string;
+  judgeReason: string | null;
+  humanComment: string;
+  labelerId: string;
+}
+
+interface RunCalibrationBase {
+  runId: string;
+  datasetId: string;
+  metricFamily: string;
+  threshold: number;
+  /** 可比对的标注数（人工标注 × 判官有结论） */
+  n: number;
+  /** 未纳入比对：预标注、判官失败、unsafe/abstain 等 */
+  excluded: number;
+  disagreements: RunCalibrationDisagreement[];
+  note: string;
+}
+
+/**
+ * 判官校准结果。样本充足时带一致率；样本不足时类型上就没有
+ * agreementRate 字段，避免消费方把不存在的结论读成 0%。
+ */
+export type RunCalibration =
+  | (RunCalibrationBase & {
+      status: 'ok';
+      agreements: number;
+      /** 一致率百分比（保留一位小数） */
+      agreementRate: number;
+    })
+  | (RunCalibrationBase & { status: 'insufficientSample' });
 
 export type EvalFailureCategory =
   | 'enqueue'
@@ -1312,6 +1355,136 @@ export class AiEvalDatasetService {
       },
       classes,
       note: '描述性分类，不构成统计显著性结论；显著性由 compare.py 配对检验给出。',
+    };
+  }
+
+  /**
+   * 判官校准：把同一运行里的人工标注与判官结论逐条对齐。
+   *
+   * 只用于评估判官口径，不进入任何指标或发布证据。样本不足 20 条时
+   * 结构上就不带 agreementRate 字段——消费方拿不到一个会被误读的百分比。
+   * 预标注、判官失败、unsafe/abstain 这类不在同一维度上的标注只计入 excluded。
+   */
+  async getRunCalibration(runId: string): Promise<RunCalibration> {
+    const run = await this.prisma.aiEvalRun.findUnique({
+      where: { id: runId },
+      select: {
+        id: true,
+        datasetId: true,
+        mode: true,
+        summary: true,
+        results: {
+          select: {
+            caseId: true,
+            verdict: true,
+            answerVerdict: true,
+            judgeErrorKind: true,
+            reason: true,
+            case: { select: { question: true } },
+          },
+        },
+      },
+    });
+    if (!run) throw new NotFoundException('Eval run not found');
+
+    const family = this.metricFamilyOf(run);
+    const annotations = await this.prisma.aiEvalAnnotation.findMany({
+      where: { runId, turn: 0, source: 'human' },
+      orderBy: [{ caseId: 'asc' }, { labelerId: 'asc' }],
+      select: {
+        caseId: true,
+        labelerId: true,
+        source: true,
+        correctness: true,
+        comment: true,
+      },
+    });
+
+    const base = {
+      runId: run.id,
+      datasetId: run.datasetId,
+      metricFamily: family,
+      threshold: CALIBRATION_MIN_SAMPLE,
+      excluded: 0,
+      disagreements: [] as RunCalibrationDisagreement[],
+    };
+
+    // 外部运行判的是答案正确性（correct/incorrect），与人工解决度不是同一维度，
+    // 硬对齐只会产生假分歧，所以整体不计入校准样本。
+    if (family !== INTERNAL_METRIC_FAMILY) {
+      return {
+        ...base,
+        status: 'insufficientSample',
+        n: 0,
+        excluded: annotations.length,
+        note: '外部运行按答案正确性判分，与人工解决度不同口径，不参与判官校准。',
+      };
+    }
+
+    const resultByCase = new Map(run.results.map((item) => [item.caseId, item]));
+    const disagreements: RunCalibrationDisagreement[] = [];
+    let agreements = 0;
+    let comparable = 0;
+    let excluded = 0;
+
+    for (const annotation of annotations) {
+      if (
+        annotation.source !== 'human' ||
+        annotation.labelerId === PRELABEL_LABELER
+      ) {
+        excluded += 1;
+        continue;
+      }
+      // 人工只标 solved/partial/unsolved 才与判官三分类可比。
+      if (!JUDGE_VERDICT_VALUES.has(annotation.correctness ?? '')) {
+        excluded += 1;
+        continue;
+      }
+      const result = resultByCase.get(annotation.caseId);
+      // 判官失败没有结论的，不能算分歧。
+      const judgeVerdict =
+        result && !result.judgeErrorKind ? result.verdict : null;
+      if (!judgeVerdict || !JUDGE_VERDICT_VALUES.has(judgeVerdict)) {
+        excluded += 1;
+        continue;
+      }
+
+      comparable += 1;
+      if (judgeVerdict === annotation.correctness) {
+        agreements += 1;
+        continue;
+      }
+      disagreements.push({
+        caseId: annotation.caseId,
+        question: result?.case.question ?? null,
+        judgeVerdict,
+        humanCorrectness: annotation.correctness as string,
+        judgeReason: result?.reason ?? null,
+        humanComment: annotation.comment ?? '',
+        labelerId: annotation.labelerId,
+      });
+    }
+
+    if (comparable < CALIBRATION_MIN_SAMPLE) {
+      return {
+        ...base,
+        status: 'insufficientSample',
+        n: comparable,
+        excluded,
+        disagreements,
+        note: `样本不足（${comparable}/${CALIBRATION_MIN_SAMPLE}）：不下结论，仅列出分歧明细供人工判断。`,
+      };
+    }
+
+    return {
+      ...base,
+      status: 'ok',
+      n: comparable,
+      excluded,
+      disagreements,
+      agreements,
+      agreementRate: Math.round((agreements / comparable) * 1000) / 10,
+      note: '一致率只用于评估判官口径，不进入任何指标或发布证据。',
     };
   }
 

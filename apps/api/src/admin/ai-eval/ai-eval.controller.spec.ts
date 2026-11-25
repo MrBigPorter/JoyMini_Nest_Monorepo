@@ -119,6 +119,7 @@ function createController() {
       .fn()
       .mockImplementation(() => Promise.resolve(history())),
     getRunDiff: jest.fn().mockImplementation(() => Promise.resolve(diff())),
+    getRunCalibration: jest.fn(),
     cancelRun: jest
       .fn()
       .mockResolvedValue({ id: 'run-1', status: 'CANCELLED' }),
@@ -474,5 +475,83 @@ describe('AiEvalController 回归用例可解释', () => {
       Role.ADMIN,
     );
     expect(admin.classes.fixed[0].question).toBe('qa_eval_question_secret');
+  });
+});
+
+describe('AiEvalController 判官校准', () => {
+  it('校准端点允许 VIEWER 读取', () => {
+    const roles = Reflect.getMetadata(
+      ROLES_KEY,
+      AiEvalController.prototype.getRunCalibration,
+    ) as Role[];
+
+    expect(roles).toContain(Role.VIEWER);
+    expect(roles).toContain(Role.ADMIN);
+  });
+
+  it('VIEWER 看不到判官理由、人工备注与题目原文，样本量保留', async () => {
+    const { controller, datasetService } = createController();
+    datasetService.getRunCalibration.mockResolvedValueOnce({
+      runId: 'run-1',
+      datasetId: 'ds-1',
+      metricFamily: 'verdict3',
+      status: 'ok',
+      threshold: 20,
+      n: 22,
+      excluded: 0,
+      agreements: 17,
+      agreementRate: 77.3,
+      disagreements: [
+        {
+          caseId: 'case-1',
+          question: 'qa_eval_question_secret',
+          judgeVerdict: 'solved',
+          humanCorrectness: 'unsolved',
+          judgeReason: 'judge_reason_secret',
+          humanComment: 'human_comment_secret',
+          labelerId: 'admin-1',
+        },
+      ],
+      note: '一致率只用于评估判官口径，不进入任何指标或发布证据。',
+    });
+
+    const viewer: any = await controller.getRunCalibration('run-1', Role.VIEWER);
+
+    expect(viewer.n).toBe(22);
+    expect(viewer.disagreements[0].question).toBeNull();
+    expect(viewer.disagreements[0].judgeReason).toBeNull();
+    expect(viewer.disagreements[0].humanComment).toBeNull();
+    expect(viewer.disagreements[0].judgeVerdict).toBe('solved');
+    expect(datasetService.getRunCalibration).toHaveBeenCalledWith('run-1');
+  });
+
+  it('ADMIN 保留分歧明细原文', async () => {
+    const { controller, datasetService } = createController();
+    datasetService.getRunCalibration.mockResolvedValueOnce({
+      runId: 'run-1',
+      datasetId: 'ds-1',
+      metricFamily: 'verdict3',
+      status: 'insufficientSample',
+      threshold: 20,
+      n: 10,
+      excluded: 0,
+      disagreements: [
+        {
+          caseId: 'case-1',
+          question: 'qa_eval_question_secret',
+          judgeVerdict: 'solved',
+          humanCorrectness: 'unsolved',
+          judgeReason: 'judge_reason_secret',
+          humanComment: 'human_comment_secret',
+          labelerId: 'admin-1',
+        },
+      ],
+      note: '样本不足（10/20）：不下结论，仅列出分歧明细供人工判断。',
+    });
+
+    const admin: any = await controller.getRunCalibration('run-1', Role.ADMIN);
+
+    expect(admin.disagreements[0].question).toBe('qa_eval_question_secret');
+    expect(admin.disagreements[0].judgeReason).toBe('judge_reason_secret');
   });
 });

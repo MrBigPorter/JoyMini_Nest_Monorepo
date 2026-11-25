@@ -241,6 +241,23 @@ export class AiEvalController {
     ]);
   }
 
+  /** 判官校准：人工标注与判官结论的一致率与分歧明细（样本 <20 不给百分比）。 */
+  @Get('runs/:id/calibration')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '判官校准（一致率/样本量/分歧明细）' })
+  async getRunCalibration(
+    @Param('id') id: string,
+    @CurrentRole() role: string | null,
+  ) {
+    const calibration = await this.datasetService.getRunCalibration(id);
+    // 同 run 详情口径：判官理由与题目可能带用户原文，VIEWER 只看结论。
+    return redactSensitiveFields(calibration, role, [
+      'disagreements.question',
+      'disagreements.judgeReason',
+      'disagreements.humanComment',
+    ]);
+  }
+
   @Get('runs/:id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '评测运行结果' })

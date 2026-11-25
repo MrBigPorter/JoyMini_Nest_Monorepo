@@ -84,6 +84,9 @@ function makeService() {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
     },
+    aiEvalAnnotation: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
   const judge = {
     judge: jest.fn(),
@@ -1725,6 +1728,150 @@ describe('AiEvalDatasetService', () => {
         });
 
       await expect(service.getRunDiff('run-3')).rejects.toThrow('same dataset');
+    });
+  });
+
+  describe('getRunCalibration 判官校准', () => {
+    function taskResult(
+      caseId: string,
+      verdict: string,
+      judgeErrorKind: string | null = null,
+    ) {
+      return {
+        caseId,
+        verdict,
+        answerVerdict: null,
+        judgeErrorKind,
+        reason: `judge:${verdict}`,
+        case: { question: `问题-${caseId}` },
+      };
+    }
+
+    function humanAnnotation(caseId: string, correctness: string) {
+      return {
+        caseId,
+        labelerId: 'admin-1',
+        turn: 0,
+        source: 'human',
+        correctness,
+        comment: `备注-${caseId}`,
+      };
+    }
+
+    function stubRun(
+      prisma: ReturnType<typeof makeService>['prisma'],
+      results: ReturnType<typeof taskResult>[],
+    ) {
+      prisma.aiEvalRun.findUnique.mockResolvedValueOnce({
+        id: 'run-cal',
+        datasetId: 'ds-1',
+        mode: 'STORED',
+        summary: { metricFamily: 'verdict3' },
+        results,
+      });
+    }
+
+    it('样本不足 20 条：返回 insufficientSample，不给一致率百分比', async () => {
+      const { service, prisma } = makeService();
+      stubRun(
+        prisma,
+        Array.from({ length: 10 }, (_, i) =>
+          taskResult(`c${i}`, 'solved'),
+        ),
+      );
+      // 10 条人工标注，其中 c0/c1/c2 与判官结论不一致。
+      prisma.aiEvalAnnotation.findMany.mockResolvedValueOnce(
+        Array.from({ length: 10 }, (_, i) =>
+          humanAnnotation(`c${i}`, i < 3 ? 'unsolved' : 'solved'),
+        ),
+      );
+
+      const calibration = await service.getRunCalibration('run-cal');
+
+      expect(calibration.status).toBe('insufficientSample');
+      expect(calibration.n).toBe(10);
+      expect(calibration.threshold).toBe(20);
+      expect(calibration.disagreements).toHaveLength(3);
+      expect(calibration.disagreements[0]).toMatchObject({
+        caseId: 'c0',
+        judgeVerdict: 'solved',
+        humanCorrectness: 'unsolved',
+        judgeReason: 'judge:solved',
+        humanComment: '备注-c0',
+      });
+      // 样本不足不得给出百分比结论：字段本身不存在，而不是 0。
+      expect(calibration).not.toHaveProperty('agreementRate');
+      expect(calibration.note).toContain('样本不足');
+    });
+
+    it('样本充足时给出一致率、样本量与逐条分歧明细', async () => {
+      const { service, prisma } = makeService();
+      stubRun(
+        prisma,
+        Array.from({ length: 22 }, (_, i) =>
+          taskResult(`c${i}`, 'solved'),
+        ),
+      );
+      prisma.aiEvalAnnotation.findMany.mockResolvedValueOnce([
+        ...Array.from({ length: 17 }, (_, i) => humanAnnotation(`c${i}`, 'solved')),
+        ...Array.from({ length: 5 }, (_, i) =>
+          humanAnnotation(`c${17 + i}`, 'unsolved'),
+        ),
+        // 人工标了判官不产出的类别：不计入分母。
+        {
+          ...humanAnnotation('c-unsafe', 'unsafe'),
+        },
+        // 预标注不参与校准。
+        {
+          caseId: 'c-prelabel',
+          labelerId: 'prelabel',
+          turn: 0,
+          source: 'prelabel',
+          correctness: 'solved',
+          comment: '',
+        },
+      ]);
+
+      const calibration = await service.getRunCalibration('run-cal');
+
+      expect(calibration.status).toBe('ok');
+      expect(calibration.n).toBe(22);
+      expect(calibration.excluded).toBe(2);
+      expect(calibration).toMatchObject({ agreements: 17, agreementRate: 77.3 });
+      expect(calibration.disagreements).toHaveLength(5);
+      expect(calibration.disagreements.map((d) => d.caseId)).toEqual([
+        'c17',
+        'c18',
+        'c19',
+        'c20',
+        'c21',
+      ]);
+    });
+
+    it('判官失败没有结论的标注不计入比对', async () => {
+      const { service, prisma } = makeService();
+      stubRun(prisma, [
+        taskResult('c1', 'solved'),
+        taskResult('c2', 'solved', 'output_format'),
+      ]);
+      prisma.aiEvalAnnotation.findMany.mockResolvedValueOnce([
+        humanAnnotation('c1', 'solved'),
+        humanAnnotation('c2', 'unsolved'),
+      ]);
+
+      const calibration = await service.getRunCalibration('run-cal');
+
+      expect(calibration.n).toBe(1);
+      expect(calibration.excluded).toBe(1);
+    });
+
+    it('运行不存在时 404', async () => {
+      const { service, prisma } = makeService();
+      prisma.aiEvalRun.findUnique.mockResolvedValueOnce(null);
+
+      await expect(service.getRunCalibration('missing')).rejects.toThrow(
+        'Eval run not found',
+      );
     });
   });
 });

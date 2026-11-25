@@ -2502,6 +2502,41 @@ export interface EvalRunDiff {
   note: string;
 }
 
+export interface RunCalibrationDisagreement {
+  caseId: string;
+  question: string | null;
+  judgeVerdict: string;
+  humanCorrectness: string;
+  judgeReason: string | null;
+  humanComment: string;
+  labelerId: string;
+}
+
+interface RunCalibrationBase {
+  runId: string;
+  datasetId: string;
+  metricFamily: string;
+  threshold: number;
+  /** 可比对的人工标注数（判官有结论） */
+  n: number;
+  /** 未纳入比对：预标注、判官失败、unsafe/abstain 等 */
+  excluded: number;
+  disagreements: RunCalibrationDisagreement[];
+  note: string;
+}
+
+/**
+ * 判官校准结果。样本不足时没有 agreementRate 字段——
+ * 页面不能把「样本不足」渲染成 0% 或任何百分比。
+ */
+export type RunCalibration =
+  | (RunCalibrationBase & {
+      status: 'ok';
+      agreements: number;
+      agreementRate: number;
+    })
+  | (RunCalibrationBase & { status: 'insufficientSample' });
+
 
 export interface EvalRun {
   id: string;
