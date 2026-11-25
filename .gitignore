@@ -39,6 +39,8 @@ playwright-report/
 test-results/
 apps/admin-next/playwright-report/
 apps/admin-next/test-results/
+# Ad-hoc debug scripts (tracked storage state stays in admin.json)
+apps/admin-next/playwright/.auth/*.mjs
 
 # Turbo
 .turbo
