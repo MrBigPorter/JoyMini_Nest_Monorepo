@@ -207,6 +207,45 @@ const EVAL_INPUT_LIMITS = {
   mustMentionLength: 500,
 } as const;
 
+/** 与服务端默认值一致；页面只做上一页/下一页，不提供任意页大小。 */
+const EVAL_PAGE_SIZE = 50;
+
+function ResultPager({
+  page,
+  total,
+  onChange,
+}: {
+  page: number;
+  total: number;
+  onChange: (page: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / EVAL_PAGE_SIZE));
+  if (total <= EVAL_PAGE_SIZE) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+      >
+        上一页
+      </Button>
+      <span>
+        第 {page} / {totalPages} 页
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={page >= totalPages}
+        onClick={() => onChange(page + 1)}
+      >
+        下一页
+      </Button>
+    </div>
+  );
+}
+
 /** 判分以 expect 为准；expected 只在 expect 为空时作为只读兼容回填。 */
 function caseExpectation(item: {
   expected?: unknown;
@@ -1826,6 +1865,8 @@ function EvalPanel() {
   const [cancelling, setCancelling] = useState(false);
   const [starting, setStarting] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
+  const [casesPage, setCasesPage] = useState(1);
+  const [resultsPage, setResultsPage] = useState(1);
   const role = useAiOpsRole();
   const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
 
@@ -1834,16 +1875,32 @@ function EvalPanel() {
   );
   const { data: dataset, refresh: refreshDataset } = useRequest(
     () =>
-      selectedId ? aiQualityApi.getDataset(selectedId) : Promise.resolve(null),
-    { refreshDeps: [selectedId] },
+      selectedId
+        ? aiQualityApi.getDataset(selectedId, { page: casesPage })
+        : Promise.resolve(null),
+    { refreshDeps: [selectedId, casesPage] },
   );
+  // 运行中只轮询第一页：倒序后第一页就是最新结果，翻页留给终态运行。
+  // 以服务端返回的状态为准，避免「刚启动、状态未回」时把用户翻页带进轮询。
+  const runStatusRef = useRef<string | null>(null);
   const { data: run, refresh: refreshRun } = useRequest(
-    () => (runId ? aiQualityApi.getRun(runId) : Promise.resolve(null)),
+    () =>
+      runId
+        ? aiQualityApi.getRun(runId, {
+            page: runStatusRef.current === 'RUNNING' ? 1 : resultsPage,
+          })
+        : Promise.resolve(null),
     {
-      refreshDeps: [runId],
+      refreshDeps: [runId, pollRun, resultsPage],
       pollingInterval: pollRun ? 3000 : undefined,
     },
   );
+  useEffect(() => {
+    setCasesPage(1);
+  }, [selectedId]);
+  useEffect(() => {
+    setResultsPage(1);
+  }, [runId]);
   const {
     data: evidence,
     loading: evidenceLoading,
@@ -1858,6 +1915,7 @@ function EvalPanel() {
   );
   const runStatus = (run as EvalRun | null | undefined)?.status;
   useEffect(() => {
+    runStatusRef.current = runStatus ?? null;
     if (
       runStatus === 'COMPLETED' ||
       runStatus === 'FAILED' ||
@@ -2306,6 +2364,11 @@ function EvalPanel() {
               ))
             )}
           </div>
+          <ResultPager
+            page={casesPage}
+            total={ds.casesTotal ?? ds._count?.cases ?? ds.cases?.length ?? 0}
+            onChange={setCasesPage}
+          />
         </div>
       ) : null}
 
@@ -2564,6 +2627,13 @@ function EvalPanel() {
               })
             )}
           </div>
+          {runData.status !== 'RUNNING' ? (
+            <ResultPager
+              page={resultsPage}
+              total={runData.resultsTotal ?? runData.results?.length ?? 0}
+              onChange={setResultsPage}
+            />
+          ) : null}
           <details className="mt-3">
             <summary className="cursor-pointer text-xs text-gray-500">
               原始输出（工程师）

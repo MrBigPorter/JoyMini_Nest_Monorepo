@@ -21,6 +21,8 @@ const mockUpdateFeedback = vi.hoisted(() => vi.fn());
 const mockListDatasets = vi.hoisted(() => vi.fn());
 const mockAddCases = vi.hoisted(() => vi.fn());
 const mockUpdateCase = vi.hoisted(() => vi.fn());
+const mockGetDataset = vi.hoisted(() => vi.fn());
+const mockGetRun = vi.hoisted(() => vi.fn());
 const mockStartRun = vi.hoisted(() => vi.fn());
 const mockCancelRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
@@ -48,12 +50,12 @@ vi.mock('@/api', () => ({
   aiQualityApi: {
     updateFeedback: (...args: unknown[]) => mockUpdateFeedback(...args),
     listDatasets: (...args: unknown[]) => mockListDatasets(...args),
-    getDataset: vi.fn(),
+    getDataset: (...args: unknown[]) => mockGetDataset(...args),
     createDataset: vi.fn(),
     addCases: (...args: unknown[]) => mockAddCases(...args),
     updateCase: (...args: unknown[]) => mockUpdateCase(...args),
     startRun: (...args: unknown[]) => mockStartRun(...args),
-    getRun: vi.fn(),
+    getRun: (...args: unknown[]) => mockGetRun(...args),
     cancelRun: (...args: unknown[]) => mockCancelRun(...args),
     ragSearch: (...args: unknown[]) => mockRagSearch(...args),
     kbRegressionStatus: mockKbStatus,
@@ -1250,6 +1252,99 @@ describe('AiQualityPage', () => {
 
     expect(screen.getByText('最多 20 条必含关键词')).toBeTruthy();
     expect(mockUpdateCase).not.toHaveBeenCalled();
+  });
+
+  it('用例列表分页：下一页请求第 2 页', () => {
+    const enterEval = wireEvalTab({
+      ...evalDatasetDetail,
+      casesTotal: 120,
+      page: 1,
+      pageSize: 50,
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    expect(screen.getByText('第 1 / 3 页')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+
+    expect(mockGetDataset).toHaveBeenCalledWith('ds-1', { page: 2 });
+  });
+
+  it('终态运行的结果可以翻页', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      createdBy: 'admin',
+      summary: { total: 120 },
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: '2026-01-01T01:00:00.000Z',
+      resultsTotal: 120,
+      page: 1,
+      pageSize: 50,
+      results: [
+        {
+          id: 'r-1',
+          verdict: 'solved',
+          score: 1,
+          reason: 'ok',
+          latencyMs: 10,
+          case: evalDatasetDetail.cases[0],
+        },
+      ],
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStartRun.mockResolvedValueOnce({ id: 'run-1', status: 'RUNNING' });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+
+    await waitFor(() =>
+      expect(mockGetRun).toHaveBeenCalledWith('run-1', { page: 2 }),
+    );
+  });
+
+  it('运行中只取第 1 页，且不提供结果翻页', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-1',
+      datasetId: 'ds-1',
+      status: 'RUNNING',
+      mode: 'LIVE',
+      createdBy: 'admin',
+      summary: { total: 200, processed: 60 },
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: null,
+      resultsTotal: 200,
+      page: 1,
+      pageSize: 50,
+      results: [],
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStartRun.mockResolvedValueOnce({ id: 'run-1', status: 'RUNNING' });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+
+    await waitFor(() =>
+      expect(mockGetRun).toHaveBeenCalledWith('run-1', { page: 1 }),
+    );
+    expect(screen.queryByRole('button', { name: '下一页' })).toBeNull();
   });
 
   it('shows accuracy instead of pass rate for an EXTERNAL run', () => {

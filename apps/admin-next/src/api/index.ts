@@ -1832,7 +1832,10 @@ export const aiQualityApi = {
       '/v1/admin/ai-eval/datasets',
       data,
     ),
-  getDataset: (id: string) =>
+  getDataset: (
+    id: string,
+    params?: { page?: number; pageSize?: number },
+  ) =>
     http.get<
       import('@/type/types').EvalDataset & {
         cases: import('@/type/types').EvalCase[];
@@ -1842,7 +1845,7 @@ export const aiQualityApi = {
         page?: number;
         pageSize?: number;
       }
-    >(`/v1/admin/ai-eval/datasets/${id}`),
+    >(`/v1/admin/ai-eval/datasets/${id}`, params),
   addCases: (
     id: string,
     data: {
@@ -1885,8 +1888,11 @@ export const aiQualityApi = {
       `/v1/admin/ai-eval/datasets/${id}/runs`,
       data ?? {},
     ),
-  getRun: (id: string) =>
-    http.get<import('@/type/types').EvalRun>(`/v1/admin/ai-eval/runs/${id}`),
+  getRun: (id: string, params?: { page?: number; pageSize?: number }) =>
+    http.get<import('@/type/types').EvalRun>(
+      `/v1/admin/ai-eval/runs/${id}`,
+      params,
+    ),
   kbRegressionStatus: () =>
     http.get<import('@/type/types').KbRegressionStatus>(
       '/v1/admin/ai-eval/kb-regression/status',
