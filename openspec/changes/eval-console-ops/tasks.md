@@ -35,7 +35,7 @@
 
 - [x] 6.1 迁移建 `AiEvalAnnotation`（`labelerId/guidelineVersion/source/confidence`，唯一键 `(run_id, case_id, labeler_id)`）；标注 service 改 DB，JSONL 仅导出；删除 helpfulness/tone 1-5；预标注 confidence 落库；验证：jest 两人同 case 并存、唯一键冲突处理、导出兼容离线脚本 [Req: 标注必须可归属且不污染指标]
 - [x] 6.2 `history` 与 `diff` 端点（描述性四分类，不声称显著）；验证：jest 三次运行时间线与四分类结果正确 [Req: 回归用例必须可解释]
-- [ ] 6.3 `FIXED_PENDING_VERIFY` 由运行结果自动推进：通过关闭、失败打回并记 `regressedAt`；验证：jest 状态机三态各一例 [Req: 回归用例必须可解释]
+- [x] 6.3 `FIXED_PENDING_VERIFY` 由运行结果自动推进：通过关闭、失败打回并记 `regressedAt`；验证：jest 状态机三态各一例 [Req: 回归用例必须可解释]
 - [ ] 6.4 前端时间线、diff 与待验徽标；验证：vitest 通过 [Req: 回归用例必须可解释]
 - [ ] 6.5 知识分拆 `parseQuality`/`effectiveness`；展示 `passed` 与四项检查明细；分档与 `passed` 同源；版本区分 `activeVersion` 与最新写入；检索调试保留 `debug.relevanceGate/rerank`；验证：jest 与 vitest 通过，未采集显示「未采集」而非 0 [Req: 知识质量分必须区分解析质量与有效性]
 - [ ] 6.6 新增 `GET /v1/admin/ai-eval/runs/:id/calibration`（数据集级同构）：一致率、`n`、分歧明细；`n<20` 返回 `insufficientSample` 且无百分比；页面只读校准卡；验证：jest 10 条标注 3 条分歧结果正确、n=10 返回样本不足；vitest 不显示百分比 [Req: 判官校准必须可计算且可见]

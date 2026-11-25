@@ -2447,6 +2447,8 @@ model AiAnswerFeedback {
   failureKind      String? @map("failure_kind") @db.VarChar(32)
   /// 处理结论：OPEN | CONFIRMED | EXCLUDED | ADDED_TO_EVAL | FIXED_PENDING_VERIFY | CLOSED
   resolution       String? @db.VarChar(24)
+  /// 待验用例被下一轮运行判失败的时间；随后验证通过关闭时清空
+  regressedAt      DateTime? @map("regressed_at")
   /// 当前负责人
   ownerAdminId     String? @map("owner_admin_id") @db.VarChar(32)
   /// 认领者与认领时间：与处理完成正交，认领不改 reviewStatus

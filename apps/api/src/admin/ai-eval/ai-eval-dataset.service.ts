@@ -1391,6 +1391,141 @@ export class AiEvalDatasetService {
   }
 
   /**
+   * 待验用例（FIXED_PENDING_VERIFY）由运行结果自动推进：
+   * - 判定通过 → CLOSED；
+   * - 判定失败 → 打回 OPEN 并记 regressedAt；
+   * - 判官没给出结论 → 不动，等下一轮。
+   *
+   * 只改 resolution 仍是 FIXED_PENDING_VERIFY 的行，人工在此期间改判不会被覆盖。
+   */
+  async advancePendingVerification(
+    runId: string,
+    /** 收尾路径已知道指标族时直接传入，省一次 run 查询。 */
+    knownFamily?: string,
+  ): Promise<{ closed: number; regressed: number }> {
+    let family = knownFamily;
+    if (!family) {
+      const run = await this.prisma.aiEvalRun.findUnique({
+        where: { id: runId },
+        select: { id: true, mode: true, summary: true },
+      });
+      if (!run) return { closed: 0, regressed: 0 };
+      family = this.metricFamilyOf(run);
+    }
+
+    const results = await this.prisma.aiEvalResult.findMany({
+      where: { runId },
+      select: {
+        caseId: true,
+        verdict: true,
+        answerVerdict: true,
+        judgeErrorKind: true,
+      },
+    });
+    if (results.length === 0) return { closed: 0, regressed: 0 };
+
+    const passCaseIds: string[] = [];
+    const failCaseIds: string[] = [];
+    for (const item of results) {
+      const outcome = this.outcomeOfResult(item, family);
+      if (outcome === 'pass') passCaseIds.push(item.caseId);
+      else if (outcome === 'fail') failCaseIds.push(item.caseId);
+    }
+    if (passCaseIds.length === 0 && failCaseIds.length === 0) {
+      return { closed: 0, regressed: 0 };
+    }
+
+    const caseIds = [...passCaseIds, ...failCaseIds];
+    // 正向：用例记录来源反馈；反向：老数据只写了 feedback.linkedEvalCaseId。
+    const feedbackIdByCase = new Map<string, string>();
+    const cases = await this.prisma.aiEvalCase.findMany({
+      where: { id: { in: caseIds } },
+      select: { id: true, sourceFeedbackId: true },
+    });
+    for (const item of cases) {
+      if (item.sourceFeedbackId) {
+        feedbackIdByCase.set(item.id, item.sourceFeedbackId);
+      }
+    }
+    const linked = await this.prisma.aiAnswerFeedback.findMany({
+      where: { linkedEvalCaseId: { in: caseIds } },
+      select: { id: true, linkedEvalCaseId: true },
+    });
+    for (const item of linked) {
+      if (
+        item.linkedEvalCaseId &&
+        !feedbackIdByCase.has(item.linkedEvalCaseId)
+      ) {
+        feedbackIdByCase.set(item.linkedEvalCaseId, item.id);
+      }
+    }
+
+    const feedbackIdsOf = (ids: string[]) => [
+      ...new Set(
+        ids
+          .map((caseId) => feedbackIdByCase.get(caseId))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const passFeedbackIds = feedbackIdsOf(passCaseIds);
+    const failFeedbackIds = feedbackIdsOf(failCaseIds);
+
+    let closed = 0;
+    let regressed = 0;
+    if (passFeedbackIds.length > 0) {
+      const updated = await this.prisma.aiAnswerFeedback.updateMany({
+        where: {
+          id: { in: passFeedbackIds },
+          resolution: 'FIXED_PENDING_VERIFY',
+        },
+        data: {
+          resolution: 'CLOSED',
+          reviewStatus: 'REVIEWED',
+          reviewedAt: new Date(),
+          regressedAt: null,
+        },
+      });
+      closed = updated.count;
+    }
+    if (failFeedbackIds.length > 0) {
+      const updated = await this.prisma.aiAnswerFeedback.updateMany({
+        where: {
+          id: { in: failFeedbackIds },
+          resolution: 'FIXED_PENDING_VERIFY',
+        },
+        data: {
+          resolution: 'OPEN',
+          reviewStatus: 'PENDING',
+          reviewedBy: null,
+          reviewedAt: null,
+          regressedAt: new Date(),
+        },
+      });
+      regressed = updated.count;
+    }
+    if (closed > 0 || regressed > 0) {
+      this.logger.log(
+        `[eval] pending verification advanced for run ${runId}: closed=${closed} regressed=${regressed}`,
+      );
+    }
+    return { closed, regressed };
+  }
+
+  /** 状态推进失败不能把已落盘的结果判成运行失败，只告警留痕。 */
+  private async advancePendingVerificationSafe(
+    runId: string,
+    knownFamily?: string,
+  ): Promise<void> {
+    try {
+      await this.advancePendingVerification(runId, knownFamily);
+    } catch (err: any) {
+      this.logger.warn(
+        `[eval] pending verification advance failed for run ${runId}: ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  /**
    * 取消一次运行：只把 RUNNING 改成 CANCELLED。
    * 已是终态时不做任何修改，直接返回当前 run（幂等）。
    * 正在执行的 executeRun 会在下一条用例前/判分后看到 CANCELLED 并停止。
@@ -1630,6 +1765,12 @@ export class AiEvalDatasetService {
         },
       });
     });
+
+    // 结果已落盘、运行已 COMPLETED：待验用例在这里按本轮判定推进。
+    await this.advancePendingVerificationSafe(
+      runId,
+      this.metricFamilyOf({ summary, mode: 'EXTERNAL' }),
+    );
 
     return this.getRun(runId);
   }
@@ -2197,6 +2338,10 @@ export class AiEvalDatasetService {
         },
       });
       if (completed.count === 0) await this.ensureRunning(runId, usage);
+      else await this.advancePendingVerificationSafe(
+        runId,
+        INTERNAL_METRIC_FAMILY,
+      );
     } catch (err: any) {
       // 条件更新：取消优先于失败，避免把 CANCELLED 覆盖成 FAILED。
       await this.prisma.aiEvalRun

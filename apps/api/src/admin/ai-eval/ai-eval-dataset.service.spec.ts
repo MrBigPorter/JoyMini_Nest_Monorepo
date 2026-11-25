@@ -1728,3 +1728,122 @@ describe('AiEvalDatasetService', () => {
     });
   });
 });
+
+describe('AiEvalDatasetService advancePendingVerification', () => {
+  function stubPendingRun(
+    prisma: ReturnType<typeof makeService>['prisma'],
+    results: Array<{
+      caseId: string;
+      verdict: string | null;
+      judgeErrorKind?: string | null;
+    }>,
+  ) {
+    (prisma as any).aiAnswerFeedback = {
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    };
+    prisma.aiEvalRun.findUnique.mockResolvedValueOnce({
+      id: 'run-1',
+      mode: 'STORED',
+      summary: { metricFamily: 'verdict3' },
+    });
+    prisma.aiEvalResult.findMany.mockResolvedValueOnce(
+      results.map((item) => ({
+        answerVerdict: null,
+        judgeErrorKind: null,
+        ...item,
+      })),
+    );
+    prisma.aiEvalCase.findMany.mockResolvedValueOnce(
+      results.map((item, index) => ({
+        id: item.caseId,
+        sourceFeedbackId: `fb-${index + 1}`,
+      })),
+    );
+    return (prisma as any).aiAnswerFeedback;
+  }
+
+  it('待验用例判定通过：自动关闭并清掉回退时间', async () => {
+    const { service, prisma } = makeService();
+    const feedback = stubPendingRun(prisma, [
+      { caseId: 'case-1', verdict: 'solved' },
+      { caseId: 'case-2', verdict: 'unsolved' },
+    ]);
+
+    const result = await service.advancePendingVerification('run-1');
+
+    expect(result).toEqual({ closed: 1, regressed: 1 });
+    expect(feedback.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['fb-1'] },
+        resolution: 'FIXED_PENDING_VERIFY',
+      },
+      data: {
+        resolution: 'CLOSED',
+        reviewStatus: 'REVIEWED',
+        reviewedAt: expect.any(Date),
+        regressedAt: null,
+      },
+    });
+  });
+
+  it('待验用例判定失败：打回 OPEN 并记回退时间', async () => {
+    const { service, prisma } = makeService();
+    const feedback = stubPendingRun(prisma, [
+      { caseId: 'case-1', verdict: 'solved' },
+      { caseId: 'case-2', verdict: 'unsolved' },
+    ]);
+
+    await service.advancePendingVerification('run-1');
+
+    expect(feedback.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['fb-2'] },
+        resolution: 'FIXED_PENDING_VERIFY',
+      },
+      data: {
+        resolution: 'OPEN',
+        reviewStatus: 'PENDING',
+        reviewedBy: null,
+        reviewedAt: null,
+        regressedAt: expect.any(Date),
+      },
+    });
+  });
+
+  it('判官没给出结论时不推进状态，避免把故障当失败', async () => {
+    const { service, prisma } = makeService();
+    const feedback = stubPendingRun(prisma, [
+      { caseId: 'case-1', verdict: null, judgeErrorKind: 'timeout' },
+    ]);
+
+    const result = await service.advancePendingVerification('run-1');
+
+    expect(result).toEqual({ closed: 0, regressed: 0 });
+    expect(feedback.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('没有关联反馈的用例不写任何状态', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValueOnce({
+      id: 'run-1',
+      mode: 'STORED',
+      summary: { metricFamily: 'verdict3' },
+    });
+    prisma.aiEvalResult.findMany.mockResolvedValueOnce([
+      { caseId: 'case-1', verdict: 'solved', answerVerdict: null, judgeErrorKind: null },
+    ]);
+    prisma.aiEvalCase.findMany.mockResolvedValueOnce([
+      { id: 'case-1', sourceFeedbackId: null },
+    ]);
+    (prisma as any).aiAnswerFeedback = {
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    };
+
+    const result = await service.advancePendingVerification('run-1');
+
+    expect(result).toEqual({ closed: 0, regressed: 0 });
+    expect((prisma as any).aiAnswerFeedback.updateMany).not.toHaveBeenCalled();
+  });
+});
