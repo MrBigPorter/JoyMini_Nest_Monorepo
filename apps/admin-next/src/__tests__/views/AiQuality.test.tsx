@@ -15,6 +15,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 const mockUseRequest = vi.hoisted(() => vi.fn());
+const mockGetFeatures = vi.hoisted(() => vi.fn());
 const mockGetFeedbackList = vi.hoisted(() => vi.fn());
 const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockUpdateFeedback = vi.hoisted(() => vi.fn());
@@ -42,9 +43,7 @@ vi.mock('ahooks', () => ({
 
 vi.mock('@/api', () => ({
   aiOpsApi: {
-    getFeatures: vi
-      .fn()
-      .mockResolvedValue({ feedbackUiEnabled: true, evalEnabled: true }),
+    getFeatures: mockGetFeatures,
   },
   chatApi: {
     getFeedbackList: (...args: unknown[]) => mockGetFeedbackList(...args),
@@ -326,7 +325,8 @@ function openTab(name: string) {
 }
 
 /**
- * EvalPanel 每轮渲染固定注册 5 个 useRequest（列表 / 详情 / 运行 / 证据 / 差异），
+ * EvalPanel 每轮渲染注册 7 个 useRequest（开关 / 列表 / 详情 / 运行 / 证据 / 差异 / 校准），
+ * 其中开关按 service 身份识别、不占数据槽位（6 个数据槽位）；
  * 反馈页 4 个槽位（features/summary/list/datasets）；
  * 回归状态卡片单独按 service 身份识别，不参与槽位计数。
  * 返回的函数在打开页签前调用。
@@ -338,18 +338,24 @@ function wireEvalTab(
   kbStatusData: unknown = kbRegressionStatus,
   diffData: unknown = null,
   calibrationData: unknown = null,
+  features: { feedbackUiEnabled: boolean; evalEnabled: boolean } = {
+    feedbackUiEnabled: true,
+    evalEnabled: true,
+  },
 ) {
   let index = 0;
   let inEval = false;
   mockUseRequest.mockImplementation((service: unknown) => {
     if (service === mockKbStatus) return makeUseRequest(kbStatusData);
     if (typeof service === 'function') void (service as () => unknown)();
+    // 评测页的开关 hook 按所属页面识别：它先于六个数据 hook 注册，但不占数据槽位。
+    if (inEval && service === mockGetFeatures) return makeUseRequest(features);
     if (!inEval) {
       const slot = index % 4;
       index += 1;
       if (slot === 0)
         return {
-          ...makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true }),
+          ...makeUseRequest(features),
           refreshAsync: vi.fn(),
         };
       if (slot === 1)
@@ -392,6 +398,8 @@ function wireEvalTransitions(
   mockUseRequest.mockImplementation((service: unknown) => {
     if (service === mockKbStatus) return makeUseRequest(kbRegressionStatus);
     if (typeof service === 'function') void (service as () => unknown)();
+    if (inEval && service === mockGetFeatures)
+      return makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true });
     if (!inEval) {
       const slot = index % 4;
       index += 1;
@@ -433,6 +441,10 @@ describe('AiQualityPage', () => {
     });
     mockCanTriage.mockReturnValue(true);
     mockRole.current = 'ADMIN';
+    mockGetFeatures.mockResolvedValue({
+      feedbackUiEnabled: true,
+      evalEnabled: true,
+    });
     mockUpdateFeedback.mockResolvedValue({});
     mockGetFeedbackList.mockResolvedValue({ list: [feedback], total: 1 });
     mockGetFeedbackSummary.mockResolvedValue(summary);
@@ -1013,7 +1025,12 @@ describe('AiQualityPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
     expect(screen.getByText('先创建评测集')).toBeTruthy();
 
-    mockUseRequest.mockReturnValue(makeUseRequest([]));
+    // 评测页的写入口依赖开关；其余请求仍按空数据返回。
+    mockUseRequest.mockImplementation((service: unknown) =>
+      service === mockGetFeatures
+        ? makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true })
+        : makeUseRequest([]),
+    );
     fireEvent.click(screen.getByRole('button', { name: '去创建评测集' }));
 
     expect(screen.getByRole('button', { name: '创建评测集' })).toBeTruthy();
@@ -1110,7 +1127,11 @@ describe('AiQualityPage', () => {
   });
 
   it('keeps the JSON import behind a collapsed advanced-mode toggle', () => {
-    mockUseRequest.mockReturnValue(makeUseRequest(datasets));
+    mockUseRequest.mockImplementation((service: unknown) =>
+      service === mockGetFeatures
+        ? makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true })
+        : makeUseRequest(datasets),
+    );
     render(<AiQualityPage />);
     openTab('回归测试');
 
@@ -2542,6 +2563,37 @@ describe('AiQualityPage', () => {
       expect(
         screen.getByText(/执行错误：实时调用失败（live_call）/),
       ).toBeTruthy();
+    });
+  });
+
+  describe('写入口双重控制', () => {
+    it('VIEWER 不渲染创建评测集、导入用例与启动运行', () => {
+      mockRole.current = 'VIEWER';
+      const enterEval = wireEvalTab(evalDatasetDetail);
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+
+      expect(screen.queryByRole('button', { name: '创建评测集' })).toBeNull();
+      expect(screen.queryByRole('button', { name: '启动批量评测' })).toBeNull();
+      // 高级模式是导入用例的唯一入口，只读角色看不到。
+      expect(screen.queryByRole('button', { name: '高级模式' })).toBeNull();
+      expect(screen.queryByText('只读角色仅可查看结果')).toBeTruthy();
+    });
+
+    it('AI_EVAL_ENABLED 关闭时不渲染写入口，并说明原因', () => {
+      const enterEval = wireEvalTab(evalDatasetDetail, null, datasets, kbRegressionStatus, null, null, {
+        feedbackUiEnabled: true,
+        evalEnabled: false,
+      });
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+
+      expect(screen.getByText(/AI 评测未启用（AI_EVAL_ENABLED=false）/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: '创建评测集' })).toBeNull();
+      expect(screen.queryByRole('button', { name: '启动批量评测' })).toBeNull();
+      expect(screen.queryByRole('button', { name: '高级模式' })).toBeNull();
     });
   });
 });

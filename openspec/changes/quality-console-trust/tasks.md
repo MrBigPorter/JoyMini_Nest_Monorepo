@@ -3,8 +3,8 @@
 ## 1. 信任层与权限
 
 - [x] 1.1 改造 `apps/admin-next/src/api/http.ts`：`withRetry` 对 403 抛 `ForbiddenError`，`handleHttpError` 返回可区分错误；同步检查 `applicationApi.pendingCount` 等依赖旧 `undefined` 的调用方；验证：grep 不再出现 `return undefined as unknown as T`，vitest 403 用例显示错误而非成功 [Req: 管理端页面必须如实呈现失败、禁用与未知]
-- [ ] 1.2 页面引入统一 `RenderState`（loading/disabled/error/empty/ready），KPI、计数、summary 字段的空值渲染「未知/未检查」；验证：vitest 覆盖请求失败与字段缺失，页面不出现 0 冒充未知 [Req: 管理端页面必须如实呈现失败、禁用与未知]
-- [ ] 1.3 写入口统一由「有权限且 `AI_EVAL_ENABLED` 开启」双重控制；关闭或无权时不渲染创建评测集、导入用例、启动运行；验证：vitest 以 VIEWER 与开关关闭两种状态断言入口不存在且无假成功 [Req: 管理端页面必须如实呈现失败、禁用与未知]
+- [x] 1.2 页面引入统一 `RenderState`（loading/disabled/error/empty/ready），KPI、计数、summary 字段的空值渲染「未知/未检查」；验证：vitest 覆盖请求失败与字段缺失，页面不出现 0 冒充未知 [Req: 管理端页面必须如实呈现失败、禁用与未知]
+- [x] 1.3 写入口统一由「有权限且 `AI_EVAL_ENABLED` 开启」双重控制；关闭或无权时不渲染创建评测集、导入用例、启动运行；验证：vitest 以 VIEWER 与开关关闭两种状态断言入口不存在且无假成功 [Req: 管理端页面必须如实呈现失败、禁用与未知]
 - [ ] 1.4 按角色设默认视图：运营→质量待办、质量负责人→回归测试（运行/基线/证据）、研发→链路面板与检索调试、管理者→趋势；验证：vitest 四种角色默认落点正确，切换视图后同一 run 数字不变 [Req: 角色视图必须与决策对应]
 - [ ] 1.5 清理质量页的 `?? 0` 与「暂无」误用（KPI、`_count`、summary、知识统计），前端推断处加「推断」徽标；验证：`grep -n "?? 0" apps/admin-next/src/app/(dashboard)/ai-ops/quality/page.tsx` 无命中，vitest 覆盖推断徽标 [Req: 管理端页面必须如实呈现失败、禁用与未知]
 

@@ -533,9 +533,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const [decision, setDecision] = useState<ReviewDecision | null>(null);
   const adminId = useAuthStore((state) => state.userInfo?.id);
   const role = useAiOpsRole();
+  // 开关未加载或加载失败时按关闭处理，避免渲染写按钮后 403。
   const { data: featuresData } = useRequest(aiOpsApi.getFeatures);
-  // features 未加载或加载失败时按关闭处理，避免渲染写按钮后 403。
   const feedbackUiEnabled = featuresData?.feedbackUiEnabled === true;
+  const featuresReady = featuresData != null;
   const canTriage = canTriageFeedback(role) && feedbackUiEnabled;
   const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
 
@@ -1016,7 +1017,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
 
   return (
     <section className="space-y-3">
-      {featuresData && !feedbackUiEnabled ? (
+      {featuresReady && !feedbackUiEnabled ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           反馈分诊未启用（AI_FEEDBACK_UI_ENABLED=false）。当前只能查看，不能提交判断。
         </div>
@@ -1957,7 +1958,18 @@ function EvalPanel() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
   const role = useAiOpsRole();
-  const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
+  // 写入口统一由「有权限 + 开关开启」双重控制；缺一都不渲染按钮。
+  // 开关未加载或加载失败时按关闭处理，宁可少给入口，也不要点了再吃 403。
+  const { data: featuresData } = useRequest(aiOpsApi.getFeatures);
+  const evalEnabled = featuresData?.evalEnabled === true;
+  const featuresReady = featuresData != null;
+  const canWriteEval =
+    (role === 'SUPER_ADMIN' || role === 'ADMIN') && evalEnabled;
+  const writeDisabledReason = !featuresReady
+    ? '功能开关加载中…'
+    : !evalEnabled
+      ? 'AI 评测未启用，仅可查看历史结果'
+      : '只读角色仅可查看结果';
 
   const { data: datasets, refresh: refreshDatasets } = useRequest(
     aiQualityApi.listDatasets,
@@ -2243,14 +2255,26 @@ function EvalPanel() {
   return (
     <section className="space-y-4">
       <KbRegressionCard />
+      {featuresReady && !evalEnabled ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          AI 评测未启用（AI_EVAL_ENABLED=false）。当前只能查看历史结果，不能创建评测集、导入用例或启动运行。
+        </div>
+      ) : null}
+      {featuresReady && evalEnabled && !canWriteEval ? (
+        <div className="text-xs text-gray-500">{writeDisabledReason}</div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          className="rounded-lg border px-3 py-2 text-sm dark:border-white/10 dark:bg-gray-800"
-          placeholder="评测集名称"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Button onClick={create}>创建评测集</Button>
+        {canWriteEval ? (
+          <>
+            <input
+              className="rounded-lg border px-3 py-2 text-sm dark:border-white/10 dark:bg-gray-800"
+              placeholder="评测集名称"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Button onClick={create}>创建评测集</Button>
+          </>
+        ) : null}
         <select
           aria-label="选择评测集"
           className="rounded-lg border px-3 py-2 text-sm dark:border-white/10 dark:bg-gray-800"
@@ -2268,7 +2292,7 @@ function EvalPanel() {
             </option>
           ))}
         </select>
-        {harnessDataset ? null : (
+        {harnessDataset || !canWriteEval ? null : (
           <Button
             size="sm"
             variant="outline"
@@ -2392,24 +2416,17 @@ function EvalPanel() {
                 ))}
               </select>
             </label>
-            <Button
-              size="sm"
-              onClick={start}
-              disabled={!canStartRun || starting}
-            >
-              {starting ? '启动中…' : '启动批量评测'}
-            </Button>
-            {!canStartRun ? (
-              <span className="text-xs text-gray-500">
-                只读角色仅可查看结果
-              </span>
+            {canWriteEval ? (
+              <Button size="sm" onClick={start} disabled={starting}>
+                {starting ? '启动中…' : '启动批量评测'}
+              </Button>
             ) : null}
             </div>
           )}
         </div>
       ) : null}
 
-      {selectedId && advanced && !harnessDataset ? (
+      {selectedId && advanced && !harnessDataset && canWriteEval ? (
         <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
           <h3 className="mb-2 text-sm font-semibold">
             高级模式：导入用例（JSON 数组）
@@ -2500,7 +2517,7 @@ function EvalPanel() {
                       </div>
                     </div>
                   ) : null}
-                  {canStartRun && !harnessDataset ? (
+                  {canWriteEval && !harnessDataset ? (
                     <div className="mt-1 flex gap-2">
                       <button
                         type="button"
@@ -2609,7 +2626,7 @@ function EvalPanel() {
                 判官采样 {runData.judgeSampleCount} 次/条
               </span>
             ) : null}
-            {runData.status === 'RUNNING' && canStartRun ? (
+            {runData.status === 'RUNNING' && canWriteEval ? (
               <Button
                 size="sm"
                 variant="outline"
