@@ -1,9 +1,20 @@
 /**
  * 评测运行展示口径（纯函数，便于单测）。
  *
- * EXTERNAL run 由 harness 写入，只有答案准确性（`summary.accuracy`）；
- * 内部 run 才有任务成功率（`summary.passRate`）。两者不能互相顶替，
- * 否则「准确率 80%」会被读成「任务通过率 80%」。
+ * 两族指标，同名 key 不能互相顶替：
+ *
+ * EXTERNAL run（harness 写入，族 `answer_accuracy-v3`）
+ * - `accuracy` = correct / (correct + incorrect)，判官失败不进分母
+ *
+ * 内部 run（族 `verdict3` / 版本 `verdict3-1`，summary.metricFamily 应为主真源）
+ * - `passRate`      = solved / total            任务成功率，语义固定不变
+ * - `validPassRate` = solved / judged           judged = solved + partial + unsolved（真正判过的）
+ * - `judgeErrorRate` / `executionErrorRate` = 失败数 / total       系统故障单独可见
+ * - `judged` / `processed` / `total` 解释为什么判过的条数少于总数
+ *
+ * 判官失败与执行失败都不是「回答错了」：它们不进 unsolved，也不进
+ * passRate 的分子。UI 展示通过率时必须说明分母是 total 还是 judged，
+ * 否则「通过率 50%」在两种口径下差一倍。
  */
 
 type EvalSummary = Record<string, any> | null | undefined;

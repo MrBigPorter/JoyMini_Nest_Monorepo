@@ -91,9 +91,12 @@ export class StartEvalRunDto {
   @IsIn(['STORED', 'LIVE'])
   mode?: 'STORED' | 'LIVE';
 
-  /** 对比基线：同一评测集内的已完成运行 */
+  /**
+   * 对比基线：同一评测集内的已完成运行。
+   * 不传 = 回退到当前已登记基线；显式传 null = 本次不对比（不回退）。
+   */
   @IsOptional()
   @IsString()
   @MaxLength(32)
-  baselineRunId?: string;
+  baselineRunId?: string | null;
 }

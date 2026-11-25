@@ -2425,6 +2425,8 @@ export interface EvalRun {
   status: string;
   /** EXTERNAL：结果由 tools/eval/e2e harness 写入，不属于管理端复跑 */
   mode?: 'STORED' | 'LIVE' | 'EXTERNAL';
+  /** 运行范围：full 全量 / subset 受影响子集（子集不得登记基线） */
+  scope?: 'full' | 'subset' | string | null;
   baselineRunId?: string | null;
   createdBy: string | null;
   datasetSnapshot?: Record<string, any> | null;
@@ -2432,6 +2434,12 @@ export interface EvalRun {
   gateMode?: string | null;
   judgeSpecVersion?: string | null;
   metricSpecVersion?: string | null;
+  /** 内部运行的指标族（verdict3）；EXTERNAL 为 answer_accuracy-v3（见 summary） */
+  metricFamily?: string | null;
+  /** 内部运行的单条判官采样次数（当前固定 1，不能冒充多次采样的基线） */
+  judgeSampleCount?: number | null;
+  /** run 级执行失败类别（如 live_call）；与 unsolved / judge_error 分账 */
+  executionErrorKind?: string | null;
   isBaseline?: boolean;
   summary: Record<string, any> | null;
   startedAt: string;

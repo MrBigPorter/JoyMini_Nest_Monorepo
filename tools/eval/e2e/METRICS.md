@@ -3,6 +3,7 @@
 > 本文件是评测口径的唯一文本来源。任何指标含义、分母或排除项的变化，都必须同时提升 `METRIC_SPEC_VERSION`，否则历史结果不得与新结果直接比较。
 >
 > 代码实现见 `metrics-spec.mjs`；运行记录会把版本号写入 `AiEvalRun.metricSpecVersion`。
+> 内部 run 的 `verdict3` 族见 §1.2，版本独立为 `verdict3-1`，不随本文件的 `METRIC_SPEC_VERSION` 变化。
 >
 > 判官口径由两个版本共同决定：`judgeSpecVersion`（输入规范：给哪些文档、预算、脱敏）与
 > `judgePromptVersion`（提示词）。两者任一不同，`kbAccuracy` 不得直接跨轮比较；
@@ -32,6 +33,32 @@
   判决仍为 `incorrect`。
 - **严格 golden-only 口径只作离线诊断**（`rejudge --with-strict`，写入
   `rejudge.strictAgreement`），报告并列展示，但不得用于基线验收或决定 6.2 收口。
+
+## 1.2 内部运行的 `verdict3` 族（版本 `verdict3-1`）
+
+内部 run（控制台启动、服务端判官，不走 harness）用另一族指标，族名 `verdict3`，
+版本 `verdict3-1`，写在 summary 的 `metricFamily` / `metricSpecVersion` 上。
+本节只做跨族对照；外部 `answer_accuracy-v3`（第 1 节，`METRIC_SPEC_VERSION = 3`）
+的口径与版本不变。
+
+| 指标 | 分子 | 分母 | 说明 |
+| --- | --- | --- | --- |
+| `passRate` | `solved` | `total`（全部用例） | 任务成功率，语义与 [113 §12](../../../docs/AI-joymini/113-AI质量运营-数据模型.md)、[114 §8](../../../docs/AI-joymini/114-AI质量运营-Admin设计.md) 的「回归通过率 = solved / total」一致，**不改** |
+| `judged` | —（计数） | — | `solved + partial + unsolved`，真正判过的条数 |
+| `validPassRate` | `solved` | `judged` | 判官失败、执行失败不进分母 |
+| `processed` | —（计数） | — | `judged + judgeErrors + executionErrors`；小于 `total` 的部分是没处理到的用例 |
+| `judgeErrorRate` | `judgeErrors` | `total` | 判官失败单独记账，不计入 `unsolved` |
+| `executionErrorRate` | `executionErrors` | `total` | LIVE 调用失败单独记账 |
+| `judgeErrorKinds` | —（计数） | — | 按 `judgeErrorKind` 分组（超时、格式、限流等） |
+| `failureCategory` | —（枚举） | — | 整单失败归因：`enqueue` \| `budget` \| `unhandled` \| `heartbeat` \| `judge_unavailable` |
+
+内部单次采样：`judgeSampleCount = 1`，结论随运行留存，不做多数聚合；
+外部 v3 的重复采样与 `judgeAgreement`（第 2.1 节）只适用于 `answer_accuracy-v3`。
+
+**跨族禁止相减。** `delta` / `newFailures` / `fixed` 只在同一族内计算：
+外部 run 的 `accuracy` 与内部 run 的 `passRate` 不是同一个数，同名 key 不得互相顶替。
+summary 显式声明了异族基线时，服务端跳过对比（不产出 delta）；没有声明
+`metricFamily` 的历史 summary 视为同族（内部 `passRate` 与外部 `accuracy` 的语义从未变过）。
 
 ## 2. 答案判定三态
 

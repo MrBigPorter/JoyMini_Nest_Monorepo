@@ -2502,38 +2502,53 @@ model AiEvalCase {
 }
 
 model AiEvalRun {
-  id            String    @id @default(cuid()) @db.VarChar(32)
-  datasetId     String    @map("dataset_id") @db.VarChar(32)
+  id                   String    @id @default(cuid()) @db.VarChar(32)
+  datasetId            String    @map("dataset_id") @db.VarChar(32)
   /// RUNNING | COMPLETED | FAILED | CANCELLED
-  status        String    @default("RUNNING") @db.VarChar(16)
+  status               String    @default("RUNNING") @db.VarChar(16)
   /**
    * STORED | LIVE | EXTERNAL
    * EXTERNAL 由 tools/eval/e2e harness 分两段写入结果，不走队列。
    */
-  mode          String    @default("STORED") @db.VarChar(16)
-  baselineRunId String?   @map("baseline_run_id") @db.VarChar(32)
-  createdBy     String?   @map("created_by") @db.VarChar(32)
-  /** 运行开始时的用例快照：{ hash, cases: [{ caseId, kind, question, expectedDocIds, lang }] } */
-  datasetSnapshot Json?   @map("dataset_snapshot")
+  mode                 String    @default("STORED") @db.VarChar(16)
+  baselineRunId        String?   @map("baseline_run_id") @db.VarChar(32)
+  createdBy            String?   @map("created_by") @db.VarChar(32)
+  /**
+   * 运行开始时的用例快照：{ hash, cases: [{ caseId, kind, question, expectedDocIds, lang }] }
+   */
+  datasetSnapshot      Json?     @map("dataset_snapshot")
   /// 代码版本（git sha）
-  codeVersion   String?   @map("code_version") @db.VarChar(64)
+  codeVersion          String?   @map("code_version") @db.VarChar(64)
   /// 依据门禁模式（例如 enforce / shadow / off）
-  gateMode      String?   @map("gate_mode") @db.VarChar(32)
+  gateMode             String?   @map("gate_mode") @db.VarChar(32)
   /// 判官输入规范版本（judge-input-spec）
-  judgeSpecVersion String? @map("judge_spec_version") @db.VarChar(32)
+  judgeSpecVersion     String?   @map("judge_spec_version") @db.VarChar(32)
+  /// 判官 prompt 的内容指纹（sha256，来自 judge-spec.ts）
+  judgePromptHash      String?   @map("judge_prompt_hash") @db.VarChar(64)
+  /// 本次运行实际使用的判官模型与供应商（运行时配置解析结果）
+  judgeModel           String?   @map("judge_model") @db.VarChar(100)
+  judgeVendor          String?   @map("judge_vendor") @db.VarChar(32)
   /// 指标定义版本（tools/eval/e2e/metrics-spec）
-  metricSpecVersion String? @map("metric_spec_version") @db.VarChar(32)
+  metricSpecVersion    String?   @map("metric_spec_version") @db.VarChar(32)
   /// 运行开始时的知识库语料指纹（只覆盖 activeVersion 正在服务的内容）
-  knowledgeFingerprint String? @map("knowledge_fingerprint") @db.VarChar(64)
+  knowledgeFingerprint String?   @map("knowledge_fingerprint") @db.VarChar(64)
   /// 语料快照：{ fingerprint, docs, pendingActivation, before, after, stable, stableReason }
-  knowledgeSnapshot Json? @map("knowledge_snapshot")
+  knowledgeSnapshot    Json?     @map("knowledge_snapshot")
   /// full | subset；子集运行不得 promote
-  scope         String?   @db.VarChar(8)
-  /// 当前基线：全局至多一条，由 promote 接口维护
-  isBaseline    Boolean   @default(false) @map("is_baseline")
-  summary       Json?
-  startedAt     DateTime  @default(now()) @map("started_at")
-  finishedAt    DateTime? @map("finished_at")
+  scope                String?   @db.VarChar(8)
+  /// 运行心跳：执行期每条用例开始时更新（≥30s 节流），清扫据此判活
+  heartbeatAt          DateTime? @map("heartbeat_at")
+  /// 执行失败类别（如 live_call）；与 unsolved、judge_error 分账
+  executionErrorKind   String?   @map("execution_error_kind") @db.VarChar(32)
+  /// 判官采样次数（内部运行默认 1，显式声明，不冒充合规基线）
+  judgeSampleCount     Int?      @map("judge_sample_count")
+  /// 指标族：内部 verdict3 / 外部 answer_accuracy
+  metricFamily         String?   @map("metric_family") @db.VarChar(32)
+  /// 当前基线：按数据集至多一条，由 promote 接口维护
+  isBaseline           Boolean   @default(false) @map("is_baseline")
+  summary              Json?
+  startedAt            DateTime  @default(now()) @map("started_at")
+  finishedAt           DateTime? @map("finished_at")
 
   dataset AiEvalDataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   results AiEvalResult[]

@@ -101,7 +101,7 @@ test("summarize：只有不支持点全是联系方式时才算脱敏伪差异",
   ]);
 });
 
-test("summarize：动作按验证结果计数，边界按断言计数", () => {
+test("summarize：动作按确认卡字段计数，边界按断言计数", () => {
   const summary = summarize([
     {
       id: "action:claim_coupon",
@@ -112,8 +112,14 @@ test("summarize：动作按验证结果计数，边界按断言计数", () => {
         pass: true,
         cardShown: true,
         confirmAction: "claim_coupon",
-        actionResultSuccess: true,
-        verification: { pass: true },
+        cardTitle: "领券确认",
+        cardChecks: {
+          actionOk: true,
+          titleOk: true,
+          fieldsOk: true,
+          missingFields: [],
+          otpOk: true,
+        },
       },
     },
     {
@@ -125,8 +131,14 @@ test("summarize：动作按验证结果计数，边界按断言计数", () => {
         pass: false,
         cardShown: true,
         confirmAction: "withdraw",
-        actionResultSuccess: false,
-        verification: { pass: false },
+        cardTitle: "提现确认",
+        cardChecks: {
+          actionOk: true,
+          titleOk: true,
+          fieldsOk: false,
+          missingFields: ["200"],
+          otpOk: true,
+        },
       },
     },
     {
@@ -140,6 +152,10 @@ test("summarize：动作按验证结果计数，边界按断言计数", () => {
 
   assert.equal(summary.actions.total, 2);
   assert.equal(summary.actions.passed, 1);
+  // 不再有「执行」列：动作明细只记录卡片字段断言。
+  assert.equal(summary.actions.details[0].cardTitle, "领券确认");
+  assert.deepEqual(summary.actions.details[1].missingFields, ["200"]);
+  assert.equal(summary.actions.details[0].executed, undefined);
   assert.equal(summary.boundaries.total, 1);
   assert.equal(summary.boundaries.passed.successes, 1);
 });

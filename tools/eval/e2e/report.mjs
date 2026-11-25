@@ -82,6 +82,21 @@ function judgeAgreementThreshold() {
   return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.95;
 }
 
+/** 动作用例的失败原因：把卡片字段断言的缺口写成一句人话。 */
+function cardCheckDetail(checks) {
+  const reasons = [];
+  if (!checks.cardShown) reasons.push("没有确认卡片");
+  else {
+    if (!checks.actionOk) reasons.push("卡片动作不匹配");
+    if (!checks.titleOk) reasons.push("缺少确认标题");
+  }
+  if (!checks.fieldsOk) {
+    reasons.push(`卡片缺少关键参数：${(checks.missingFields ?? []).join("、")}`);
+  }
+  if (checks.otpOk === false) reasons.push("缺少 OTP 标识");
+  return reasons.join("；");
+}
+
 /** 把一次运行的结果整理成指标；纯函数，方便单测。 */
 export function summarize(cases) {
   const ok = cases.filter((item) => item.status === "ok");
@@ -333,9 +348,11 @@ export function summarize(cases) {
         action: item.action,
         cardShown: Boolean(item.judge?.cardShown),
         confirmAction: item.judge?.confirmAction ?? null,
-        executed: item.judge?.actionResultSuccess ?? null,
-        verification: item.judge?.verification?.pass ?? false,
-        verifyDetail: (item.judge?.verification?.detail ?? []).join("；"),
+        cardTitle: item.judge?.cardTitle ?? null,
+        missingFields: item.judge?.cardChecks?.missingFields ?? [],
+        cardDetail: item.judge?.cardChecks
+          ? cardCheckDetail(item.judge.cardChecks)
+          : "",
         confirmError: item.confirmError ?? null,
         pass: Boolean(item.judge?.pass),
         skipReason: item.skipReason ?? null,
@@ -697,15 +714,17 @@ export function renderSummary(result) {
 
   push("## 业务动作明细");
   push();
-  push("| 动作 | 确认卡 | 卡片动作 | 执行 | 读接口核验 | 结论 | 失败原因 |");
+  push("> 写操作样本不执行：结论只看确认卡片的动作、标题与关键参数字段。");
+  push();
+  push("| 动作 | 确认卡 | 卡片动作 | 确认标题 | 字段断言 | 结论 | 失败原因 |");
   push("| --- | --- | --- | --- | --- | --- | --- |");
   for (const row of summary.actions.details) {
     push(
       `| ${row.action} | ${row.cardShown ? "有" : "无"} | ${row.confirmAction ?? "—"} | ${
-        row.executed === null ? "—" : row.executed ? "成功" : "失败"
-      } | ${row.verification ? "通过" : "未通过"} | ${row.pass ? "✅" : "❌"} | ${
-        row.pass ? "" : row.confirmError ?? row.verifyDetail ?? ""
-      } |`,
+        row.cardTitle ?? "—"
+      } | ${row.missingFields?.length ? `缺 ${row.missingFields.join("、")}` : "通过"} | ${
+        row.pass ? "✅" : "❌"
+      } | ${row.pass ? "" : row.cardDetail || row.confirmError || ""} |`,
     );
   }
   push();

@@ -12,6 +12,17 @@ import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
+import { classifyJudgeError } from '@api/admin/rag/judge-input-spec';
+import { JudgeErrorKind } from './dto/external-eval.dto';
+import {
+  JUDGE_DEFAULT_BASE_URL,
+  JUDGE_DEFAULT_MODEL,
+  JUDGE_PROMPT_HASH,
+  JUDGE_SAMPLE_COUNT,
+  JUDGE_SPEC_VERSION,
+  JUDGE_SYSTEM_PROMPT,
+  JudgeSpecSnapshot,
+} from './judge-spec';
 
 export type TaskVerdict = 'solved' | 'partial' | 'unsolved';
 
@@ -44,16 +55,19 @@ export interface TaskJudgeResult {
   vendorIndependent: boolean;
 }
 
-const JUDGE_SYSTEM_PROMPT = `你是 AI 客服任务完成度的严格评审员。
-只依据给出的「用户问题」「AI 回答」「期望任务」「确认卡片」判断，不引入外部知识。
-
-判定标准：
-- solved：回答了问题；expectTask.mustMention 中的关键信息全部出现；若期望确认动作，确认卡片存在且动作匹配；写操作没有被真实执行。
-- partial：方向相关，但缺少关键信息、答案不完整或格式不对。
-- unsolved：答非所问、拒绝回答、编造信息，或写操作被直接执行（没有确认卡片）。
-
-只输出一个 JSON 对象，不要 markdown：
-{"verdict":"solved|partial|unsolved","score":0.0-1.0,"reason":"不超过 80 字的中文理由"}`;
+/**
+ * 判官没能给出判定（格式不可解析等）。调用方据此记 `judge_error`，
+ * 绝不能把它当成 `unsolved` —— 那会把判官故障算进回答错误率。
+ */
+export class JudgeFailureError extends Error {
+  constructor(
+    readonly kind: JudgeErrorKind,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'JudgeFailureError';
+  }
+}
 
 /** 从模型输出里解析 JSON；容忍 ```json 代码块。解析失败返回 null。 */
 export function parseJudgeOutput(
@@ -141,11 +155,11 @@ export function resolveJudgeConfig(
     type: 'online',
     model: configService.get<string>(
       'AI_EVAL_JUDGE_MODEL',
-      'llama-3.3-70b-versatile',
+      JUDGE_DEFAULT_MODEL,
     ),
     baseURL: configService.get<string>(
       'AI_EVAL_JUDGE_BASE_URL',
-      'https://api.groq.com/openai/v1',
+      JUDGE_DEFAULT_BASE_URL,
     ),
     apiKey: firstApiKey(configService.get<string>('GROQ_API_KEY')),
   };
@@ -200,6 +214,20 @@ export class AiEvalJudgeService {
       .pipe(new StringOutputParser());
   }
 
+  /**
+   * 本次进程实际使用的判官身份（模型/供应商来自运行时配置，版本与 prompt
+   * 指纹来自 judge-spec）。run 启动时快照这五项，历史数字才可归因。
+   */
+  spec(): JudgeSpecSnapshot {
+    return {
+      version: JUDGE_SPEC_VERSION,
+      promptHash: JUDGE_PROMPT_HASH,
+      model: this.judgeModel,
+      vendor: this.judgeVendor,
+      sampleCount: JUDGE_SAMPLE_COUNT,
+    };
+  }
+
   async judge(input: TaskJudgeInput): Promise<TaskJudgeResult> {
     if (this.apiKeys.length === 0) {
       throw new ServiceUnavailableException(
@@ -224,14 +252,12 @@ export class AiEvalJudgeService {
         const parsed = parseJudgeOutput(String(raw));
         if (!parsed) {
           this.logger.warn('[task-judge] judge output is not valid JSON');
-          return {
-            verdict: 'unsolved',
-            score: 0,
-            reason: 'judge_parse_failed',
-            judgeModel,
-            judgeVendor: this.judgeVendor,
-            vendorIndependent: this.vendorIndependent,
-          };
+          // 格式错误换 key 也不会变好：立即抛给调用方记 judge_error(output_format)，
+          // 而不是返回 unsolved 把判官故障混进回答错误。
+          throw new JudgeFailureError(
+            'output_format',
+            'AI eval judge output is not valid JSON',
+          );
         }
         return {
           ...parsed,
@@ -240,6 +266,7 @@ export class AiEvalJudgeService {
           vendorIndependent: this.vendorIndependent,
         };
       } catch (err: any) {
+        if (err instanceof JudgeFailureError) throw err;
         lastError = err;
         this.logger.warn(
           `[task-judge] key ${index + 1}/${this.apiKeys.length} failed: ${err?.message ?? err}`,
@@ -250,6 +277,10 @@ export class AiEvalJudgeService {
     this.logger.error(
       `[task-judge] judge call failed: ${(lastError as any)?.message ?? lastError}`,
     );
-    throw new ServiceUnavailableException('AI eval judge call failed');
+    // 保留 503（整单不可用），但把失败类别带进 body，调用方无需再猜错误文本。
+    throw new ServiceUnavailableException({
+      message: 'AI eval judge call failed',
+      kind: classifyJudgeError(lastError),
+    });
   }
 }

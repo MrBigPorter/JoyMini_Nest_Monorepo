@@ -220,6 +220,31 @@ const formatPassRate = evalPassRateText;
 const formatRate = evalPercentText;
 const formatDelta = evalDeltaText;
 
+/**
+ * 判官失败分布有两种存法：EXTERNAL 写数组 `[{kind,count}]`，
+ * 内部 run 写 `Record<kind, count>`。展示层统一成有序列表，避免
+ * 内部 run 的分布被 Array.isArray 静默吞掉。
+ */
+function judgeKindEntries(raw: unknown): Array<{ kind: string; count: number }> {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter(
+        (item): item is { kind: string; count: number } =>
+          !!item &&
+          typeof item === 'object' &&
+          typeof (item as { kind?: unknown }).kind === 'string' &&
+          typeof (item as { count?: unknown }).count === 'number',
+      )
+      .map((item) => ({ kind: item.kind, count: item.count }));
+  }
+  if (raw && typeof raw === 'object') {
+    return Object.entries(raw as Record<string, unknown>)
+      .filter(([, count]) => typeof count === 'number')
+      .map(([kind, count]) => ({ kind, count: count as number }));
+  }
+  return [];
+}
+
 /** harness 物化的数据集前缀；这类数据集在控制台只读。 */
 const HARNESS_DATASET_PREFIX = 'e2e:';
 const isHarnessDataset = (ds?: { name?: string | null } | null): boolean =>
@@ -1647,6 +1672,7 @@ function EvalPanel() {
   const [advanced, setAdvanced] = useState(false);
   const [pollRun, setPollRun] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
   const role = useAiOpsRole();
   const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
@@ -1753,12 +1779,15 @@ function EvalPanel() {
   };
 
   const start = async () => {
-    if (!selectedId) return;
+    // 双击/连点会在第一个请求落地前再发一次；后端有唯一索引兜底，
+    // 前端也不该把两次点击都变成请求（第二个必然是 409）。
+    if (!selectedId || starting) return;
     const isLive = mode === 'LIVE';
     const confirmText = isLive
       ? '确认启动实时评测？会真实调用 AI 客服与 judge 模型。'
       : '确认启动批量评测？会调用 judge 模型。';
     if (!window.confirm(confirmText)) return;
+    setStarting(true);
     try {
       const created = await aiQualityApi.startRun(selectedId, {
         mode,
@@ -1768,7 +1797,17 @@ function EvalPanel() {
       setPollRun(true);
       setMessage('已启动，正在轮询结果…');
     } catch (err: any) {
-      setMessage(err?.message ?? '启动失败');
+      // 409 = 该数据集已有 RUNNING（另一处/另一个管理员先启动）。
+      // axios 原始 message 是英文 "Request failed with status code 409"，不能直接展示。
+      if (err?.response?.status === 409) {
+        const existingId = err.response.data?.runId;
+        if (existingId) setRunId(existingId);
+        setMessage('该评测集已有运行中的评测，请等待完成或先取消');
+      } else {
+        setMessage(err?.message ?? '启动失败');
+      }
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -1947,13 +1986,19 @@ function EvalPanel() {
                 <option value="">不对比基线</option>
                 {completedRuns.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.id.slice(0, 8)} · {formatPassRate(item.summary)}
+                    {/* 按族读数字：EXTERNAL 是准确率，内部是通过率，不能互相顶替。 */}
+                    {item.id.slice(0, 8)} · {evalRateText(item)}（
+                    {item.mode === 'EXTERNAL' ? '准确率' : '通过率'}）
                   </option>
                 ))}
               </select>
             </label>
-            <Button size="sm" onClick={start} disabled={!canStartRun}>
-              启动批量评测
+            <Button
+              size="sm"
+              onClick={start}
+              disabled={!canStartRun || starting}
+            >
+              {starting ? '启动中…' : '启动批量评测'}
             </Button>
             {!canStartRun ? (
               <span className="text-xs text-gray-500">
@@ -2056,21 +2101,50 @@ function EvalPanel() {
                 return `${headline.label} ${headline.value}`;
               })()}
             </span>
-            {typeof runData.summary?.judgeErrorRate === 'number' ? (
+            {runData.mode !== 'EXTERNAL' &&
+            typeof runData.summary?.validPassRate === 'number' ? (
               <span className="text-xs text-gray-500">
-                判官错误率 {formatRate(runData.summary.judgeErrorRate)}
+                有效通过率 {formatRate(runData.summary.validPassRate)}
+                （只按已判定条目算）
               </span>
             ) : null}
-            {Array.isArray(runData.summary?.judgeErrorKinds) &&
-            runData.summary.judgeErrorKinds.length > 0 ? (
+            {runData.mode !== 'EXTERNAL' &&
+            runData.summary?.total != null ? (
               <span className="text-xs text-gray-500">
-                判官错误类型{' '}
-                {runData.summary.judgeErrorKinds
-                  .map(
-                    (item: { kind: string; count: number }) =>
-                      `${item.kind} ${item.count}`,
-                  )
+                已处理 {runData.summary.processed ?? 0} / 共{' '}
+                {runData.summary.total} · 已判定 {runData.summary.judged ?? 0}
+              </span>
+            ) : null}
+            {typeof runData.summary?.judgeErrorRate === 'number' ? (
+              <span className="text-xs text-gray-500">
+                判官失败率 {formatRate(runData.summary.judgeErrorRate)}
+              </span>
+            ) : null}
+            {judgeKindEntries(runData.summary?.judgeErrorKinds).length > 0 ? (
+              <span className="text-xs text-gray-500">
+                判官失败类型{' '}
+                {judgeKindEntries(runData.summary?.judgeErrorKinds)
+                  .map((item) => `${item.kind} ${item.count}`)
                   .join(' · ')}
+              </span>
+            ) : null}
+            <span className="text-xs text-gray-500">
+              运行 ID：{runData.id}
+            </span>
+            {runData.scope ? (
+              <span className="text-xs text-gray-500">
+                运行范围：
+                {runData.scope === 'full'
+                  ? '全量'
+                  : runData.scope === 'subset'
+                    ? '受影响子集'
+                    : runData.scope}
+              </span>
+            ) : null}
+            {runData.mode !== 'EXTERNAL' &&
+            typeof runData.judgeSampleCount === 'number' ? (
+              <span className="text-xs text-gray-500">
+                判官采样 {runData.judgeSampleCount} 次/条
               </span>
             ) : null}
             {runData.status === 'RUNNING' && canStartRun ? (

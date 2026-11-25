@@ -128,11 +128,14 @@ export class CreateExternalRunDto {
   @MaxLength(64)
   knowledgeFingerprintBefore?: string;
 
-  /** 可选对比基线：同一数据集内已完成的 run */
+  /**
+   * 可选对比基线：同一数据集内已完成的 run。
+   * 不传 = 回退到当前已登记基线；显式传 null = 本次不对比（不回退）。
+   */
   @IsOptional()
   @IsString()
   @MaxLength(32)
-  baselineRunId?: string;
+  baselineRunId?: string | null;
 }
 
 export class ExternalEvalResultDto {

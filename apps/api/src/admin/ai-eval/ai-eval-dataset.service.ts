@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  ConflictException,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -7,20 +9,34 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { createHash } from 'crypto';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { isPrismaUniqueConstraintError } from '@api/common/prisma/prisma-error';
 import { redactPiiText } from '@api/common/utils/pii-redaction';
 import { CorpusFingerprintService } from '@api/common/knowledge/corpus-fingerprint.service';
 import { evaluateKnowledgeStability } from '@api/common/knowledge/corpus-fingerprint';
 import type { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { runWithContext } from '@api/common/logger/trace-context';
-import { AiEvalJudgeService } from './ai-eval-judge.service';
+import { classifyJudgeError } from '@api/admin/rag/judge-input-spec';
+import {
+  AiEvalJudgeService,
+  JudgeFailureError,
+  TaskJudgeResult,
+} from './ai-eval-judge.service';
+import {
+  EXTERNAL_METRIC_FAMILY,
+  INTERNAL_METRIC_FAMILY,
+  INTERNAL_METRIC_SPEC_VERSION,
+} from './judge-spec';
 import { AddEvalCasesDto } from './dto/eval-dataset.dto';
 import {
   CreateExternalRunDto,
   ExternalEvalCaseSnapshotDto,
   ExternalEvalResultDto,
   IngestExternalResultsDto,
+  JUDGE_ERROR_KINDS,
   JUDGE_FAILURE_KINDS,
+  JudgeErrorKind,
 } from './dto/external-eval.dto';
 import { AI_EVAL_QUEUE, AI_EVAL_RUN_JOB, AiEvalJobData } from './ai-eval.queue';
 import { computeKbRegressionStatus } from './kb-regression.util';
@@ -31,14 +47,77 @@ import {
 
 export type EvalMode = 'STORED' | 'LIVE' | 'EXTERNAL';
 
+/**
+ * run 级失败类别（见需求总纲 §4.2）：入队、预算、未捕获异常、心跳超时、判官整体不可用。
+ * 单条失败不落这里——那是 judgeErrors / executionError 的事。
+ */
+export type EvalFailureCategory =
+  | 'enqueue'
+  | 'budget'
+  | 'unhandled'
+  | 'heartbeat'
+  | 'judge_unavailable';
+
+/** 连续判官失败达熔断阈值：整单失败的专用错误，便于归类为 judge_unavailable。 */
+export class JudgeCircuitOpenError extends Error {
+  constructor(
+    readonly failures: number,
+    cause: string,
+  ) {
+    super(`judge failed ${failures} times in a row: ${cause}`);
+    this.name = 'JudgeCircuitOpenError';
+  }
+}
+
 /** 外部运行物化出的数据集名前缀；同时用于阻止对 harness 数据集启动 STORED/LIVE 重跑。 */
 export const EXTERNAL_DATASET_PREFIX = 'e2e:';
 
 /** EXTERNAL run 可能跑几小时，stale 清扫阈值放宽到 24 小时。 */
 export const EXTERNAL_RUN_STALE_MS = 24 * 60 * 60 * 1000;
 
-/** 内部 run 的 stale 阈值。 */
+/** 内部 run 的 stale 阈值默认 30 分钟；可用 AI_EVAL_RUN_STALE_MS 覆盖（测试/压测）。 */
 export const INTERNAL_RUN_STALE_MS = 30 * 60 * 1000;
+
+/** 心跳最小写间隔：连跑时每条用例都写会把写放大成每 case 一次。 */
+export const EVAL_HEARTBEAT_INTERVAL_MS = 30 * 1000;
+
+/** 基线登记的最低样本量：总数与每种意图都要达标，防止小样本高准确率被登记。 */
+export const MIN_PROMOTE_TOTAL_SAMPLES = 150;
+export const MIN_PROMOTE_SAMPLES_PER_INTENT = 12;
+
+function resolveInternalRunStaleMs(): number {
+  const raw = Number(process.env.AI_EVAL_RUN_STALE_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : INTERNAL_RUN_STALE_MS;
+}
+
+/**
+ * 连续判官失败熔断阈值（默认 5）。
+ * 单条失败留痕后继续；连续失败到这个数说明判官整体不可用，
+ * 再跑下去只会烧 token 产出一批同样不可信的数字，整单直接 FAILED。
+ */
+export const DEFAULT_JUDGE_FAILURE_CIRCUIT = 5;
+
+function resolveJudgeFailureCircuit(): number {
+  const raw = Number(process.env.AI_EVAL_JUDGE_FAILURE_CIRCUIT);
+  return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_JUDGE_FAILURE_CIRCUIT;
+}
+
+/**
+ * 内部 run 的用例快照哈希：只排序后的 caseId 集合，与顺序无关、与回答内容无关。
+ * 同批用例任何时候复算都得到同一个值，用来回答「两次 run 是不是同一套题」。
+ */
+export function snapshotHashOfCaseIds(ids: string[]): string {
+  return createHash('sha256')
+    .update([...ids].sort().join('\n'))
+    .digest('hex');
+}
+
+/** 运行代码版本：与 /health 同口径（APP_VERSION > GIT_SHA > unknown）。 */
+export function resolveEvalCodeVersion(
+  env: Record<string, string | undefined> = process.env,
+): string {
+  return env.APP_VERSION || env.GIT_SHA || 'unknown';
+}
 
 /** 注入令牌：避免评测服务直接依赖客服 graph 的庞大运行时依赖。 */
 export const AI_EVAL_LIVE_AI = 'AI_EVAL_LIVE_AI';
@@ -134,7 +213,8 @@ export interface LiveAiRunner {
 
 export interface StartRunOptions {
   mode?: EvalMode;
-  baselineRunId?: string;
+  /** 不传 = 回退到当前基线；null = 显式不对比 */
+  baselineRunId?: string | null;
 }
 
 interface BaselineSnapshot {
@@ -168,6 +248,12 @@ interface CaseVerdict {
 export class AiEvalDatasetService {
   private readonly logger = new Logger(AiEvalDatasetService.name);
 
+  /**
+   * 每个 run 最近一次心跳写入时间（进程内）。
+   * 只用来看是否到了 30s 写窗口，不参与存活判定——判定只认 DB 的 heartbeatAt。
+   */
+  private readonly lastHeartbeatAt = new Map<string, number>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly judge: AiEvalJudgeService,
@@ -178,7 +264,6 @@ export class AiEvalDatasetService {
   ) {}
 
   async listDatasets() {
-    await this.recoverStaleRuns();
     return this.prisma.aiEvalDataset.findMany({
       orderBy: { updatedAt: 'desc' },
       include: { _count: { select: { cases: true, runs: true } } },
@@ -220,7 +305,6 @@ export class AiEvalDatasetService {
   }
 
   async getDataset(id: string) {
-    await this.recoverStaleRuns();
     const dataset = await this.prisma.aiEvalDataset.findUnique({
       where: { id },
       include: {
@@ -320,23 +404,36 @@ export class AiEvalDatasetService {
   }
 
   /**
-   * 进程重启后遗留的 RUNNING 统一标 FAILED。
-   * - 内部 run（STORED/LIVE）：30 分钟。
+   * 清扫僵死 RUNNING。由 cron 任务（AiEvalRunSweepTask）与 startRun 调用，
+   * 读接口不再清扫：GET 不应产生写副作用，也不该因为一次页面打开抢写锁。
+   *
+   * 存活判定只认 DB 的 heartbeatAt（无心跳的老行回退 startedAt）：
+   * - 内部 run（STORED/LIVE）：心跳空闲超 AI_EVAL_RUN_STALE_MS（默认 30 分钟）；
    * - EXTERNAL run：harness 可能跑几小时，阈值 24 小时，且不受内部清扫影响。
+   *
+   * 为什么不能用 startedAt 判活：长跑会被误杀；为什么不能用进程内时间戳：
+   * worker 被杀时内存一起消失，只有 DB 里停住的心跳能说明它死了。
    */
-  private async recoverStaleRuns(): Promise<void> {
+  async sweepStaleRuns(): Promise<void> {
     const now = Date.now();
+    const internalCutoff = new Date(now - resolveInternalRunStaleMs());
     await this.prisma.aiEvalRun
       .updateMany({
         where: {
           status: 'RUNNING',
           mode: { not: 'EXTERNAL' },
-          startedAt: { lt: new Date(now - INTERNAL_RUN_STALE_MS) },
+          OR: [
+            { heartbeatAt: { lt: internalCutoff } },
+            { heartbeatAt: null, startedAt: { lt: internalCutoff } },
+          ],
         },
         data: {
           status: 'FAILED',
-          finishedAt: new Date(),
-          summary: { error: 'run interrupted: stale RUNNING' },
+          finishedAt: new Date(now),
+          summary: {
+            error: 'run interrupted: stale RUNNING',
+            failureCategory: 'heartbeat',
+          },
         },
       })
       .catch((err) =>
@@ -353,10 +450,11 @@ export class AiEvalDatasetService {
         },
         data: {
           status: 'FAILED',
-          finishedAt: new Date(),
+          finishedAt: new Date(now),
           summary: {
             mode: 'EXTERNAL',
             error: 'run interrupted: stale EXTERNAL run',
+            failureCategory: 'heartbeat',
           },
         },
       })
@@ -399,7 +497,7 @@ export class AiEvalDatasetService {
       );
     }
 
-    await this.recoverStaleRuns();
+    await this.sweepStaleRuns();
     // EXTERNAL run 由 harness 写入，不占用「每数据集仅一个 RUNNING」的名额。
     const running = await this.prisma.aiEvalRun.findFirst({
       where: { datasetId, status: 'RUNNING', mode: { not: 'EXTERNAL' } },
@@ -422,9 +520,40 @@ export class AiEvalDatasetService {
       options.baselineRunId,
     );
 
-    const run = await this.prisma.aiEvalRun.create({
-      data: { datasetId, createdBy, mode, baselineRunId },
-    });
+    // 预检查之上还有数据库部分唯一索引兜底：两个请求同时读到「无 RUNNING」时，
+    // 只有一个能 create 成功，另一个撞 P2002。这里把冲突翻译成 409，
+    // 而不是让 500 冒到前端；冲突请求也不再投递 job。
+    // 判官身份在启动时快照：之后改 prompt/换模型，也要能区分旧 run 的口径。
+    const judgeSpec = this.judge.spec();
+    let run: { id: string };
+    try {
+      run = await this.prisma.aiEvalRun.create({
+        data: {
+          datasetId,
+          createdBy,
+          mode,
+          baselineRunId,
+          judgeSpecVersion: judgeSpec.version,
+          judgePromptHash: judgeSpec.promptHash,
+          judgeModel: judgeSpec.model,
+          judgeVendor: judgeSpec.vendor,
+          judgeSampleCount: judgeSpec.sampleCount,
+          metricFamily: INTERNAL_METRIC_FAMILY,
+        },
+      });
+    } catch (err) {
+      if (isPrismaUniqueConstraintError(err)) {
+        const existing = await this.prisma.aiEvalRun.findFirst({
+          where: { datasetId, status: 'RUNNING', mode: { not: 'EXTERNAL' } },
+          select: { id: true, startedAt: true },
+        });
+        throw new ConflictException({
+          message: 'This dataset already has a run in progress',
+          runId: existing?.id ?? null,
+        });
+      }
+      throw err;
+    }
     try {
       await this.queue.add(
         AI_EVAL_RUN_JOB,
@@ -448,7 +577,12 @@ export class AiEvalDatasetService {
           data: {
             status: 'FAILED',
             finishedAt: new Date(),
-            summary: { mode, baselineRunId, error: `enqueue failed: ${error}` },
+            summary: {
+              mode,
+              baselineRunId,
+              error: `enqueue failed: ${error}`,
+              failureCategory: 'enqueue',
+            },
           },
         })
         .catch((updateErr) =>
@@ -498,6 +632,9 @@ export class AiEvalDatasetService {
     datasetId: string,
     explicit?: string | null,
   ): Promise<string | null> {
+    // 显式 null = 「本次不对比」。不能悄悄回退到已登记基线：
+    // 用户选了不对比却拿到 delta，会误以为是自己的选择产生的数字。
+    if (explicit === null) return null;
     const trimmed = explicit?.trim() || null;
     if (trimmed) {
       await this.assertBaselineRun(trimmed, datasetId);
@@ -546,11 +683,14 @@ export class AiEvalDatasetService {
       select: {
         id: true,
         status: true,
+        mode: true,
+        datasetId: true,
         summary: true,
         codeVersion: true,
         judgeSpecVersion: true,
         metricSpecVersion: true,
         datasetSnapshot: true,
+        knowledgeSnapshot: true,
         scope: true,
       },
     });
@@ -560,11 +700,40 @@ export class AiEvalDatasetService {
         `Run is ${run.status}; only COMPLETED runs can be promoted`,
       );
     }
+    // 内部 run 的 verdict3 任务成功率与外部 harness 的答案准确率是两族指标，
+    // 拿内部 run 当外部基线会让后续 delta 用错口径。
+    if (run.mode !== 'EXTERNAL') {
+      throw new BadRequestException(
+        `Run mode is ${run.mode ?? 'missing'}; only EXTERNAL full-scope runs ` +
+          'can be promoted as a baseline',
+      );
+    }
     // 子集是变更后的诊断结果，语料与用例集都不是全量，不能当基线。
     if (run.scope === 'subset') {
       throw new BadRequestException(
         'Subset runs are diagnostic only and cannot be promoted; ' +
           'run a full-scope regression first',
+      );
+    }
+    // scope 缺失不等于全量：老数据/脏数据没有范围声明时不能默认放行。
+    if (run.scope !== 'full') {
+      throw new BadRequestException(
+        `Run scope is missing (${run.scope ?? 'null'}); only full-scope runs ` +
+          'can be promoted',
+      );
+    }
+    const knowledgeSnapshot = (run.knowledgeSnapshot ?? null) as {
+      stable?: unknown;
+      stableReason?: unknown;
+    } | null;
+    if (knowledgeSnapshot?.stable !== true) {
+      const reason =
+        typeof knowledgeSnapshot?.stableReason === 'string'
+          ? knowledgeSnapshot.stableReason
+          : 'unknown';
+      throw new BadRequestException(
+        `Knowledge snapshot is not stable (${reason}); results on a changing ` +
+          'corpus cannot be used as a baseline',
       );
     }
 
@@ -613,6 +782,60 @@ export class AiEvalDatasetService {
       );
     }
 
+    // 快照必须与数据集当前基线同源：hash 不同说明用例集变了，
+    // 两条 run 的数字不能相减，登记后会把「换了题」读成「变好了/变差了」。
+    const snapshotHash =
+      typeof snapshot?.hash === 'string' ? snapshot.hash : '';
+    const currentBaseline = await this.prisma.aiEvalRun.findFirst({
+      where: { isBaseline: true, datasetId: run.datasetId },
+      orderBy: { finishedAt: 'desc' },
+      select: { id: true, datasetSnapshot: true },
+    });
+    const currentBaselineHash =
+      (currentBaseline?.datasetSnapshot as { hash?: unknown } | null)?.hash ??
+      null;
+    if (
+      currentBaseline &&
+      typeof currentBaselineHash === 'string' &&
+      currentBaselineHash !== snapshotHash
+    ) {
+      throw new BadRequestException(
+        `datasetSnapshot.hash ${snapshotHash} differs from baseline ` +
+          `${currentBaselineHash}; the case set changed and results are not ` +
+          'comparable',
+      );
+    }
+
+    // 最低样本量：小样本的高准确率不可信，全量与单意图都要达标。
+    const snapshotCases = Array.isArray(
+      (run.datasetSnapshot as { cases?: unknown } | null)?.cases,
+    )
+      ? ((run.datasetSnapshot as { cases: Array<{ kind?: unknown }> }).cases ??
+        [])
+      : [];
+    if (snapshotCases.length < MIN_PROMOTE_TOTAL_SAMPLES) {
+      throw new BadRequestException(
+        `Run has ${snapshotCases.length} cases; baseline promotion requires ` +
+          `at least ${MIN_PROMOTE_TOTAL_SAMPLES}`,
+      );
+    }
+    const countByKind = new Map<string, number>();
+    for (const item of snapshotCases) {
+      const kind =
+        typeof item?.kind === 'string' && item.kind.trim()
+          ? item.kind
+          : 'unknown';
+      countByKind.set(kind, (countByKind.get(kind) ?? 0) + 1);
+    }
+    for (const [kind, count] of countByKind) {
+      if (count < MIN_PROMOTE_SAMPLES_PER_INTENT) {
+        throw new BadRequestException(
+          `kind "${kind}" has ${count} cases; baseline promotion requires at ` +
+            `least ${MIN_PROMOTE_SAMPLES_PER_INTENT} per intent`,
+        );
+      }
+    }
+
     const judgeAgreement =
       typeof summary.judgeAgreement === 'number' &&
       Number.isFinite(summary.judgeAgreement)
@@ -642,8 +865,9 @@ export class AiEvalDatasetService {
         'SELECT pg_advisory_xact_lock($1)::text',
         PROMOTE_BASELINE_LOCK_KEY,
       );
+      // 只清同一数据集的旧基线：基线按数据集界定，A 登记不得影响 B。
       await tx.aiEvalRun.updateMany({
-        where: { isBaseline: true, id: { not: id } },
+        where: { isBaseline: true, datasetId: run.datasetId, id: { not: id } },
         data: { isBaseline: false },
       });
       await tx.aiEvalRun.update({
@@ -718,7 +942,6 @@ export class AiEvalDatasetService {
   }
 
   async getRun(id: string) {
-    await this.recoverStaleRuns();
     const run = await this.prisma.aiEvalRun.findUnique({
       where: { id },
       include: {
@@ -942,9 +1165,9 @@ export class AiEvalDatasetService {
       };
     });
 
-    // run 创建后可能才 promote 基线；收尾时再回退一次，保证对比用的是当前基线。
-    const baselineRunId =
-      run.baselineRunId ?? (await this.findBaselineRunId(run.datasetId));
+    // 对比对象在创建时就定了：baselineRunId 为空表示「不对比」，
+    // 收尾时不得回退到中途 promote 的基线（那会让 delta 的来源不可复现）。
+    const baselineRunId = run.baselineRunId ?? null;
     const summary = await this.buildExternalSummary(
       { ...run, baselineRunId },
       results,
@@ -1133,6 +1356,8 @@ export class AiEvalDatasetService {
 
     const summary: Record<string, any> = {
       mode: 'EXTERNAL',
+      // 族随数字走：消费方按它拒绝跨族相减，不用猜 accuracy 与 passRate 谁是谁。
+      metricFamily: EXTERNAL_METRIC_FAMILY,
       total: results.length,
       correct: counts.correct,
       incorrect: counts.incorrect,
@@ -1182,6 +1407,18 @@ export class AiEvalDatasetService {
       verdictByCase.set(item.caseId, item.answerVerdict);
     }
     const summary = (baseline.summary ?? {}) as Record<string, any>;
+    // 跨族对比会拿两套指标相减（accuracy 减 passRate），宁可不算。
+    // 老 run 没有 metricFamily 字段，但 accuracy 语义从未变过，仍可对比。
+    if (
+      typeof summary.metricFamily === 'string' &&
+      summary.metricFamily !== EXTERNAL_METRIC_FAMILY
+    ) {
+      this.logger.warn(
+        `[eval] baseline ${runId} belongs to metric family ${summary.metricFamily}; ` +
+          'skip cross-family answer comparison',
+      );
+      return null;
+    }
     return {
       accuracy: typeof summary.accuracy === 'number' ? summary.accuracy : null,
       verdictByCase,
@@ -1192,11 +1429,16 @@ export class AiEvalDatasetService {
     results: ExternalEvalResultDto[],
     baseline: AnswerBaselineSnapshot,
   ): Record<string, any> {
+    // 只有「判过」的两端才有可比性：judge_error / null 既不是通过也不是失败，
+    // 拿来对比会把判官故障记成回归（或修复），污染 newFailures/fixed。
+    const isDecided = (verdict: string | null | undefined): boolean =>
+      verdict === 'correct' || verdict === 'incorrect';
+
     let newFailures = 0;
     let fixed = 0;
     for (const item of results) {
       const previous = baseline.verdictByCase.get(item.caseId);
-      if (previous === undefined) continue;
+      if (!isDecided(previous) || !isDecided(item.answerVerdict)) continue;
       const wasCorrect = previous === 'correct';
       const isCorrect = item.answerVerdict === 'correct';
       if (wasCorrect && !isCorrect) newFailures += 1;
@@ -1238,18 +1480,9 @@ export class AiEvalDatasetService {
     if (run.status !== 'RUNNING') return;
 
     const mode: EvalMode = run.mode === 'LIVE' ? 'LIVE' : 'STORED';
-    // run 入队后才 promote 基线时，这里补一次回退并把实际基线写回 run。
-    const baselineRunId =
-      run.baselineRunId ?? (await this.findBaselineRunId(run.datasetId));
-    if (!run.baselineRunId && baselineRunId) {
-      await this.prisma.aiEvalRun
-        .update({ where: { id: runId }, data: { baselineRunId } })
-        .catch((err) =>
-          this.logger.warn(
-            `[eval] run ${runId} baseline write-back failed: ${err?.message ?? err}`,
-          ),
-        );
-    }
+    // 对比对象在 startRun 时就写进了 run（含显式 null = 不对比）；
+    // 执行期不得回退到后来 promote 的基线，否则同一 run 的 delta 不可复现。
+    const baselineRunId = run.baselineRunId ?? null;
     const baseline = baselineRunId
       ? await this.loadBaseline(baselineRunId)
       : null;
@@ -1258,6 +1491,14 @@ export class AiEvalDatasetService {
     let partial = 0;
     let unsolved = 0;
     let budgetExceeded = false;
+    // 判官失败与「回答错误」分账：失败条数单独累计，不落进 unsolved 分母。
+    let judgeErrors = 0;
+    const judgeErrorKinds: Record<string, number> = {};
+    // 执行失败（LIVE 链路自身挂了）同理单独累计，类别只有 live_call。
+    let executionErrors = 0;
+    const executionErrorKinds: Record<string, number> = {};
+    let consecutiveJudgeFailures = 0;
+    const judgeFailureCircuit = resolveJudgeFailureCircuit();
     const caseVerdicts: CaseVerdict[] = [];
     const usage = this.createUsageAccumulator();
     try {
@@ -1299,7 +1540,7 @@ export class AiEvalDatasetService {
             // eval 不再伪造 traceId：testChat 不写 trace，留 null 比悬空 id 诚实。
             traceId = null;
           } catch (err: any) {
-            // 单条用例的 AI 故障不拖垮整次评测：记 unsolved 并继续下一条。
+            // 单条用例的 AI 故障不拖垮整次评测：执行错误单独记账并继续下一条。
             liveError = String(err?.message ?? err).slice(0, 200);
             this.logger.warn(
               `[eval] live case ${item.id} failed in run ${runId}: ${liveError}`,
@@ -1307,21 +1548,36 @@ export class AiEvalDatasetService {
           }
         }
 
-        const verdict = liveError
-          ? {
-              verdict: 'unsolved' as const,
-              score: 0,
-              reason: `live_failed: ${liveError}`,
-              judgeModel: null,
-              judgeVendor: null,
-              vendorIndependent: null,
-            }
-          : await this.judge.judge({
+        let verdict: {
+          verdict: TaskJudgeResult['verdict'];
+          score: number;
+          reason: string;
+          judgeModel: string | null;
+          judgeVendor: string | null;
+          vendorIndependent: boolean | null;
+        } | null = null;
+        let judgeError: { kind: JudgeErrorKind; message: string } | null = null;
+
+        // 执行失败的有没拿到回答，判官没东西可判：跳过判官，直接留痕。
+        if (!liveError) {
+          try {
+            verdict = await this.judge.judge({
               question: item.question,
               answer,
               expectTask: expectTask as any,
               pendingConfirm,
             });
+            consecutiveJudgeFailures = 0;
+          } catch (err) {
+            judgeError = {
+              kind: this.judgeErrorKindOf(err),
+              message: String((err as any)?.message ?? err).slice(0, 200),
+            };
+            this.logger.warn(
+              `[eval] judge failed for case ${item.id} in run ${runId} (${judgeError.kind}): ${judgeError.message}`,
+            );
+          }
+        }
 
         // 已经发生的 AI/judge 调用要计入本 run；LIVE 用实际回答修正估算。
         this.addUsage(
@@ -1331,6 +1587,67 @@ export class AiEvalDatasetService {
 
         // 判分期间可能已被取消：取消后丢弃这条结果，不再写库。
         if (!(await this.ensureRunning(runId, usage))) return;
+
+        if (liveError) {
+          executionErrors += 1;
+          executionErrorKinds.live_call =
+            (executionErrorKinds.live_call ?? 0) + 1;
+          // 执行失败既不进 unsolved，也不写 AiScore：这是系统故障，不是回答错了。
+          await this.prisma.aiEvalResult.create({
+            data: {
+              runId,
+              caseId: item.id,
+              verdict: null,
+              score: null,
+              reason: `execution_error: live_call: ${liveError}`.slice(0, 300),
+              actualAnswer,
+              judgeModel: null,
+              judgeVendor: null,
+              vendorIndependent: null,
+              traceId,
+              latencyMs: Date.now() - started,
+            },
+          });
+          continue;
+        }
+
+        if (judgeError) {
+          judgeErrors += 1;
+          judgeErrorKinds[judgeError.kind] =
+            (judgeErrorKinds[judgeError.kind] ?? 0) + 1;
+          consecutiveJudgeFailures += 1;
+          // 留痕但不判分：verdict/score 留空，不写 AiScore，
+          // 否则判官故障会被当成一次「回答错了」进准确率分母。
+          await this.prisma.aiEvalResult.create({
+            data: {
+              runId,
+              caseId: item.id,
+              verdict: null,
+              score: null,
+              reason: `judge_error: ${judgeError.message}`.slice(0, 300),
+              judgeErrorKind: judgeError.kind,
+              actualAnswer,
+              judgeModel: null,
+              judgeVendor: null,
+              vendorIndependent: null,
+              traceId,
+              latencyMs: Date.now() - started,
+            },
+          });
+          if (consecutiveJudgeFailures >= judgeFailureCircuit) {
+            throw new JudgeCircuitOpenError(
+              consecutiveJudgeFailures,
+              judgeError.message,
+            );
+          }
+          continue;
+        }
+        if (!verdict) {
+          // 两种失败都已 continue；走到这里还没有判定，说明分支写漏了。
+          throw new Error(
+            `eval case ${item.id} produced neither verdict nor error`,
+          );
+        }
 
         if (verdict.verdict === 'solved') solved += 1;
         else if (verdict.verdict === 'partial') partial += 1;
@@ -1392,6 +1709,16 @@ export class AiEvalDatasetService {
               mode,
               baselineRunId,
               error: 'token budget exceeded',
+              failureCategory: 'budget',
+              // 预算中断同样是「跑到一半停」，已判分与失败条数要一起留下。
+              total: run.dataset.cases.length,
+              solved,
+              partial,
+              unsolved,
+              judgeErrors,
+              judgeErrorKinds,
+              executionError: executionErrors,
+              executionErrorKinds,
               usage: this.buildUsageSummary(usage),
             },
           },
@@ -1408,6 +1735,14 @@ export class AiEvalDatasetService {
         data: {
           status: 'COMPLETED',
           finishedAt: new Date(),
+          // 内部 run 也留快照：没有它，两次内部运行的分数无法归因到同一套题。
+          datasetSnapshot: {
+            hash: snapshotHashOfCaseIds(run.dataset.cases.map((c) => c.id)),
+            cases: [...run.dataset.cases.map((c) => c.id)].sort(),
+          },
+          codeVersion: resolveEvalCodeVersion(),
+          // 有执行失败才写类别；COMPLETED 但仍可据此筛出「带系统故障的运行」。
+          executionErrorKind: executionErrors > 0 ? 'live_call' : null,
           summary: this.buildSummary({
             mode,
             baselineRunId,
@@ -1415,6 +1750,10 @@ export class AiEvalDatasetService {
             solved,
             partial,
             unsolved,
+            judgeErrors,
+            judgeErrorKinds,
+            executionErrors,
+            executionErrorKinds,
             passRate,
             caseVerdicts,
             baseline,
@@ -1431,11 +1770,33 @@ export class AiEvalDatasetService {
           data: {
             status: 'FAILED',
             finishedAt: new Date(),
+            // 失败也要说清「已经判了多少」：只剩一行 error 时，
+            // 没人分得出是开跑就挂还是跑到一半崩的。
             summary: {
-              mode,
-              baselineRunId,
+              ...this.buildSummary({
+                mode,
+                baselineRunId,
+                total: run.dataset.cases.length,
+                solved,
+                partial,
+                unsolved,
+                judgeErrors,
+                judgeErrorKinds,
+                executionErrors,
+                executionErrorKinds,
+                passRate:
+                  run.dataset.cases.length > 0
+                    ? Number((solved / run.dataset.cases.length).toFixed(3))
+                    : 0,
+                caseVerdicts,
+                baseline,
+                usage,
+                failureCategory:
+                  err instanceof JudgeCircuitOpenError
+                    ? 'judge_unavailable'
+                    : 'unhandled',
+              }),
               error: String(err?.message ?? err).slice(0, 300),
-              usage: this.buildUsageSummary(usage),
             },
           },
         })
@@ -1445,19 +1806,62 @@ export class AiEvalDatasetService {
           ),
         );
       throw err;
+    } finally {
+      // 运行结束（完成/取消/失败）即释放节流状态，避免 Map 随 run 累积。
+      this.lastHeartbeatAt.delete(runId);
     }
   }
 
   /**
-   * 读一次状态并返回是否还能继续。
+   * 判官失败的归类，三层兜底：
+   * 1. `JudgeFailureError`（判官自己归的类，如 output_format）；
+   * 2. 503 结构化 body 的 `kind`（所有 key 都失败时的网关错误）；
+   * 3. 文本归类 `classifyJudgeError`（第三方/历史裸错误）。
+   * 与 rag 的判定端点共用第 3 层，避免两套分类规则漂移。
+   */
+  private judgeErrorKindOf(err: unknown): JudgeErrorKind {
+    if (err instanceof JudgeFailureError) return err.kind;
+    if (err instanceof HttpException) {
+      const body = err.getResponse();
+      if (body && typeof body === 'object' && 'kind' in body) {
+        const kind = (body as { kind?: unknown }).kind;
+        if (
+          typeof kind === 'string' &&
+          (JUDGE_ERROR_KINDS as readonly string[]).includes(kind)
+        ) {
+          return kind as JudgeErrorKind;
+        }
+      }
+    }
+    return classifyJudgeError(err);
+  }
+
+  /**
+   * 读一次状态并返回是否还能继续，顺带推进心跳。
    * - RUNNING：继续；
    * - CANCELLED：补齐 finishedAt/summary 后停止；
    * - 其他终态或行已不存在：静默停止（不覆盖已有终态）。
+   *
+   * 心跳每 ≥30s 写一次（条件 updateMany：只有仍 RUNNING 才命中）。
+   * 命中 count>0 就等于同时确认了存活，省掉一次读；未命中才回读状态，
+   * 用来区分 CANCELLED 与其他终态。心跳只在进程内节流，判活只认 DB 的
+   * heartbeatAt —— worker 被杀时进程内时间戳一起消失，DB 侧才看得出僵死。
    */
   private async ensureRunning(
     runId: string,
     usage?: EvalRunUsage,
   ): Promise<boolean> {
+    const now = Date.now();
+    const last = this.lastHeartbeatAt.get(runId) ?? 0;
+    if (now - last >= EVAL_HEARTBEAT_INTERVAL_MS) {
+      this.lastHeartbeatAt.set(runId, now);
+      const beat = await this.prisma.aiEvalRun.updateMany({
+        where: { id: runId, status: 'RUNNING' },
+        data: { heartbeatAt: new Date(now) },
+      });
+      if (beat.count > 0) return true;
+    }
+
     const current = await this.prisma.aiEvalRun.findUnique({
       where: { id: runId },
       select: { status: true },
@@ -1593,7 +1997,7 @@ export class AiEvalDatasetService {
     };
   }
 
-  private async loadBaseline(runId: string): Promise<BaselineSnapshot> {
+  private async loadBaseline(runId: string): Promise<BaselineSnapshot | null> {
     const baseline = await this.prisma.aiEvalRun.findUnique({
       where: { id: runId },
       select: {
@@ -1601,14 +2005,25 @@ export class AiEvalDatasetService {
         results: { select: { caseId: true, verdict: true } },
       },
     });
-    if (!baseline) {
-      return { passRate: 0, verdictByCase: new Map() };
+    // 基线在读的时候消失/被删，就当作没有对比对象，而不是算出一个假的 0。
+    if (!baseline) return null;
+    const summary = (baseline.summary ?? {}) as Record<string, any>;
+    // EXTERNAL 的 summary 存 accuracy，没有 verdicts；跨族相减只会产出假 delta。
+    // 老 run 没有 metricFamily 字段，但 passRate 语义从未变过，仍可对比。
+    if (
+      typeof summary.metricFamily === 'string' &&
+      summary.metricFamily !== INTERNAL_METRIC_FAMILY
+    ) {
+      this.logger.warn(
+        `[eval] baseline ${runId} belongs to metric family ${summary.metricFamily}; ` +
+          'skip cross-family pass-rate comparison',
+      );
+      return null;
     }
     const verdictByCase = new Map<string, string | null>();
     for (const item of baseline.results) {
       verdictByCase.set(item.caseId, item.verdict);
     }
-    const summary = (baseline.summary ?? {}) as Record<string, any>;
     const solved = baseline.results.filter(
       (item) => item.verdict === 'solved',
     ).length;
@@ -1628,17 +2043,48 @@ export class AiEvalDatasetService {
     solved: number;
     partial: number;
     unsolved: number;
+    judgeErrors: number;
+    judgeErrorKinds: Record<string, number>;
+    executionErrors: number;
+    executionErrorKinds: Record<string, number>;
     passRate: number;
     caseVerdicts: CaseVerdict[];
     baseline: BaselineSnapshot | null;
     usage: EvalRunUsage;
+    failureCategory?: EvalFailureCategory;
   }): Record<string, any> {
+    // 三个分母各管各的（口径见 122 需求总纲 §5）：
+    // - passRate        = solved / total        （语义不变，历史可比）
+    // - validPassRate   = solved / judged       （judged = solved + partial + unsolved，真正判过的）
+    // - judgeErrorRate / executionErrorRate = 失败数 / total
+    const judged = input.solved + input.partial + input.unsolved;
+    const processed =
+      judged + input.judgeErrors + input.executionErrors;
+    const total = input.total;
     const summary: Record<string, any> = {
-      total: input.total,
+      total,
+      processed,
+      judged,
       solved: input.solved,
       partial: input.partial,
       unsolved: input.unsolved,
+      // 判官失败数：不进 unsolved，也不进 passRate 分子/分母（回答准确性只看判过的）。
+      judgeErrors: input.judgeErrors,
+      judgeErrorKinds: input.judgeErrorKinds,
+      // 执行失败数（LIVE 链路挂了）同样不进 unsolved，只能靠这里看出来。
+      executionError: input.executionErrors,
+      executionErrorKinds: input.executionErrorKinds,
       passRate: input.passRate,
+      validPassRate: judged > 0 ? Number((input.solved / judged).toFixed(3)) : 0,
+      judgeErrorRate:
+        total > 0 ? Number((input.judgeErrors / total).toFixed(3)) : 0,
+      executionErrorRate:
+        total > 0 ? Number((input.executionErrors / total).toFixed(3)) : 0,
+      // run 级失败类别；COMPLETED 的运行没有失败类别，显式 null 而不是缺字段。
+      failureCategory: input.failureCategory ?? null,
+      // 族与版本随数字走，消费方不用猜这组 key 是 verdict3 还是 answer_accuracy。
+      metricFamily: INTERNAL_METRIC_FAMILY,
+      metricSpecVersion: INTERNAL_METRIC_SPEC_VERSION,
       mode: input.mode,
       baselineRunId: input.baselineRunId,
       usage: this.buildUsageSummary(input.usage),

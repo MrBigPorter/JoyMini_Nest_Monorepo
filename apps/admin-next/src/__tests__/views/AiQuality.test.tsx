@@ -1019,6 +1019,56 @@ describe('AiQualityPage', () => {
     );
   });
 
+  it('双击启动只调用一次接口', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    let resolveStart: (value: unknown) => void = () => {};
+    mockStartRun.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    const button = screen.getByRole('button', { name: '启动批量评测' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(mockStartRun).toHaveBeenCalledTimes(1));
+    resolveStart({ id: 'run-new', status: 'RUNNING' });
+  });
+
+  it('启动撞上已有运行时显示「已有运行」而不是原始 409', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStartRun.mockRejectedValueOnce({
+      response: {
+        status: 409,
+        data: {
+          message: 'This dataset already has a run in progress',
+          runId: 'run-existing',
+        },
+      },
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+
+    expect(await screen.findByText(/已有运行/)).toBeTruthy();
+    expect(screen.queryByText(/request failed/i)).toBeNull();
+  });
+
   it('shows mode, baseline delta, new failures and fixed on the run card', () => {
     const enterEval = wireEvalTab(evalDatasetDetail, {
       id: 'run-1',
@@ -1064,6 +1114,103 @@ describe('AiQualityPage', () => {
     expect(screen.getByText(/新增失败 1/)).toBeTruthy();
     expect(screen.getByText(/修复 2/)).toBeTruthy();
     expect(screen.getByText('实际回答：实时回答：请点申请退款')).toBeTruthy();
+  });
+
+  it('baseline dropdown reads accuracy for EXTERNAL runs and pass rate for internal runs', () => {
+    const detailWithMixedRuns = {
+      ...evalDatasetDetail,
+      runs: [
+        {
+          id: 'internal-run-1',
+          datasetId: 'ds-1',
+          status: 'COMPLETED',
+          mode: 'LIVE',
+          baselineRunId: null,
+          createdBy: 'admin',
+          summary: { passRate: 0.5, total: 2, solved: 1 },
+          startedAt: '2026-01-01T00:00:00.000Z',
+          finishedAt: '2026-01-01T01:00:00.000Z',
+        },
+        {
+          id: 'external-run-1',
+          datasetId: 'ds-1',
+          status: 'COMPLETED',
+          mode: 'EXTERNAL',
+          scope: 'full',
+          baselineRunId: null,
+          createdBy: 'admin',
+          summary: { accuracy: 0.9, total: 20, correct: 9 },
+          startedAt: '2026-01-02T00:00:00.000Z',
+          finishedAt: '2026-01-02T01:00:00.000Z',
+        },
+      ],
+    };
+    const enterEval = wireEvalTab(detailWithMixedRuns);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    const select = screen.getByLabelText('对比基线') as HTMLSelectElement;
+    const options = Array.from(select.options).map((option) => option.text);
+    // 内部 run 读 passRate，EXTERNAL run 读 accuracy，同一 key 不跨族顶替。
+    expect(options).toContain('internal · 50.0%（通过率）');
+    expect(options).toContain('external · 90.0%（准确率）');
+  });
+
+  it('shows judge failure accounting, valid pass rate, sample count and run scope', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-judge-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      scope: 'full',
+      baselineRunId: null,
+      createdBy: 'admin',
+      metricFamily: 'verdict3',
+      metricSpecVersion: 'verdict3-1',
+      judgeSampleCount: 1,
+      executionErrorKind: null,
+      summary: {
+        total: 10,
+        processed: 10,
+        judged: 8,
+        solved: 6,
+        partial: 1,
+        unsolved: 1,
+        judgeErrors: 2,
+        // 内部运行存的是 Record<kind, count>，不是 EXTERNAL 的数组
+        judgeErrorKinds: { timeout: 2 },
+        executionErrors: 0,
+        passRate: 0.6,
+        validPassRate: 0.75,
+        judgeErrorRate: 0.2,
+        executionErrorRate: 0,
+        metricFamily: 'verdict3',
+        metricSpecVersion: 'verdict3-1',
+        failureCategory: null,
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    // 通过率的分母没有变（solved/total），另外单独给出判过才统计的口径
+    expect(screen.getByText('通过率 60.0%')).toBeTruthy();
+    expect(screen.getByText(/有效通过率 75\.0%/)).toBeTruthy();
+    expect(screen.getByText(/已处理 10 \/ 共 10/)).toBeTruthy();
+    expect(screen.getByText(/已判定 8/)).toBeTruthy();
+    expect(screen.getByText(/判官失败率 20\.0%/)).toBeTruthy();
+    expect(screen.getByText(/判官失败类型 timeout 2/)).toBeTruthy();
+    expect(screen.getByText(/运行范围：全量/)).toBeTruthy();
+    expect(screen.getByText(/运行 ID：run-judge-1/)).toBeTruthy();
+    expect(screen.getByText(/判官采样 1 次\/条/)).toBeTruthy();
   });
 
   it('cancels a RUNNING run from the run card', async () => {
