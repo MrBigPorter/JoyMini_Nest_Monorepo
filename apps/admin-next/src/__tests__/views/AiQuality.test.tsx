@@ -435,8 +435,26 @@ describe('AiQualityPage', () => {
     );
   });
 
-  it('KPI cards link to the matching filtered list', () => {
+  it('把 URL 的日期转成本地日界 ISO 区间后请求', () => {
+    (useSearchParams as any).mockReturnValue(
+      new URLSearchParams('from=2026-11-24&to=2026-11-25'),
+    );
+
     render(<AiQualityPage />);
+
+    const expected = {
+      from: new Date(2026, 10, 24, 0, 0, 0, 0).toISOString(),
+      to: new Date(
+        new Date(2026, 10, 26, 0, 0, 0, 0).getTime() - 1,
+      ).toISOString(),
+    };
+    expect(mockGetFeedbackList).toHaveBeenCalledWith(
+      expect.objectContaining(expected),
+    );
+    expect(mockGetFeedbackSummary).toHaveBeenCalledWith(expected);
+  });
+
+  it('KPI cards link to the matching filtered list', () => {    render(<AiQualityPage />);
 
     expect(
       screen

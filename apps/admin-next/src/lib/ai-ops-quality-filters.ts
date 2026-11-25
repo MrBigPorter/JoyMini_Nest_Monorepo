@@ -67,6 +67,52 @@ function parseDate(value: string | null): string {
     : '';
 }
 
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** 按本地日历构造日界；构造后回读，过滤 2026-02-30 这类溢出日期。 */
+function localDayStart(value: string): Date | null {
+  const match = DATE_ONLY_PATTERN.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+/**
+ * URL 里保持 `YYYY-MM-DD`，请求前转成本地日界 ISO 区间：
+ * `[本地该日 00:00, 次日 00:00)`，结束端减 1ms 对齐后端的 `lte`。
+ * 后端对含 "T" 的值按时间戳解析，因此不会按服务器时区重新解释日期。
+ */
+export function toLocalDayRangeIso(
+  from: string,
+  to: string,
+): { from?: string; to?: string } {
+  const fromStart = from ? localDayStart(from) : null;
+  const toStart = to ? localDayStart(to) : null;
+  const toEnd = toStart
+    ? new Date(
+        new Date(
+          toStart.getFullYear(),
+          toStart.getMonth(),
+          toStart.getDate() + 1,
+        ).getTime() - 1,
+      )
+    : null;
+  return {
+    ...(fromStart ? { from: fromStart.toISOString() } : {}),
+    ...(toEnd ? { to: toEnd.toISOString() } : {}),
+  };
+}
+
 function pick<T extends readonly string[]>(
   values: T,
   raw: string | null,

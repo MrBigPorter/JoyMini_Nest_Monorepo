@@ -4,6 +4,7 @@ import {
   buildQualityHref,
   hasFeedbackFilters,
   parseFeedbackFilters,
+  toLocalDayRangeIso,
 } from '@/lib/ai-ops-quality-filters';
 
 describe('ai-ops-quality-filters', () => {
@@ -119,5 +120,33 @@ describe('ai-ops-quality-filters', () => {
         to: '',
       }),
     ).toBe(true);
+  });
+});
+
+describe('toLocalDayRangeIso', () => {
+  // 断言用本地日历构造，因此在 TZ=Asia/Shanghai 与 TZ=UTC 下都成立：
+  // 区间必须覆盖本地日 00:00 到次日 00:00，而不是 UTC 日界。
+  it('把 date-only 转成本地日界 ISO 区间', () => {
+    const range = toLocalDayRangeIso('2026-11-24', '2026-11-24');
+
+    expect(new Date(range.from!).getTime()).toBe(
+      new Date(2026, 10, 24, 0, 0, 0, 0).getTime(),
+    );
+    expect(new Date(range.to!).getTime()).toBe(
+      new Date(2026, 10, 25, 0, 0, 0, 0).getTime() - 1,
+    );
+  });
+
+  it('只给一端时只产生一端', () => {
+    const range = toLocalDayRangeIso('2026-11-24', '');
+
+    expect(range.from).toBe(new Date(2026, 10, 24).toISOString());
+    expect(range.to).toBeUndefined();
+  });
+
+  it('空值与非法日期不产生参数', () => {
+    expect(toLocalDayRangeIso('', '')).toEqual({});
+    expect(toLocalDayRangeIso('2026-02-30', 'abc')).toEqual({});
+    expect(toLocalDayRangeIso('2026-11-24T10:00:00Z', '')).toEqual({});
   });
 });

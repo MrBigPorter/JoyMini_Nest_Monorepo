@@ -24,6 +24,7 @@ import {
   buildQualityHref,
   hasFeedbackFilters,
   parseFeedbackFilters,
+  toLocalDayRangeIso,
   type FeedbackFilters,
 } from '@/lib/ai-ops-quality-filters';
 import type {
@@ -492,6 +493,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     setPage(1);
   };
 
+  // URL 只保存 date-only；请求前转成显式时区的 ISO 区间，避免按服务器时区解释日期。
+  const dayRange = toLocalDayRangeIso(fromDate, toDate);
+
   // URL 是筛选的唯一来源；直达链接或后退时也要回到第一页。
   useEffect(() => {
     setPage(1);
@@ -512,11 +516,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     refresh: refreshSummary,
     refreshAsync: refreshSummaryAsync,
   } = useRequest(
-    () =>
-      chatApi.getFeedbackSummary({
-        ...(fromDate ? { from: fromDate } : {}),
-        ...(toDate ? { to: toDate } : {}),
-      }),
+    () => chatApi.getFeedbackSummary(dayRange),
     { refreshDeps: [fromDate, toDate] },
   );
 
@@ -536,8 +536,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         ...(resolutionFilter ? { resolution: resolutionFilter } : {}),
         ...(signalFilter ? { signal: signalFilter } : {}),
         ...(queueFilter ? { queue: queueFilter } : {}),
-        ...(fromDate ? { from: fromDate } : {}),
-        ...(toDate ? { to: toDate } : {}),
+        ...dayRange,
       } as any),
     {
       refreshDeps: [
