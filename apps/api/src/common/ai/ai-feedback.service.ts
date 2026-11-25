@@ -159,10 +159,7 @@ export class AiFeedbackService {
     if (messageId) {
       const byMessage = await this.prisma.aiTrace.findFirst({
         where: {
-          OR: [
-            { aiMessageId: messageId },
-            { triggerMessageId: messageId },
-          ],
+          OR: [{ aiMessageId: messageId }, { triggerMessageId: messageId }],
         },
         orderBy: { createdAt: 'desc' },
         select: { id: true },
@@ -497,28 +494,34 @@ export class AiFeedbackService {
       : actionable;
     const signalWhere = createdAt ? { AND: [{ createdAt }, signal] } : signal;
 
-    const [total, pending, signals, byFailureKind, byResolution, byReviewStatus] =
-      await Promise.all([
-        this.prisma.aiAnswerFeedback.count({ where: base }),
-        this.prisma.aiAnswerFeedback.count({ where: pendingWhere as never }),
-        this.prisma.aiAnswerFeedback.count({ where: signalWhere as never }),
-        this.prisma.aiAnswerFeedback.groupBy({
-          by: ['failureKind'],
-          where: base,
-          _count: { id: true },
-        }),
-        this.prisma.aiAnswerFeedback.groupBy({
-          by: ['resolution'],
-          where: base,
-          _count: { id: true },
-        }),
-        // 分诊状态计数：REVIEWED 是多种处理结果的集合，页面需要独立计数
-        this.prisma.aiAnswerFeedback.groupBy({
-          by: ['reviewStatus'],
-          where: base,
-          _count: { id: true },
-        }),
-      ]);
+    const [
+      total,
+      pending,
+      signals,
+      byFailureKind,
+      byResolution,
+      byReviewStatus,
+    ] = await Promise.all([
+      this.prisma.aiAnswerFeedback.count({ where: base }),
+      this.prisma.aiAnswerFeedback.count({ where: pendingWhere as never }),
+      this.prisma.aiAnswerFeedback.count({ where: signalWhere as never }),
+      this.prisma.aiAnswerFeedback.groupBy({
+        by: ['failureKind'],
+        where: base,
+        _count: { id: true },
+      }),
+      this.prisma.aiAnswerFeedback.groupBy({
+        by: ['resolution'],
+        where: base,
+        _count: { id: true },
+      }),
+      // 分诊状态计数：REVIEWED 是多种处理结果的集合，页面需要独立计数
+      this.prisma.aiAnswerFeedback.groupBy({
+        by: ['reviewStatus'],
+        where: base,
+        _count: { id: true },
+      }),
+    ]);
     return {
       total,
       pending,
@@ -875,6 +878,84 @@ export class AiFeedbackService {
         feedbackId,
       };
     });
+  }
+
+  /**
+   * 批量排除服务故障（quality-console-trust D5）。
+   *
+   * 前端过去并发发 20 个 PATCH：部分失败时只剩一个总数，运营不知道哪条没排掉。
+   * 这里逐条校验并返回逐条结果；模型答错不在批量范围，永不误伤。
+   * 单次上限 50，与前端当前页大小对齐。
+   */
+  async batchExclude(
+    ids: string[],
+    adminId: string,
+  ): Promise<{
+    succeeded: string[];
+    skipped: Array<{ id: string; reason: string }>;
+  }> {
+    const unique = Array.from(new Set(ids));
+    if (unique.length > 50) {
+      throw new BadRequestException(
+        'At most 50 feedback ids can be excluded in one batch',
+      );
+    }
+
+    const rows = await this.prisma.aiAnswerFeedback.findMany({
+      where: { id: { in: unique } },
+      select: {
+        id: true,
+        failureKind: true,
+        resolution: true,
+        reviewStatus: true,
+      },
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    const succeeded: string[] = [];
+    const skipped: Array<{ id: string; reason: string }> = [];
+    for (const id of unique) {
+      const row = byId.get(id);
+      if (!row) {
+        skipped.push({ id, reason: 'NOT_FOUND' });
+        continue;
+      }
+      if (row.failureKind !== 'SERVICE_ERROR') {
+        skipped.push({
+          id,
+          reason:
+            row.failureKind === 'MODEL_ERROR'
+              ? 'MODEL_ERROR'
+              : 'NOT_SERVICE_ERROR',
+        });
+        continue;
+      }
+      if (row.resolution === 'EXCLUDED' || row.reviewStatus === 'IGNORED') {
+        skipped.push({ id, reason: 'ALREADY_EXCLUDED' });
+        continue;
+      }
+      try {
+        await this.updateTriage(
+          id,
+          { reviewStatus: 'IGNORED', resolution: 'EXCLUDED' },
+          adminId,
+        );
+        succeeded.push(id);
+      } catch (err) {
+        skipped.push({
+          id,
+          reason:
+            err instanceof ConflictException
+              ? 'VERSION_CONFLICT'
+              : 'UPDATE_FAILED',
+        });
+      }
+    }
+
+    this.logger.log(
+      `[Feedback] batch-exclude admin=${adminId} succeeded=${succeeded.length} skipped=${skipped.length}`,
+    );
+    return { succeeded, skipped };
   }
 
   /**

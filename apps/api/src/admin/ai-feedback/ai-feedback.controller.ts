@@ -20,6 +20,7 @@ import { AdminJwtAuthGuard } from '../auth/admin-jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
+import { BatchExcludeDto } from './dto/batch-exclude.dto';
 import { CreateAiFeedbackDto } from './dto/create-ai-feedback.dto';
 import { CreateRegressionCaseDto } from './dto/create-regression-case.dto';
 import { UpdateAiFeedbackDto } from './dto/update-ai-feedback.dto';
@@ -112,6 +113,17 @@ export class AiFeedbackController {
     this.assertEnabled();
     this.assertEvalEnabled();
     return this.feedbackService.createRegressionCase(id, dto, adminId);
+  }
+
+  @Patch('batch-exclude')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '批量排除服务故障反馈，逐条返回结果' })
+  async batchExclude(
+    @Body() dto: BatchExcludeDto,
+    @CurrentAdminId() adminId: string,
+  ) {
+    this.assertEnabled();
+    return this.feedbackService.batchExclude(dto.ids, adminId);
   }
 
   @Patch(':id')

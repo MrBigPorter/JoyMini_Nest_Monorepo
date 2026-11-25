@@ -860,3 +860,89 @@ describe('AiFeedbackService · 加入回归（quality-console-trust 3.1）', () 
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('AiFeedbackService · 批量排除（quality-console-trust 3.2）', () => {
+  function feedbackRow(id: string, failureKind = 'SERVICE_ERROR') {
+    return {
+      id,
+      conversationId: 'c1',
+      messageId: 'ai-1',
+      traceId: null,
+      verdict: null,
+      failureKind,
+      resolution: 'OPEN',
+      reviewStatus: 'PENDING',
+      note: null,
+      ownerAdminId: null,
+      claimedBy: null,
+      claimedAt: null,
+      version: 1,
+    };
+  }
+
+  function arrange(rows: Array<ReturnType<typeof feedbackRow>>) {
+    const { service, prisma } = createService();
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    prisma.aiAnswerFeedback.findMany.mockResolvedValue(rows);
+    prisma.aiAnswerFeedback.findUnique.mockImplementation(
+      async ({ where }: any) => byId.get(where.id) ?? null,
+    );
+    return { service, prisma };
+  }
+
+  it('逐条处理：合法的排除，模型答错与不存在的跳过并给出原因', async () => {
+    const rows = Array.from({ length: 18 }, (_, i) =>
+      feedbackRow(`fb-${i + 1}`),
+    );
+    rows.push(feedbackRow('fb-19', 'MODEL_ERROR'));
+    const { service, prisma } = arrange(rows);
+    const ids = [...rows.map((row) => row.id), 'fb-999'];
+
+    const result = await service.batchExclude(ids, 'admin-1');
+
+    expect(result.succeeded).toHaveLength(18);
+    expect(result.skipped).toEqual(
+      expect.arrayContaining([
+        { id: 'fb-19', reason: 'MODEL_ERROR' },
+        { id: 'fb-999', reason: 'NOT_FOUND' },
+      ]),
+    );
+    expect(result.skipped).toHaveLength(2);
+    expect(prisma.aiAnswerFeedback.updateMany).toHaveBeenCalledTimes(18);
+    // 只排除，不改归因：模型答错永远不进入批量排除。
+    expect(prisma.aiAnswerFeedback.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          reviewStatus: 'IGNORED',
+          resolution: 'EXCLUDED',
+        }),
+      }),
+    );
+  });
+
+  it('超过 50 条直接拒绝，不逐条处理', async () => {
+    const { service, prisma } = arrange([]);
+
+    await expect(
+      service.batchExclude(
+        Array.from({ length: 51 }, (_, i) => `fb-${i}`),
+        'admin-1',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.aiAnswerFeedback.findMany).not.toHaveBeenCalled();
+  });
+
+  it('已排除的条目跳过，不重复写库', async () => {
+    const { service, prisma } = arrange([
+      { ...feedbackRow('fb-1'), resolution: 'EXCLUDED', reviewStatus: 'IGNORED' },
+    ]);
+
+    const result = await service.batchExclude(['fb-1'], 'admin-1');
+
+    expect(result.succeeded).toEqual([]);
+    expect(result.skipped).toEqual([
+      { id: 'fb-1', reason: 'ALREADY_EXCLUDED' },
+    ]);
+    expect(prisma.aiAnswerFeedback.updateMany).not.toHaveBeenCalled();
+  });
+});

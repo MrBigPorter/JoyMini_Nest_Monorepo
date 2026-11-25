@@ -7,6 +7,9 @@ function createController() {
     createRegressionCase: jest
       .fn()
       .mockResolvedValue({ created: true, linkedEvalCaseId: 'case-1' }),
+    batchExclude: jest
+      .fn()
+      .mockResolvedValue({ succeeded: ['fb-1'], skipped: [] }),
     list: jest.fn().mockResolvedValue({
       list: [{ id: 'fb-1', input: '用户问题', answer: 'AI 回答' }],
       total: 1,
@@ -109,13 +112,21 @@ describe('AiFeedbackController 加入回归（quality-console-trust 3.1）', () 
 
     await controller.createRegressionCase(
       'fb-1',
-      { datasetId: 'ds-1', expected: '退款券 24 小时内发出', expectedVersion: 3 },
+      {
+        datasetId: 'ds-1',
+        expected: '退款券 24 小时内发出',
+        expectedVersion: 3,
+      },
       'admin-1',
     );
 
     expect(service.createRegressionCase).toHaveBeenCalledWith(
       'fb-1',
-      { datasetId: 'ds-1', expected: '退款券 24 小时内发出', expectedVersion: 3 },
+      {
+        datasetId: 'ds-1',
+        expected: '退款券 24 小时内发出',
+        expectedVersion: 3,
+      },
       'admin-1',
     );
   });
@@ -148,5 +159,40 @@ describe('AiFeedbackController 加入回归（quality-console-trust 3.1）', () 
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(service.createRegressionCase).not.toHaveBeenCalled();
+  });
+});
+
+describe('AiFeedbackController 批量排除（quality-console-trust 3.2）', () => {
+  const original = process.env.AI_FEEDBACK_UI_ENABLED;
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.AI_FEEDBACK_UI_ENABLED;
+    else process.env.AI_FEEDBACK_UI_ENABLED = original;
+  });
+
+  it('把 ids 与管理员交给服务端逐条处理', async () => {
+    process.env.AI_FEEDBACK_UI_ENABLED = 'true';
+    const { controller, service } = createController();
+
+    const result = await controller.batchExclude(
+      { ids: ['fb-1', 'fb-2'] } as any,
+      'admin-1',
+    );
+
+    expect(service.batchExclude).toHaveBeenCalledWith(
+      ['fb-1', 'fb-2'],
+      'admin-1',
+    );
+    expect(result).toEqual({ succeeded: ['fb-1'], skipped: [] });
+  });
+
+  it('开关关闭时拒绝批量排除', async () => {
+    delete process.env.AI_FEEDBACK_UI_ENABLED;
+    const { controller, service } = createController();
+
+    await expect(
+      controller.batchExclude({ ids: ['fb-1'] } as any, 'admin-1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.batchExclude).not.toHaveBeenCalled();
   });
 });

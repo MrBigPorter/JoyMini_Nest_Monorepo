@@ -19,7 +19,7 @@
 ## 3. 服务端接口与证据
 
 - [x] 3.1 新增 `POST /v1/admin/ai-feedback/:id/regression-case`：事务内 `pg_advisory_xact_lock(hashtext(feedbackId))`，已有则幂等返回，创建用例并回写 `linkedEvalCaseId`；手写迁移建 `ai_eval_cases(source_feedback_id) WHERE source_feedback_id IS NOT NULL` 部分唯一索引（迁移前去重并记录数量）；验证：jest 同反馈并发两次返回同一用例，回链失败整体回滚 [Req: 管理端页面必须如实呈现失败、禁用与未知]
-- [ ] 3.2 新增 `PATCH /v1/admin/ai-feedback/batch-exclude`：数组 ≤50，逐条校验并返回 `{ succeeded, skipped: [{ id, reason }] }`，判官失败记录跳过并说明；验证：jest 20 条含 2 条不合法逐条返回原因、>50 返回 400、含 `MODEL_ERROR` 被跳过 [Req: 批量排除必须逐条反馈结果]
+- [x] 3.2 新增 `PATCH /v1/admin/ai-feedback/batch-exclude`：数组 ≤50，逐条校验并返回 `{ succeeded, skipped: [{ id, reason }] }`，判官失败记录跳过并说明；验证：jest 20 条含 2 条不合法逐条返回原因、>50 返回 400、含 `MODEL_ERROR` 被跳过 [Req: 批量排除必须逐条反馈结果]
 - [ ] 3.3 前端「加入回归」与「批量排除」改调 3.1/3.2 的新接口，删除字符串反查与并发 PATCH；验证：grep 无按 `question` 反查用例的代码，vitest 两处调用新接口 [Req: 批量排除必须逐条反馈结果]
 - [ ] 3.4 质检卡片证据面板：按 `messageId` 精确匹配展示失败 span 摘要；回退会话最新时标「近似」；trace 为空标「证据已过期」；前端推断归因加「推断」徽标；验证：vitest 三态各一例，无 trace 时不展示其他链路 [Req: 质检证据必须可追溯]
 - [ ] 3.5 补 `ai-ops-smoke`：新增 `/v1/admin/ai-ops/features` mock 与三例（跳过前移、403 禁用态、分页回退）；验证：`cd apps/admin-next && ../../node_modules/.bin/playwright test --project=ai-ops-smoke` 全绿 [Req: 管理端页面必须如实呈现失败、禁用与未知]
