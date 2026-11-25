@@ -1309,6 +1309,9 @@ model ChatMessage {
   hiddenByUsers ChatMessageHide[]
 
   @@unique([conversationId, seqId], map: "idx_chat_message_conv_seq") // 会话内序号唯一
+  // 反馈分诊列表按会话 + 时间回查上下文（固定次数一次查询），这两条索引让它走索引扫描。
+  @@index([conversationId, createdAt], map: "idx_chat_message_conv_created")
+  @@index([conversationId, source, createdAt], map: "idx_chat_message_conv_source_created")
 }
 
 model ChatMessageHide {

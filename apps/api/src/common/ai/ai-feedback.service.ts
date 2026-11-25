@@ -385,11 +385,17 @@ export class AiFeedbackService {
    * 列表默认只带 verdict/signal，分诊时看不出“到底问了什么、AI 答了什么”。
    * 这里按 messageId / createdAt 回查上下文，给前端补 input + answer。
    *
-   * 管理端单页最多 100 条，属于低频后台查询；用 Promise.all 并行回查，
-   * 避免把 100 条压成串行 N+1。
+   * 管理端单页最多 100 条。逐条回查是 2N 次 Prisma 调用，页越大越慢；
+   * 这里改成一次 LATERAL 查询：调用次数固定为 1，与页大小无关。
+   *
+   * 只把 feedback id 传进 SQL，会话/时间一律由库内 `ai_answer_feedback` 自带的值比较，
+   * 避免 JS Date 与 `timestamp without time zone` 列之间的时区往返。
+   * 索引见迁移 `chat_message_feedback_context_indexes`：
+   * (conversationId, createdAt) 服务隐式反馈回查，(conversationId, source, createdAt) 服务按角色过滤。
    */
   private async attachMessageContext<
     T extends {
+      id: string;
       conversationId: string;
       messageId: string | null;
       input: string | null;
@@ -397,63 +403,86 @@ export class AiFeedbackService {
       createdAt: Date;
     },
   >(rows: T[]) {
-    return Promise.all(
-      rows.map(async (row) => {
-        const linked = row.messageId
-          ? await this.prisma.chatMessage.findUnique({
-              where: { id: row.messageId },
-              select: { content: true, source: true, seqId: true },
-            })
-          : null;
+    if (rows.length === 0) return [];
 
-        let input = row.input;
-        let answer: string | null = null;
-
-        if (row.source === 'explicit') {
-          // explicit 的 messageId 是被评价的 AI 消息。
-          answer = linked?.content ?? null;
-          if (!input && linked) {
-            const userMessage = await this.prisma.chatMessage.findFirst({
-              where: {
-                conversationId: row.conversationId,
-                source: 'user',
-                seqId: { lt: linked.seqId },
-              },
-              orderBy: { seqId: 'desc' },
-              select: { content: true },
-            });
-            input = userMessage?.content ?? null;
-          }
-        } else {
-          // implicit：messageId 可能是当前用户消息（重复追问），也可能为空。
-          if (!input && linked?.source === 'user') input = linked.content;
-          if (!input) {
-            const userMessage = await this.prisma.chatMessage.findFirst({
-              where: {
-                conversationId: row.conversationId,
-                source: 'user',
-                createdAt: { lte: row.createdAt },
-              },
-              orderBy: { createdAt: 'desc' },
-              select: { content: true },
-            });
-            input = userMessage?.content ?? null;
-          }
-          const aiMessage = await this.prisma.chatMessage.findFirst({
-            where: {
-              conversationId: row.conversationId,
-              source: 'ai',
-              createdAt: { lte: row.createdAt },
-            },
-            orderBy: { createdAt: 'desc' },
-            select: { content: true },
-          });
-          answer = aiMessage?.content ?? null;
-        }
-
-        return { ...row, input, answer };
-      }),
+    const contextRows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        feedbackId: string;
+        linkedContent: string | null;
+        linkedSource: string | null;
+        linkedSeqId: number | null;
+        explicitUserContent: string | null;
+        implicitUserContent: string | null;
+        implicitAiContent: string | null;
+      }>
+    >(
+      `
+        SELECT f.id AS "feedbackId",
+               linked.content AS "linkedContent",
+               linked.source AS "linkedSource",
+               linked."seqId" AS "linkedSeqId",
+               explicit_user.content AS "explicitUserContent",
+               implicit_user.content AS "implicitUserContent",
+               implicit_ai.content AS "implicitAiContent"
+          FROM ai_answer_feedback f
+          LEFT JOIN "ChatMessage" linked ON linked.id = f.message_id
+          LEFT JOIN LATERAL (
+            SELECT m.content
+              FROM "ChatMessage" m
+             WHERE linked."seqId" IS NOT NULL
+               AND m."conversationId" = f.conversation_id
+               AND m.source = 'user'
+               AND m."seqId" < linked."seqId"
+             ORDER BY m."seqId" DESC
+             LIMIT 1
+          ) explicit_user ON true
+          LEFT JOIN LATERAL (
+            SELECT m.content
+              FROM "ChatMessage" m
+             WHERE m."conversationId" = f.conversation_id
+               AND m.source = 'user'
+               AND m."createdAt" <= f.created_at
+             ORDER BY m."createdAt" DESC
+             LIMIT 1
+          ) implicit_user ON true
+          LEFT JOIN LATERAL (
+            SELECT m.content
+              FROM "ChatMessage" m
+             WHERE m."conversationId" = f.conversation_id
+               AND m.source = 'ai'
+               AND m."createdAt" <= f.created_at
+             ORDER BY m."createdAt" DESC
+             LIMIT 1
+          ) implicit_ai ON true
+         WHERE f.id = ANY($1::text[])
+      `,
+      rows.map((row) => row.id),
     );
+
+    const byId = new Map(contextRows.map((row) => [row.feedbackId, row]));
+
+    return rows.map((row) => {
+      const context = byId.get(row.id);
+      let input = row.input;
+      let answer: string | null = null;
+
+      if (row.source === 'explicit') {
+        // explicit 的 messageId 是被评价的 AI 消息。
+        answer = context?.linkedContent ?? null;
+        if (!input && context?.linkedSeqId != null) {
+          input = context.explicitUserContent ?? null;
+        }
+      } else {
+        // implicit：messageId 可能是当前用户消息（重复追问），也可能为空。
+        if (!input && context?.linkedSource === 'user') {
+          input = context.linkedContent;
+        }
+        if (!input) input = context?.implicitUserContent ?? null;
+        answer = context?.implicitAiContent ?? null;
+      }
+
+      return { ...row, input, answer };
+    });
   }
 
   /** 运营首页/质量待办的分组计数。 */

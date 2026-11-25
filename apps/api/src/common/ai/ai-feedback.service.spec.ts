@@ -48,6 +48,7 @@ function createService() {
       findUnique: jest.fn().mockResolvedValue(null),
       findFirst: jest.fn().mockResolvedValue(null),
     },
+    $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     $transaction: jest.fn(),
   };
   // 交互式事务：测试里 tx 就是同一个 mock，断言仍落在 prisma 上。
@@ -55,6 +56,25 @@ function createService() {
     typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
   );
   return { prisma, service: new AiFeedbackService(prisma as any) };
+}
+
+/** 统计所有 Prisma mock 方法被调用的总次数（含 $transaction/$queryRaw）。 */
+function prismaCallCount(prisma: any): number {
+  let total = 0;
+  for (const value of Object.values(prisma)) {
+    if (typeof value === 'function') {
+      total += (value as jest.Mock).mock?.calls.length ?? 0;
+      continue;
+    }
+    if (value && typeof value === 'object') {
+      for (const inner of Object.values(value as Record<string, unknown>)) {
+        if (typeof inner === 'function') {
+          total += (inner as jest.Mock).mock?.calls.length ?? 0;
+        }
+      }
+    }
+  }
+  return total;
 }
 
 describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
@@ -176,11 +196,17 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
         createdAt: new Date('2026-11-20T12:00:00Z'),
       },
     ]);
-    prisma.chatMessage.findUnique.mockResolvedValue({
-      content: '你的余额是 ₱0.00',
-      source: 'ai',
-      seqId: 2,
-    });
+    prisma.$queryRawUnsafe.mockResolvedValue([
+      {
+        feedbackId: 'fb-1',
+        linkedContent: '你的余额是 ₱0.00',
+        linkedSource: 'ai',
+        linkedSeqId: 2,
+        explicitUserContent: null,
+        implicitUserContent: null,
+        implicitAiContent: null,
+      },
+    ]);
 
     const result = await service.list({ page: 1, pageSize: 20 });
 
@@ -204,9 +230,17 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
         createdAt: new Date('2026-11-20T12:00:00Z'),
       },
     ]);
-    prisma.chatMessage.findFirst
-      .mockResolvedValueOnce({ content: '帮我查订单' })
-      .mockResolvedValueOnce({ content: '你还没有订单' });
+    prisma.$queryRawUnsafe.mockResolvedValue([
+      {
+        feedbackId: 'fb-2',
+        linkedContent: null,
+        linkedSource: null,
+        linkedSeqId: null,
+        explicitUserContent: null,
+        implicitUserContent: '帮我查订单',
+        implicitAiContent: '你还没有订单',
+      },
+    ]);
 
     const result = await service.list({ page: 1, pageSize: 20 });
 
@@ -216,6 +250,33 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
         answer: '你还没有订单',
       }),
     );
+  });
+
+  it('列表上下文：Prisma 调用次数与页大小无关且 ≤5', async () => {
+    const { service, prisma } = createService();
+    const rowsFor = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `fb-${index}`,
+        conversationId: `c-${index}`,
+        messageId: null,
+        input: null,
+        source: 'implicit',
+        createdAt: new Date('2026-11-20T12:00:00Z'),
+      }));
+
+    prisma.aiAnswerFeedback.findMany.mockResolvedValueOnce(rowsFor(10));
+    let before = prismaCallCount(prisma);
+    await service.list({ page: 1, pageSize: 10 });
+    const tenRowsCalls = prismaCallCount(prisma) - before;
+
+    prisma.aiAnswerFeedback.findMany.mockResolvedValueOnce(rowsFor(100));
+    before = prismaCallCount(prisma);
+    await service.list({ page: 1, pageSize: 100 });
+    const hundredRowsCalls = prismaCallCount(prisma) - before;
+
+    expect(tenRowsCalls).toBeLessThanOrEqual(5);
+    expect(hundredRowsCalls).toBe(tenRowsCalls);
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledTimes(2);
   });
 
   it('summary 返回待处理与归因分布', async () => {

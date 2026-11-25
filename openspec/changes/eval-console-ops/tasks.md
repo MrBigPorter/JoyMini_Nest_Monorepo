@@ -22,7 +22,7 @@
 
 ## 4. 性能与时区
 
-- [ ] 4.1 迁移加 `ChatMessage(conversationId, createdAt)` 与 `(conversationId, source, createdAt)` 两索引；`attachMessageContext` 改固定次数 `$queryRaw`；验证：jest 记录 Prisma 调用次数 ≤5 且 10 条与 100 条页大小一致 [Req: 反馈列表查询次数必须与页大小无关]
+- [x] 4.1 迁移加 `ChatMessage(conversationId, createdAt)` 与 `(conversationId, source, createdAt)` 两索引；`attachMessageContext` 改固定次数 `$queryRaw`；验证：jest 记录 Prisma 调用次数 ≤5 且 10 条与 100 条页大小一致 [Req: 反馈列表查询次数必须与页大小无关]
 - [ ] 4.2 新增 `toLocalDayRangeIso`，URL 保持 `YYYY-MM-DD`；验证：vitest 在 `TZ=Asia/Shanghai` 与 UTC 下区间一致，刷新后筛选保持 [Req: 日期筛选必须使用显式时区]
 
 ## 5. 状态与未知态
