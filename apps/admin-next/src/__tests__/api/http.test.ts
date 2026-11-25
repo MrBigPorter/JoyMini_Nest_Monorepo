@@ -19,7 +19,7 @@ vi.mock('@/store/useToastStore', () => ({
 }));
 
 // ── import HttpClient after mocks ────────────────────────────────
-import { http } from '@/api/http';
+import { ForbiddenError, http } from '@/api/http';
 
 // ── MSW server — 拦截真实网络层，与哪个 axios 实例无关 ─────────────
 const server = setupServer();
@@ -300,6 +300,50 @@ describe('http client — HTTP 错误', () => {
     );
     await expect(http.get('/offline')).rejects.toBeDefined();
     expect(mockAddToast).toHaveBeenCalledWith('error', expect.any(String));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 403 禁用态
+// ═══════════════════════════════════════════════════════════════
+describe('http client — HTTP 403 不再被吞成成功', () => {
+  it('写请求 403 时抛出 ForbiddenError，而不是返回 undefined', async () => {
+    server.use(
+      mswHttp.post('http://localhost/api/eval/run', () =>
+        HttpResponse.json({ message: 'Forbidden' }, { status: 403 }),
+      ),
+    );
+
+    const outcome = await http.post('/eval/run', {}).catch((error) => error);
+
+    expect(outcome).toBeInstanceOf(ForbiddenError);
+  });
+
+  it('ForbiddenError 携带状态码与服务端消息，供页面渲染禁用原因', async () => {
+    server.use(
+      mswHttp.get('http://localhost/api/admin-only', () =>
+        HttpResponse.json({ message: '仅管理员可操作' }, { status: 403 }),
+      ),
+    );
+
+    await expect(http.get('/admin-only')).rejects.toMatchObject({
+      status: 403,
+      code: 403,
+      message: '仅管理员可操作',
+    });
+  });
+
+  it('403 保持静默：不弹 toast，由页面展示禁用态', async () => {
+    server.use(
+      mswHttp.post('http://localhost/api/eval/run', () =>
+        HttpResponse.json({ message: 'Forbidden' }, { status: 403 }),
+      ),
+    );
+
+    await expect(http.post('/eval/run', {})).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+    expect(mockAddToast).not.toHaveBeenCalled();
   });
 });
 

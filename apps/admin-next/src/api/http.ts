@@ -9,6 +9,33 @@ import type { ApiResponse, RequestConfig } from './types'; // 注意：这里不
 import { useToastStore } from '@/store/useToastStore';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/**
+ * 403 禁用态。
+ *
+ * 页面必须区分「无权限/已禁用」与「请求失败」，所以 403 不能再被吞成
+ * `undefined` 或普通 Error。保留 axios 形状的 response/status/code 字段，
+ * 兼容既有按 `response.status` 判断的调用方。
+ */
+export class ForbiddenError extends Error {
+  readonly status = 403;
+  readonly code = 403;
+  readonly statusCode = 403;
+  readonly url?: string;
+  readonly response?: { status: number; data?: unknown };
+
+  constructor(
+    message = '无权限执行该操作',
+    url?: string,
+    response?: { status: number; data?: unknown },
+  ) {
+    super(message);
+    this.name = 'ForbiddenError';
+    this.url = url;
+    this.response = response;
+  }
+}
+
 class HttpClient {
   private readonly instance: AxiosInstance;
   private requestQueue = new Set<string>();
@@ -175,10 +202,11 @@ class HttpClient {
             return this.handle401AndRetry(config);
           }
         }
-        this.handleHttpError(error);
+        // handleHttpError 对 403 返回 ForbiddenError，让调用方拿到可区分的禁用态。
+        const handledError = this.handleHttpError(error);
         // 防止 unhandledrejection 事件被 Next.js dev overlay 捕获显示为红色堆栈。
         // toast 已提示用户；promise 仍是 rejected 状态，调用侧 try-catch / onError 正常触发。
-        const httpRejection = Promise.reject(error);
+        const httpRejection = Promise.reject(handledError ?? error);
         httpRejection.catch(() => {});
         return httpRejection;
       },
@@ -239,17 +267,21 @@ class HttpClient {
     this.toastError(msg);
   }
 
-  private handleHttpError(error: any) {
+  /**
+   * 统一 HTTP 错误处理。
+   *
+   * 返回 ForbiddenError 表示 403 禁用态（调用方据此渲染禁用原因）；
+   * 其余错误返回 undefined，调用方拿到的仍是原始 axios 错误。
+   */
+  private handleHttpError(error: any): ForbiddenError | undefined {
     if (axios.isCancel(error) || error instanceof CanceledError) {
       console.log('[HTTP] request cancelled:', error.message);
       return;
     }
 
-    // showError: false → 静默请求，不弹 toast
     const reqConfig = error.config as
       | (InternalAxiosRequestConfig & RequestConfig)
       | undefined;
-    if (reqConfig?.showError === false) return;
 
     if (error.response) {
       const { status, data } = error.response;
@@ -266,18 +298,31 @@ class HttpClient {
         return;
       }
 
-      // 403 权限错误：VIEWER 写操作预期会被拒绝，静默处理，不弹 toast 不打印
-      if (status === 403) return;
+      // 403 权限错误：VIEWER 写操作预期会被拒绝，不弹 toast，但必须让调用方
+      // 拿到可区分的错误，避免页面把禁用态当成成功。
+      if (status === 403) {
+        return new ForbiddenError(
+          data?.message || error.message || '无权限执行该操作',
+          error.config?.url,
+          { status, data },
+        );
+      }
+
+      // showError: false → 静默请求，不弹 toast
+      if (reqConfig?.showError === false) return;
 
       const msg = data?.message || `Server Error: ${error.message}`;
       this.toastError(msg);
     } else if (error.request) {
+      if (reqConfig?.showError === false) return;
       this.toastError('No response from server, please check your network');
     } else {
+      if (reqConfig?.showError === false) return;
       this.toastError(error.message || 'Unexpected error occurred');
     }
 
     console.error('[HTTP Error]', error);
+    return;
   }
 
   private async handleUnauthorized() {
@@ -402,9 +447,17 @@ class HttpClient {
       } catch (error) {
         lastError = error;
 
-        // 403 权限错误：VIEWER 写操作预期会被拒绝，静默返回空，不抛错不弹 toast
+        // 403 权限错误：不重试、不吞成成功。抛 ForbiddenError，页面据此渲染禁用态。
         if ((error as any)?.response?.status === 403) {
-          return undefined as unknown as T;
+          throw error instanceof ForbiddenError
+            ? error
+            : new ForbiddenError(
+                (error as any)?.response?.data?.message ||
+                  (error as any)?.message ||
+                  '无权限执行该操作',
+                (error as any)?.config?.url,
+                (error as any)?.response,
+              );
         }
 
         // 检查是否应该重试
