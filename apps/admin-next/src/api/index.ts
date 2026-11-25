@@ -1295,6 +1295,19 @@ export const knowledgeApi = {
         fair: number;
         suspicious: number;
       };
+      /** 解析质量口径：只统计有四项检查明细的文档，其余如实标为未采集。 */
+      parseQuality: {
+        collected: number;
+        passed: number;
+        failed: number;
+        notCollected: number;
+      };
+      /** 有效性（检索命中与引用正确）尚未采集，不伪造 0 或百分比。 */
+      effectiveness: {
+        status: 'pendingMetric';
+        collected: boolean;
+        note: string;
+      };
       recentFlags: Array<{
         documentId: string;
         title: string;
@@ -1307,7 +1320,17 @@ export const knowledgeApi = {
         title: string;
         score: number | null;
         flags: string | null;
+        /** 生效版本（正在对外服务） */
         activeVersion: number;
+        /** 最新写入版本（可能尚未激活） */
+        version: number;
+        /** 四项检查明细；null = 旧数据，未采集 */
+        parseChecks: Partial<
+          Record<
+            'truncation' | 'retentionRate' | 'encoding' | 'emptyContent',
+            { passed: boolean; detail?: string; rate?: number }
+          >
+        > | null;
         updatedAt: string;
       }>;
     }>('/v1/admin/rag/documents/quality-stats'),

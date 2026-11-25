@@ -12,6 +12,7 @@ import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 import { mergeKnowledgeMetadata } from './knowledge-metadata.util';
 import { KnowledgeDomainService } from './knowledge-domain.service';
 import { sha256 } from '@api/common/crypto.util';
+import { Prisma } from '@prisma/client';
 
 // =============================================================================
 // 策略接口 — TextExtractor
@@ -467,6 +468,8 @@ export class RagSyncService {
       qualityScore: qualityResult.overallScore,
       qualityFlags:
         qualityResult.flags.length > 0 ? qualityResult.flags.join(',') : null,
+      // 四项检查明细快照：页面展示「哪一项没过」，而不只是一个总分。
+      parseChecks: qualityResult.checks as unknown as Prisma.InputJsonValue,
       keywords: merged.keywords,
       contentType: merged.contentType,
       priority: merged.priority,

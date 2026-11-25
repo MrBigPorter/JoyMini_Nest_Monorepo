@@ -110,6 +110,14 @@ const DIFF_CLASS_LABELS: Record<string, string> = {
   stillFailing: '仍失败',
 };
 
+/** 解析质量四项检查的中文名，与后端 checks 的 key 一一对应。 */
+const PARSE_CHECK_LABELS: Record<string, string> = {
+  truncation: '截断',
+  retentionRate: '保留率',
+  encoding: '编码',
+  emptyContent: '内容',
+};
+
 /** 转人工原因翻译成运营语言；未知值原样展示，避免隐藏信息。 */
 const TRANSFER_REASON_LABELS: Record<string, string> = {
   explicit_request: '用户明确要求',
@@ -2998,6 +3006,7 @@ function RagPanel() {
   };
 
   const byScore = stats?.byScore;
+  const parseQuality = stats?.parseQuality;
   const cards = [
     ['文档总数', stats?.total],
     ['有标记', stats?.flagged],
@@ -3007,9 +3016,34 @@ function RagPanel() {
     ['一般', byScore?.fair],
     ['可疑', byScore?.suspicious],
   ] as const;
+  // 解析质量与有效性单独一组：解析只统计有明细快照的文档，
+  // 有效性还没有采集链路——两者都不能混进上面的评分分档。
+  const parseCards = [
+    ['解析通过', parseQuality?.passed],
+    ['解析未通过', parseQuality?.failed],
+    ['解析未采集', parseQuality?.notCollected],
+  ] as const;
   const recentFlags = stats?.recentFlags ?? [];
   const recentUpdated = stats?.recentUpdated ?? [];
   const results: any[] = result?.results ?? [];
+  const debug = result?.debug as
+    | {
+        rerank?: boolean;
+        relevanceGate?: {
+          applied: boolean;
+          blocked: number | boolean;
+          reason?: string;
+        } | null;
+      }
+    | undefined;
+  // blocked 是被拦掉的候选数（与 stage 日志同口径），>0 才算拦截。
+  const gateLabel = !debug?.relevanceGate
+    ? '未启用'
+    : !debug.relevanceGate.applied
+      ? '未启用'
+      : debug.relevanceGate.blocked
+        ? '拦截'
+        : '通过';
 
   return (
     <section className="space-y-4">
@@ -3018,6 +3052,30 @@ function RagPanel() {
           message="知识质量统计加载失败，请重试"
           onRetry={refreshStats}
         />
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {parseCards.map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-xl border p-3 dark:border-white/10"
+          >
+            <div className="text-xs text-gray-500">{label}</div>
+            <div className="text-lg font-semibold">
+              {value != null ? value : statsLoading ? '加载中…' : '—'}
+            </div>
+          </div>
+        ))}
+        <div className="rounded-xl border p-3 dark:border-white/10">
+          <div className="text-xs text-gray-500">有效性</div>
+          <div className="text-lg font-semibold">
+            {stats ? '未采集' : statsLoading ? '加载中…' : '—'}
+          </div>
+        </div>
+      </div>
+
+      {stats?.effectiveness ? (
+        <p className="text-xs text-gray-500">有效性口径：{stats.effectiveness.note}</p>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
@@ -3048,20 +3106,26 @@ function RagPanel() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['文档', '评分', '标记', '当前版本', '更新时间', '操作'].map(
-                  (h) => (
-                    <th key={h} className="px-3 py-2">
-                      {h}
-                    </th>
-                  ),
-                )}
+                {[
+                  '文档',
+                  '评分',
+                  '标记',
+                  '解析检查',
+                  '版本',
+                  '更新时间',
+                  '操作',
+                ].map((h) => (
+                  <th key={h} className="px-3 py-2">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {statsLoading ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     加载中…
@@ -3070,7 +3134,7 @@ function RagPanel() {
               ) : recentUpdated.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     暂无更新记录
@@ -3079,7 +3143,7 @@ function RagPanel() {
               ) : (
                 recentUpdated.map((doc) => (
                   <tr
-                    key={`${doc.documentId}-${doc.activeVersion}`}
+                    key={`${doc.documentId}-${doc.version}`}
                     className="border-t border-gray-100 dark:border-white/5"
                   >
                     <td className="px-3 py-2" title={doc.documentId}>
@@ -3089,7 +3153,42 @@ function RagPanel() {
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
                       {doc.flags ?? '无标记'}
                     </td>
-                    <td className="px-3 py-2">v{doc.activeVersion}</td>
+                    <td className="px-3 py-2">
+                      {doc.parseChecks ? (
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(PARSE_CHECK_LABELS).map(
+                            ([key, label]) => {
+                              const entry = (
+                                doc.parseChecks as Record<
+                                  string,
+                                  { passed: boolean; detail?: string }
+                                >
+                              )[key];
+                              return (
+                                <span
+                                  key={key}
+                                  data-testid={`parse-check-${key}`}
+                                  title={entry?.detail}
+                                  className={
+                                    entry?.passed
+                                      ? 'rounded border border-emerald-200 px-1 text-xs text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-300'
+                                      : 'rounded border border-red-200 px-1 text-xs text-red-700 dark:border-red-500/30 dark:text-red-300'
+                                  }
+                                >
+                                  {label}
+                                  {entry?.passed ? '通过' : '未通过'}
+                                </span>
+                              );
+                            },
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">未采集</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-300">
+                      生效 v{doc.activeVersion} · 最新 v{doc.version}
+                    </td>
                     <td className="px-3 py-2">
                       {doc.updatedAt
                         ? new Date(doc.updatedAt).toLocaleString()
@@ -3221,6 +3320,11 @@ function RagPanel() {
         </div>
       ) : result ? (
         <div className="space-y-3">
+          {debug ? (
+            <div className="text-xs text-gray-500">
+              {`检索调试——rerank：${debug.rerank ? '开' : '关'} · 相关性门卫：${gateLabel}`}
+            </div>
+          ) : null}
           {results.length === 0 ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm dark:border-amber-500/30 dark:bg-amber-500/5">
               <div className="font-medium text-amber-800 dark:text-amber-200">

@@ -2021,6 +2021,8 @@ model KnowledgeDocument {
   qualityScore          Int?            @map("quality_score") @db.SmallInt
   /// 质量标记（逗号分隔，如 "truncation,encoding_issue"）
   qualityFlags          String?         @map("quality_flags") @db.VarChar(200)
+  /// 解析质量四项检查明细快照；null=未采集（旧数据），页面显示「未采集」而非 0
+  parseChecks           Json?           @map("parse_checks")
   /// 版本号（每次更新 +1）
   version               Int             @default(1) @map("version") @db.SmallInt
   /// 当前对外服务的版本。新版本 chunk 写入后，只有 activeVersion 那一版被检索。

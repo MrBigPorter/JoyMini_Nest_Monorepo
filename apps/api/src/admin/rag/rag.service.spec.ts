@@ -15,6 +15,7 @@ function buildService() {
   const prisma = {
     knowledgeDocument: {
       findUnique: jest.fn().mockResolvedValue({ id: 'doc-1', title: 't' }),
+      findMany: jest.fn().mockResolvedValue([]),
       delete: jest.fn().mockReturnValue('delete-doc'),
     },
     kbGenerationCandidate: { deleteMany: jest.fn().mockReturnValue('cands') },
@@ -282,5 +283,89 @@ describe('RagService.getChunksDiff', () => {
 
     expect(Array.isArray(chunks)).toBe(true);
     expect(chunks).toHaveLength(1);
+  });
+});
+
+describe('RagService.getQualityStats 解析质量与有效性', () => {
+  const checks = (failing: string[] = []) => ({
+    truncation: {
+      passed: !failing.includes('truncation'),
+      detail: failing.includes('truncation') ? '疑似截断' : '结尾完整',
+    },
+    retentionRate: {
+      passed: !failing.includes('retentionRate'),
+      rate: 100,
+      detail: '保留率正常',
+    },
+    encoding: {
+      passed: !failing.includes('encoding'),
+      detail: '无乱码',
+    },
+    emptyContent: {
+      passed: !failing.includes('emptyContent'),
+      detail: '内容非空',
+    },
+  });
+
+  it('拆分解析通过/未通过/未采集，有效性未采集不伪造 0', async () => {
+    const { service, prisma } = buildService();
+    prisma.knowledgeDocument.findMany.mockResolvedValue([
+      {
+        id: 'doc-pass',
+        title: '通过文档',
+        qualityScore: 100,
+        qualityFlags: null,
+        parseChecks: checks(),
+        activeVersion: 2,
+        version: 3,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-03T00:00:00Z'),
+      },
+      {
+        id: 'doc-fail',
+        title: '截断文档',
+        qualityScore: 75,
+        qualityFlags: 'truncation',
+        parseChecks: checks(['truncation']),
+        activeVersion: 1,
+        version: 1,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-02T00:00:00Z'),
+      },
+      {
+        id: 'doc-legacy',
+        title: '旧数据',
+        qualityScore: null,
+        qualityFlags: null,
+        parseChecks: null,
+        activeVersion: 0,
+        version: 1,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      },
+    ]);
+
+    const stats = await service.getQualityStats();
+
+    expect(stats.parseQuality).toEqual({
+      collected: 2,
+      passed: 1,
+      failed: 1,
+      notCollected: 1,
+    });
+    expect(stats.effectiveness).toMatchObject({
+      status: 'pendingMetric',
+      collected: false,
+    });
+    // 版本语义分开：activeVersion 是生效版本，version 是最新写入版本。
+    const passDoc = stats.recentUpdated.find(
+      (doc) => doc.documentId === 'doc-pass',
+    );
+    expect(passDoc).toMatchObject({ activeVersion: 2, version: 3 });
+    expect(passDoc?.parseChecks?.truncation.passed).toBe(true);
+    const legacyDoc = stats.recentUpdated.find(
+      (doc) => doc.documentId === 'doc-legacy',
+    );
+    expect(legacyDoc?.parseChecks).toBeNull();
   });
 });

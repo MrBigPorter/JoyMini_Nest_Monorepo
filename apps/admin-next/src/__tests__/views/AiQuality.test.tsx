@@ -2102,6 +2102,129 @@ describe('AiQualityPage', () => {
     expect(screen.queryByText('暂无知识库文档质量数据。')).toBeNull();
   });
 
+  describe('知识质量分区分解析质量与有效性', () => {
+    const parseChecks = {
+      truncation: { passed: true, detail: '结尾完整' },
+      retentionRate: { passed: false, rate: 62, detail: '保留率偏低' },
+      encoding: { passed: true, detail: '无乱码' },
+      emptyContent: { passed: true, detail: '内容非空' },
+    };
+
+    function renderKnowledgeTab() {
+      mockUseRequest.mockReturnValue(
+        makeUseRequest({
+          ...stats,
+          parseQuality: { collected: 1, passed: 0, failed: 1, notCollected: 1 },
+          effectiveness: {
+            status: 'pendingMetric',
+            collected: false,
+            note: '检索命中与引用正确率尚未采集，不参与评分。',
+          },
+          recentUpdated: [
+            {
+              documentId: 'doc-1',
+              title: '退换货政策',
+              score: 75,
+              flags: 'low_retention',
+              activeVersion: 2,
+              version: 3,
+              updatedAt: '2026-01-03T00:00:00.000Z',
+              parseChecks,
+            },
+            {
+              documentId: 'doc-2',
+              title: '旧文档',
+              score: null,
+              flags: null,
+              activeVersion: 0,
+              version: 1,
+              updatedAt: '2026-01-01T00:00:00.000Z',
+              parseChecks: null,
+            },
+          ],
+        }),
+      );
+      render(<AiQualityPage />);
+      openTab('知识质量');
+    }
+
+    it('展示解析通过与四项检查明细', () => {
+      renderKnowledgeTab();
+
+      expect(screen.getByText('解析通过')).toBeTruthy();
+      expect(screen.getByText('解析未通过')).toBeTruthy();
+      expect(screen.getByText('解析未采集')).toBeTruthy();
+      expect(screen.getByTestId('parse-check-truncation').textContent).toContain(
+        '截断',
+      );
+      expect(
+        screen.getByTestId('parse-check-retentionRate').textContent,
+      ).toContain('保留率');
+      expect(screen.getByTestId('parse-check-encoding').textContent).toContain(
+        '编码',
+      );
+      expect(
+        screen.getByTestId('parse-check-emptyContent').textContent,
+      ).toContain('内容');
+      expect(screen.getByTestId('parse-check-retentionRate').textContent).toContain(
+        '未通过',
+      );
+    });
+
+    it('版本区分生效版本与最新写入版本', () => {
+      renderKnowledgeTab();
+
+      expect(screen.getByText('生效 v2 · 最新 v3')).toBeTruthy();
+    });
+
+    it('有效性未采集时不显示 0 或百分比', () => {
+      renderKnowledgeTab();
+
+      expect(screen.getByText('有效性')).toBeTruthy();
+      // 有效性卡与无快照的旧文档都显示「未采集」，而不是 0/0%。
+      expect(screen.getAllByText('未采集').length).toBeGreaterThanOrEqual(2);
+      expect(screen.queryByText('0%')).toBeNull();
+      expect(screen.queryByText('有效性 0')).toBeNull();
+      expect(screen.getByText(/检索命中与引用正确率尚未采集/)).toBeTruthy();
+    });
+
+    it('检索调试展示 rerank 与相关性门卫结论', async () => {
+      mockQualityStats.mockResolvedValue(stats);
+      mockRagSearch.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            title: '退款政策',
+            score: 0.91,
+            contentPreview: '7 天无理由',
+            domain: 'common',
+          },
+        ],
+        debug: {
+          rerank: true,
+          relevanceGate: {
+            applied: true,
+            threshold: 0.3,
+            floor: 0.2,
+            blocked: false,
+            reason: 'top score above floor',
+          },
+        },
+      });
+      render(<AiQualityPage />);
+      openTab('知识质量');
+
+      fireEvent.change(screen.getByPlaceholderText('检索问题'), {
+        target: { value: '退货怎么退' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: '检索' }));
+
+      expect(await screen.findByText(/rerank：开/)).toBeTruthy();
+      expect(screen.getByText(/相关性门卫：通过/)).toBeTruthy();
+      expect(screen.queryByText(/top score above floor/)).toBeNull();
+    });
+  });
+
   describe('回归用例可解释', () => {
     const runWithBaseline = {
       id: 'run-diff-1',

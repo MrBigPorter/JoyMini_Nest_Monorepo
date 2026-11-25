@@ -83,7 +83,9 @@ export class RagQualityService {
     if (!emptyContent.passed) flags.push('empty_content');
 
     return {
-      passed: overallScore >= 75,
+      // 通过判据就是四项检查本身：不能用 overallScore>=75 这类分档阈值替代。
+      // 分档（优秀/良好/一般/可疑）与 passed 都由同一组检查派生，口径同源。
+      passed: allChecks.every((c) => c.passed),
       overallScore,
       checks: { truncation, retentionRate, encoding, emptyContent },
       flags,

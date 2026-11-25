@@ -633,6 +633,14 @@ describe('RagRetrievalService 分层 debug', () => {
     expect(debug.returned).toBe(2);
     expect(debug.rerank).toBe(true);
     expect(debug.topScoreBeforeRerank).toBe(0.8);
+    // 检索调试必须带上门卫结论，否则调参时只能看到日志。
+    // blocked 与 emitStage 同口径，是被拦掉的候选数（>0 即拦截），不是布尔。
+    expect(debug.relevanceGate).toMatchObject({
+      applied: expect.any(Boolean),
+      blocked: expect.any(Number),
+      threshold: expect.any(Number),
+      floor: expect.any(Number),
+    });
   });
 
   it('retrieve 仍只返回数组（默认行为不变）', async () => {
