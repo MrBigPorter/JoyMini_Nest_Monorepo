@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { useAuthStore } from '@/store/useAuthStore';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
+import { defaultTabForRole } from '@/lib/ai-ops-role-view';
 import {
   formatKnownCount,
   resolveRenderState,
@@ -458,7 +459,11 @@ function isModelProblem(item: FeedbackRow | null | undefined): boolean {
 }
 
 export default function AiQualityPage() {
-  const [tab, setTab] = useState<Tab>('feedback');
+  const role = useAiOpsRole();
+  // 默认落点跟随角色；用户一旦手动切换，本次会话不再被角色覆盖。
+  // 角色异步加载时 tab 仍为 null，会自动跟上真实角色。
+  const [tab, setTab] = useState<Tab | null>(null);
+  const activeTab = tab ?? defaultTabForRole(role);
 
   return (
     <div className="space-y-5 p-4">
@@ -479,7 +484,7 @@ export default function AiQualityPage() {
             type="button"
             onClick={() => setTab(key)}
             className={`rounded-lg px-3 py-1.5 text-sm ${
-              tab === key
+              activeTab === key
                 ? 'bg-blue-600 text-white'
                 : 'border dark:border-white/10'
             }`}
@@ -488,7 +493,7 @@ export default function AiQualityPage() {
           </button>
         ))}
       </div>
-      {tab === 'feedback' ? (
+      {activeTab === 'feedback' ? (
         <Suspense
           fallback={
             <div className="py-8 text-center text-sm text-gray-400">
@@ -499,8 +504,8 @@ export default function AiQualityPage() {
           <FeedbackPanel onGoToEval={() => setTab('eval')} />
         </Suspense>
       ) : null}
-      {tab === 'eval' ? <EvalPanel /> : null}
-      {tab === 'rag' ? <RagPanel /> : null}
+      {activeTab === 'eval' ? <EvalPanel /> : null}
+      {activeTab === 'rag' ? <RagPanel /> : null}
     </div>
   );
 }

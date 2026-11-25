@@ -2566,6 +2566,59 @@ describe('AiQualityPage', () => {
     });
   });
 
+  describe('角色默认视图', () => {
+    const selectDataset = () =>
+      fireEvent.change(screen.getByLabelText('选择评测集'), {
+        target: { value: 'ds-1' },
+      });
+
+    it('运营、研发默认落在质量待办，可直接进入队列', () => {
+      for (const role of ['EDITOR', 'ADMIN', 'VIEWER']) {
+        mockRole.current = role;
+        wireFeedback();
+        const view = render(<AiQualityPage />);
+        expect(screen.getByRole('button', { name: '开始质检' })).toBeTruthy();
+        expect(screen.queryByLabelText('选择评测集')).toBeNull();
+        view.unmount();
+      }
+    });
+
+    it('管理者默认落在回归测试，先看运行与证据', () => {
+      mockRole.current = 'SUPER_ADMIN';
+      const enterEval = wireEvalTab(evalDatasetDetail);
+      enterEval();
+      render(<AiQualityPage />);
+
+      expect(screen.getByLabelText('选择评测集')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: '开始质检' })).toBeNull();
+    });
+
+    it('从不同视图进入同一 run，数字口径一致', () => {
+      // 运营从队列切到回归测试。
+      mockRole.current = 'ADMIN';
+      const enterFromQueue = wireEvalTab(evalDatasetDetail);
+      const first = render(<AiQualityPage />);
+      enterFromQueue();
+      openTab('回归测试');
+      selectDataset();
+      const viaQueue = screen.getByText('最近一次通过率').parentElement
+        ?.textContent;
+      first.unmount();
+      expect(viaQueue).toContain('50.0%');
+
+      // 管理者直接落在回归测试。
+      mockRole.current = 'SUPER_ADMIN';
+      const enterDirect = wireEvalTab(evalDatasetDetail);
+      enterDirect();
+      render(<AiQualityPage />);
+      selectDataset();
+
+      expect(
+        screen.getByText('最近一次通过率').parentElement?.textContent,
+      ).toBe(viaQueue);
+    });
+  });
+
   describe('写入口双重控制', () => {
     it('VIEWER 不渲染创建评测集、导入用例与启动运行', () => {
       mockRole.current = 'VIEWER';
