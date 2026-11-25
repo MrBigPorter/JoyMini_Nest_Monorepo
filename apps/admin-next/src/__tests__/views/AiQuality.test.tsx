@@ -629,6 +629,65 @@ describe('AiQualityPage', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it('跳过只移动游标，不回队首', () => {
+    const second = {
+      ...feedback,
+      id: 'fb-2',
+      messageId: 'msg-2',
+      version: 4,
+      input: '第二个问题',
+      failureKind: 'MODEL_ERROR',
+    };
+    wireFeedback({ listData: { list: [feedback, second], total: 2 } });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    expect(screen.getByText('质检 1 / 2')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '跳过' }));
+    expect(screen.getByText('质检 2 / 2')).toBeTruthy();
+    const card = screen.getByText('质检 2 / 2').closest('section')!;
+    expect(within(card).getByText('第二个问题')).toBeTruthy();
+  });
+
+  it('按归因筛选进入质检时，筛选值作为归因初值', () => {
+    (useSearchParams as any).mockReturnValue(
+      new URLSearchParams('failureKind=MODEL_ERROR'),
+    );
+    wireFeedback({
+      listData: { list: [{ ...feedback, failureKind: null }], total: 1 },
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+
+    expect((screen.getByLabelText('主要原因') as HTMLSelectElement).value).toBe(
+      'MODEL_ERROR',
+    );
+  });
+
+  it('切到下一条时归因初值重置为该条自身归因', () => {
+    const second = {
+      ...feedback,
+      id: 'fb-2',
+      messageId: 'msg-2',
+      version: 4,
+      input: '第二个问题',
+      failureKind: 'MODEL_ERROR',
+    };
+    wireFeedback({ listData: { list: [feedback, second], total: 2 } });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const cause = () => screen.getByLabelText('主要原因') as HTMLSelectElement;
+    expect(cause().value).toBe('UNEXPECTED_TRANSFER');
+
+    // 人工改过归因后切条，下一条不能继承上一条的手动值。
+    fireEvent.change(cause(), { target: { value: 'PROMPT' } });
+    fireEvent.click(screen.getByRole('button', { name: '跳过' }));
+    expect(cause().value).toBe('MODEL_ERROR');
+  });
+
   it('sends IGNORED + EXCLUDED from the row quick action', async () => {
     wireFeedback();
     render(<AiQualityPage />);

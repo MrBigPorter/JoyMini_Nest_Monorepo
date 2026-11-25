@@ -923,8 +923,22 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     }
   }, [reviewMode, reviewIndex, reviewList.length]);
 
-  // 当前条目已被分诊移除，下一条会顶到同一位置，所以索引保持不动。
-  const advanceReview = () => setReviewIndex(0);
+  // 跳过只移动游标：不提交、不回队首。
+  const skipReview = () => {
+    setDecision(null);
+    setReviewIndex((index) =>
+      Math.min(index + 1, Math.max(reviewList.length - 1, 0)),
+    );
+  };
+
+  // 归因初值取该条自身归因，其次当前筛选值；切条必须重置，不能用固定值覆盖。
+  const currentId = current?.id;
+  const currentFailureKind =
+    current?.failureKind ?? failureKindFilter ?? 'UNKNOWN';
+  useEffect(() => {
+    if (!reviewMode || !currentId) return;
+    setFailureKind(currentFailureKind);
+  }, [reviewMode, currentId, currentFailureKind]);
 
   const handleReview = async (kind: 'correct' | 'incorrect' | 'exclude') => {
     if (!current) return;
@@ -950,7 +964,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     const ok = await triage(current.id, patch, current.version);
     if (ok) {
       setDecision(null);
-      advanceReview();
+      // 提交成功后当前条目会被分诊移出候选，下一条顶到同一位置，索引保持不动。
     }
   };
 
@@ -1427,10 +1441,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    setDecision(null);
-                    advanceReview();
-                  }}
+                  onClick={skipReview}
                 >
                   跳过
                 </Button>
