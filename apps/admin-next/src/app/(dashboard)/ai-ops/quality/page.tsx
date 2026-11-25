@@ -536,6 +536,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [decision, setDecision] = useState<ReviewDecision | null>(null);
+  const [note, setNote] = useState('');
+  // 同步去重用的 Set：state 异步更新，双击/连按 Enter 之间必须靠它挡住第二次。
+  const submittingRef = useRef<Set<string>>(new Set());
+  const [submittingIds, setSubmittingIds] = useState<Set<string>>(new Set());
   const adminId = useAuthStore((state) => state.userInfo?.id);
   const role = useAiOpsRole();
   // 开关未加载或加载失败时按关闭处理，避免渲染写按钮后 403。
@@ -697,14 +701,18 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
       errorType?: string;
     },
     expectedVersion?: number,
+    noteText?: string,
   ) => {
-    const note = window.prompt('备注（可选，用于记录分诊原因）') ?? undefined;
+    // 同一条记录在请求飞行期间不接受第二次提交。
+    if (submittingRef.current.has(id)) return false;
+    submittingRef.current.add(id);
+    setSubmittingIds((prev) => new Set(prev).add(id));
     setActionError('');
     setActionInfo('');
     try {
       await aiQualityApi.updateFeedback(id, {
         ...patch,
-        note,
+        ...(noteText ? { note: noteText } : {}),
         ...(expectedVersion != null ? { expectedVersion } : {}),
       } as any);
       // 必须等刷新完成再前进，否则候选列表还是旧数据，会跳过下一条。
@@ -718,6 +726,13 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         setActionError(err?.message ?? '分诊失败，请重试');
       }
       return false;
+    } finally {
+      submittingRef.current.delete(id);
+      setSubmittingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -926,6 +941,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   // 跳过只移动游标：不提交、不回队首。
   const skipReview = () => {
     setDecision(null);
+    setNote('');
     setReviewIndex((index) =>
       Math.min(index + 1, Math.max(reviewList.length - 1, 0)),
     );
@@ -938,6 +954,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   useEffect(() => {
     if (!reviewMode || !currentId) return;
     setFailureKind(currentFailureKind);
+    // 备注属于单条记录，切条即清空。
+    setNote('');
   }, [reviewMode, currentId, currentFailureKind]);
 
   const handleReview = async (kind: 'correct' | 'incorrect' | 'exclude') => {
@@ -961,9 +979,15 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
               resolution: 'EXCLUDED' as const,
               failureKind,
             };
-    const ok = await triage(current.id, patch, current.version);
+    const ok = await triage(
+      current.id,
+      patch,
+      current.version,
+      note.trim() || undefined,
+    );
     if (ok) {
       setDecision(null);
+      setNote('');
       // 提交成功后当前条目会被分诊移出候选，下一条顶到同一位置，索引保持不动。
     }
   };
@@ -1384,20 +1408,26 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 </select>
               </label>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => void handleReview('correct')}>
+                <Button
+                  size="sm"
+                  aria-pressed={decision === 'correct'}
+                  onClick={() => setDecision('correct')}
+                >
                   回答正确
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => void handleReview('incorrect')}
+                  aria-pressed={decision === 'incorrect'}
+                  onClick={() => setDecision('incorrect')}
                 >
                   确认问题
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => void handleReview('exclude')}
+                  aria-pressed={decision === 'exclude'}
+                  onClick={() => setDecision('exclude')}
                 >
                   排除
                 </Button>
@@ -1446,6 +1476,39 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   跳过
                 </Button>
               </div>
+              {decision ? (
+                <div className="mt-2 rounded-lg border border-gray-200 p-2 dark:border-white/10">
+                  <label className="flex flex-col gap-1 text-xs text-gray-500">
+                    备注（可选）
+                    <input
+                      aria-label="备注"
+                      className="rounded-lg border px-2 py-1 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      disabled={submittingIds.has(current.id)}
+                      onClick={() => void handleReview(decision)}
+                    >
+                      {submittingIds.has(current.id) ? '提交中…' : '提交判断'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={submittingIds.has(current.id)}
+                      onClick={() => {
+                        setDecision(null);
+                        setNote('');
+                      }}
+                    >
+                      取消备注
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-3 rounded-lg bg-gray-50 px-2 py-1.5 text-xs text-gray-500 dark:bg-white/5">
                 当前选择：
                 {decision ? DECISION_LABELS[decision] : '按 1 / 2 / 3 选择'}

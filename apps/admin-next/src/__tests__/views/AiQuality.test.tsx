@@ -550,6 +550,10 @@ describe('AiQualityPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
     fireEvent.click(screen.getByRole('button', { name: '回答正确' }));
+    fireEvent.change(screen.getByLabelText('备注'), {
+      target: { value: '已确认是模型答非所问' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '提交判断' }));
 
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
@@ -560,6 +564,50 @@ describe('AiQualityPage', () => {
         expectedVersion: 3,
       }),
     );
+  });
+
+  it('双击提交或连按 Enter 只发一次分诊请求', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    fireEvent.click(screen.getByRole('button', { name: '回答正确' }));
+    const submit = screen.getByRole('button', { name: '提交判断' });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    await waitFor(() => expect(mockUpdateFeedback).toHaveBeenCalledTimes(1));
+  });
+
+  it('取消备注不提交分诊', () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    fireEvent.click(within(card).getByRole('button', { name: '确认问题' }));
+    fireEvent.change(screen.getByLabelText('备注'), {
+      target: { value: '写到一半不想提交' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '取消备注' }));
+
+    expect(screen.queryByLabelText('备注')).toBeNull();
+    expect(mockUpdateFeedback).not.toHaveBeenCalled();
+  });
+
+  it('备注可以不填，提交时不带 note 字段', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    fireEvent.click(screen.getByRole('button', { name: '回答正确' }));
+    fireEvent.click(screen.getByRole('button', { name: '提交判断' }));
+
+    await waitFor(() => expect(mockUpdateFeedback).toHaveBeenCalledTimes(1));
+    const payload = mockUpdateFeedback.mock.calls[0][1];
+    expect(payload).not.toHaveProperty('note');
   });
 
   it('writes filter changes to the URL and clears them', () => {
@@ -615,6 +663,10 @@ describe('AiQualityPage', () => {
       target: { value: 'MODEL_ERROR' },
     });
     fireEvent.click(within(card).getByRole('button', { name: '确认问题' }));
+    fireEvent.change(within(card).getByLabelText('备注'), {
+      target: { value: '已确认是模型答非所问' },
+    });
+    fireEvent.click(within(card).getByRole('button', { name: '提交判断' }));
 
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
@@ -699,7 +751,6 @@ describe('AiQualityPage', () => {
         reviewStatus: 'IGNORED',
         resolution: 'EXCLUDED',
         failureKind: 'UNEXPECTED_TRANSFER',
-        note: '已确认是模型答非所问',
         expectedVersion: 3,
       }),
     );
@@ -812,6 +863,7 @@ describe('AiQualityPage', () => {
     const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
     const listCallsBefore = mockGetFeedbackList.mock.calls.length;
     fireEvent.click(within(card).getByRole('button', { name: '确认问题' }));
+    fireEvent.click(within(card).getByRole('button', { name: '提交判断' }));
 
     await waitFor(() =>
       expect(
