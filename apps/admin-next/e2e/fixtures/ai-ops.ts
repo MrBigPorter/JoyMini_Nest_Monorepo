@@ -137,6 +137,11 @@ const FEEDBACK_SUMMARY = {
   byResolution: [{ resolution: 'ADDED_TO_EVAL', count: 1 }],
 };
 
+const FEATURES = {
+  feedbackUiEnabled: true,
+  evalEnabled: true,
+};
+
 const FEEDBACK_LIST = {
   list: [
     {
@@ -157,8 +162,26 @@ const FEEDBACK_LIST = {
       resolution: null,
       createdAt: NOW,
     },
+    {
+      id: 'feedback-2',
+      conversationId: 'conv-quality-2',
+      input: 'Where is my order?',
+      answer: 'Please wait while I check.',
+      messageId: 'msg-quality-2',
+      userId: 'user-quality-2',
+      source: 'implicit',
+      verdict: null,
+      errorType: null,
+      signal: 'transferred',
+      note: null,
+      adminId: null,
+      reviewStatus: 'PENDING',
+      failureKind: 'UNEXPECTED_TRANSFER',
+      resolution: null,
+      createdAt: NOW,
+    },
   ],
-  total: 1,
+  total: 2,
 };
 
 const SLA_QUEUE = {
@@ -352,6 +375,9 @@ function installApiMocks(
         return fulfill({ ...ADMIN_USER, role, roleName: role });
       case '/v1/admin/queues':
         return fulfill(QUEUES);
+      case '/v1/admin/ai-ops/features':
+        // 写入口由服务端开关决定；冒烟测试需要覆盖可写与禁用两种状态。
+        return fulfill(FEATURES);
       case '/v1/admin/queues/ai/failed':
         return fulfill(FAILED_JOBS);
       case '/v1/admin/queues/ai/outbox':
