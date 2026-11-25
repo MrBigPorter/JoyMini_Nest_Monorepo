@@ -16,7 +16,7 @@
 ## 3. 读取
 
 - [x] 3.1 `runs/:id` 增 `resultsTotal/page/pageSize`（独立 DTO，默认 50、上限 200），保留 `results` 数组；RUNNING 按 `createdAt desc`；验证：jest 2000 条 → 50+total；10000 → 400；harness 与 e2e 仍读到数组 [Req: 评测与回归读取必须分页且有上限]
-- [ ] 3.2 `datasets/:id` 同形状；`addCases` 返回 `created`；用例数改用 `_count.cases`；验证：jest 与 vitest 通过，回归页总数正确 [Req: 评测与回归读取必须分页且有上限]
+- [x] 3.2 `datasets/:id` 同形状；`addCases` 返回 `created`；用例数改用 `_count.cases`；验证：jest 与 vitest 通过，回归页总数正确 [Req: 评测与回归读取必须分页且有上限]
 - [ ] 3.3 `getChunks` 保持全量；新增服务端 `chunks/diff` 端点（按两版本 chunkIndex 并集判新增/删除/修改）；前端改调 diff；验证：jest 三分类正确，`tools/eval` 仍拿到数组 [Req: 评测与回归读取必须分页且有上限]
 - [ ] 3.4 前端结果与用例分页控件；轮询只取第 1 页；验证：vitest + tsc 通过 [Req: 评测与回归读取必须分页且有上限]
 

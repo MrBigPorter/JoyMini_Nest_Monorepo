@@ -202,6 +202,7 @@ describe('读接口不清扫', () => {
       runs: [],
       _count: { runs: 0, cases: 0 },
     });
+    prisma.aiEvalCase = { findMany: jest.fn().mockResolvedValue([]) };
     prisma.aiEvalRun.findUnique.mockResolvedValue({
       id: 'run-1',
       datasetId: 'ds-1',

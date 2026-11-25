@@ -30,7 +30,7 @@ import {
   CreateExternalRunDto,
   IngestExternalResultsDto,
 } from './dto/external-eval.dto';
-import { RunResultsQueryDto } from './dto/eval-run.dto';
+import { EvalPageQueryDto } from './dto/eval-run.dto';
 import {
   CurrentRole,
   CurrentUserId,
@@ -93,9 +93,10 @@ export class AiEvalController {
   @ApiOperation({ summary: '评测集详情' })
   async getDataset(
     @Param('id') id: string,
+    @Query() query: EvalPageQueryDto,
     @CurrentRole() role: string | null,
   ) {
-    const dataset = await this.datasetService.getDataset(id);
+    const dataset = await this.datasetService.getDataset(id, query);
     return redactSensitiveFields(dataset, role, [
       'cases.question',
       'cases.answer',
@@ -208,7 +209,7 @@ export class AiEvalController {
   @ApiOperation({ summary: '评测运行结果' })
   async getRun(
     @Param('id') id: string,
-    @Query() query: RunResultsQueryDto,
+    @Query() query: EvalPageQueryDto,
     @CurrentRole() role: string | null,
   ) {
     const run = await this.datasetService.getRun(id, query);

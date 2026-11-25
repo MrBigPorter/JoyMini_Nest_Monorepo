@@ -1038,6 +1038,79 @@ describe('AiQualityPage', () => {
     expect(screen.getByLabelText('评测用例 JSON')).toBeTruthy();
   });
 
+  it('用例总数取 casesTotal，而不是当前页数组长度', () => {
+    const enterEval = wireEvalTab({
+      ...evalDatasetDetail,
+      casesTotal: 120,
+      _count: { cases: 120, runs: 2 },
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    expect(screen.getByText('用例（120）')).toBeTruthy();
+    expect(screen.getAllByText('120').length).toBeGreaterThan(0);
+  });
+
+  it('分页后加入回归用 createdCases 关联，不依赖当前页', async () => {
+    mockAddCases.mockResolvedValue({
+      id: 'ds-1',
+      cases: [evalDatasetDetail.cases[0]],
+      created: 1,
+      skipped: [],
+      createdCases: [{ id: 'case-new', question: feedback.input }],
+    });
+    mockUpdateFeedback.mockResolvedValue({});
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+    fireEvent.change(screen.getByLabelText('选择回归评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '确认加入回归' }));
+
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith(
+        'fb-1',
+        expect.objectContaining({ linkedEvalCaseId: 'case-new' }),
+      ),
+    );
+  });
+
+  it('导入用例按 created 与 skipped 报数', async () => {
+    mockAddCases.mockResolvedValue({
+      id: 'ds-1',
+      cases: [],
+      created: 1,
+      skipped: [{ question: '重复问题', reason: 'DUPLICATE_IN_DATASET' }],
+    });
+    const enterEval = wireEvalTab(evalDatasetDetail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '高级模式' }));
+    fireEvent.change(screen.getByLabelText('评测用例 JSON'), {
+      target: {
+        value: JSON.stringify([
+          { question: '新问题', answer: 'a' },
+          { question: '重复问题', answer: 'b' },
+        ]),
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '导入用例' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('已添加 1 条用例，跳过 1 条重复')).toBeTruthy(),
+    );
+  });
+
   it('用例编辑以 expect 为准，expected 只做只读展示', () => {
     const detail = {
       ...evalDatasetDetail,

@@ -2351,6 +2351,10 @@ export interface EvalDataset {
   createdAt: string;
   updatedAt: string;
   _count?: { cases: number; runs: number };
+  /** 数据集详情分页：cases 只承载当前页，总数看这里 */
+  casesTotal?: number;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface EvalCase {
@@ -2451,6 +2455,10 @@ export interface EvalRun {
   summary: Record<string, any> | null;
   startedAt: string;
   finishedAt: string | null;
+  /** 运行结果分页：results 只承载当前页 */
+  resultsTotal?: number;
+  page?: number;
+  pageSize?: number;
   results?: Array<{
     id: string;
     /** 任务成功率；EXTERNAL run 为 null */

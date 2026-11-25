@@ -317,11 +317,37 @@ export class AiEvalDatasetService {
     });
   }
 
-  async getDataset(id: string) {
+  /** 分页参数统一入口：页大小上限由 spec 固定为 200。 */
+  private resolvePage(options: { page?: number; pageSize?: number } = {}) {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? EVAL_RUN_RESULTS_LIMITS.defaultPageSize;
+    if (
+      !Number.isInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > EVAL_RUN_RESULTS_LIMITS.maxPageSize
+    ) {
+      throw new BadRequestException(
+        `pageSize must be an integer between 1 and ${EVAL_RUN_RESULTS_LIMITS.maxPageSize}`,
+      );
+    }
+    if (!Number.isInteger(page) || page < 1) {
+      throw new BadRequestException('page must be an integer >= 1');
+    }
+    return { page, pageSize, skip: (page - 1) * pageSize, take: pageSize };
+  }
+
+  /**
+   * 数据集详情。`cases` 只承载当前页，总数用 `_count.cases`，
+   * 避免大用例集把接口拖成全量拉取。
+   */
+  async getDataset(
+    id: string,
+    options: { page?: number; pageSize?: number } = {},
+  ) {
+    const { page, pageSize, skip, take } = this.resolvePage(options);
     const dataset = await this.prisma.aiEvalDataset.findUnique({
       where: { id },
       include: {
-        cases: { orderBy: { createdAt: 'asc' } },
         runs: {
           orderBy: { startedAt: 'desc' },
           take: 20,
@@ -330,7 +356,21 @@ export class AiEvalDatasetService {
       },
     });
     if (!dataset) throw new NotFoundException('Eval dataset not found');
-    return dataset;
+
+    const cases = await this.prisma.aiEvalCase.findMany({
+      where: { datasetId: id },
+      orderBy: { createdAt: 'asc' },
+      skip,
+      take,
+    });
+
+    return {
+      ...dataset,
+      cases,
+      casesTotal: dataset._count.cases,
+      page,
+      pageSize,
+    };
   }
 
   async addCases(datasetId: string, dto: AddEvalCasesDto) {
@@ -383,8 +423,20 @@ export class AiEvalDatasetService {
         })),
       });
     }
+    // createMany 不回传 id；分页后不能再靠「最后一页最后一条」定位新建项，
+    // 所以按本次要创建的题干回查，供反馈「加入回归」直接关联。
+    const createdCases =
+      toCreate.length > 0
+        ? await this.prisma.aiEvalCase.findMany({
+            where: {
+              datasetId,
+              question: { in: toCreate.map((item) => item.question) },
+            },
+            select: { id: true, question: true },
+          })
+        : [];
     const result = await this.getDataset(datasetId);
-    return { ...result, created: toCreate.length, skipped };
+    return { ...result, created: toCreate.length, skipped, createdCases };
   }
 
   async updateCase(
@@ -1002,20 +1054,7 @@ export class AiEvalDatasetService {
     id: string,
     options: { page?: number; pageSize?: number } = {},
   ) {
-    const page = options.page ?? 1;
-    const pageSize = options.pageSize ?? EVAL_RUN_RESULTS_LIMITS.defaultPageSize;
-    if (
-      !Number.isInteger(pageSize) ||
-      pageSize < 1 ||
-      pageSize > EVAL_RUN_RESULTS_LIMITS.maxPageSize
-    ) {
-      throw new BadRequestException(
-        `pageSize must be an integer between 1 and ${EVAL_RUN_RESULTS_LIMITS.maxPageSize}`,
-      );
-    }
-    if (!Number.isInteger(page) || page < 1) {
-      throw new BadRequestException('page must be an integer >= 1');
-    }
+    const { page, pageSize, skip, take } = this.resolvePage(options);
 
     const run = await this.prisma.aiEvalRun.findUnique({ where: { id } });
     if (!run) throw new NotFoundException('Eval run not found');
@@ -1027,8 +1066,8 @@ export class AiEvalDatasetService {
         where,
         include: { case: true },
         orderBy: { createdAt: run.status === 'RUNNING' ? 'desc' : 'asc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip,
+        take,
       }),
     ]);
 

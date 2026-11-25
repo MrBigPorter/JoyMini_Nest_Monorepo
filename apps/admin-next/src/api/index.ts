@@ -1832,6 +1832,9 @@ export const aiQualityApi = {
         cases: import('@/type/types').EvalCase[];
         runs: import('@/type/types').EvalRun[];
         _count?: { cases: number; runs: number };
+        casesTotal?: number;
+        page?: number;
+        pageSize?: number;
       }
     >(`/v1/admin/ai-eval/datasets/${id}`),
   addCases: (
@@ -1848,7 +1851,12 @@ export const aiQualityApi = {
         tags?: string[];
       }>;
     },
-  ) => http.post(`/v1/admin/ai-eval/datasets/${id}/cases`, data),
+  ) =>
+    http.post<{
+      created?: number;
+      skipped?: Array<{ question: string; reason: string }>;
+      createdCases?: Array<{ id: string; question: string }>;
+    }>(`/v1/admin/ai-eval/datasets/${id}/cases`, data),
   updateCase: (
     id: string,
     caseId: string,

@@ -758,12 +758,20 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             tags: ['from-feedback', target.failureKind ?? 'UNKNOWN'],
           },
         ],
-      })) as (EvalDataset & { cases?: EvalCase[] }) | undefined;
-      const cases = result?.cases ?? [];
-      // 用例按创建时间升序返回，取最后一条与问题匹配的用例即本次新建项。
-      const created = [...cases]
-        .reverse()
-        .find((item) => item.question === (target.input ?? ''));
+      })) as
+        | (EvalDataset & {
+            cases?: EvalCase[];
+            createdCases?: Array<{ id: string; question: string }>;
+          })
+        | undefined;
+      // cases 只是当前页；新建项必须用 createdCases 定位，否则超过一页就找不到。
+      const created =
+        result?.createdCases?.find(
+          (item) => item.question === (target.input ?? ''),
+        ) ??
+        [...(result?.cases ?? [])]
+          .reverse()
+          .find((item) => item.question === (target.input ?? ''));
       if (!created) {
         throw new Error('用例已提交，但未能定位新建用例，请刷新后手动关联');
       }
@@ -1878,8 +1886,14 @@ function EvalPanel() {
     try {
       const parsed = JSON.parse(casesJson);
       if (!Array.isArray(parsed)) throw new Error('JSON 必须是数组');
-      await aiQualityApi.addCases(selectedId, { cases: parsed });
-      setMessage(`已添加 ${parsed.length} 条用例`);
+      const result = await aiQualityApi.addCases(selectedId, { cases: parsed });
+      const created = result?.created ?? parsed.length;
+      const skipped = result?.skipped?.length ?? 0;
+      setMessage(
+        skipped > 0
+          ? `已添加 ${created} 条用例，跳过 ${skipped} 条重复`
+          : `已添加 ${created} 条用例`,
+      );
       await refreshDataset();
       await refreshDatasets();
     } catch (err: any) {
@@ -2067,7 +2081,11 @@ function EvalPanel() {
             <div>
               <div className="text-xs text-gray-500">用例数</div>
               <div className="font-medium">
-                {ds?.cases?.length ?? selectedMeta?._count?.cases ?? 0}
+                {ds?.casesTotal ??
+                  ds?._count?.cases ??
+                  selectedMeta?._count?.cases ??
+                  ds?.cases?.length ??
+                  0}
               </div>
             </div>
             <div>
@@ -2199,10 +2217,11 @@ function EvalPanel() {
       {selectedId && ds ? (
         <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
           <h3 className="mb-2 text-sm font-semibold">
-            用例（{ds.cases?.length ?? 0}）
+            用例（{ds.casesTotal ?? ds._count?.cases ?? ds.cases?.length ?? 0}）
           </h3>
           <div className="max-h-52 space-y-2 overflow-y-auto text-xs">
-            {(ds.cases ?? []).length === 0 ? (
+            {(ds.casesTotal ?? ds._count?.cases ?? ds.cases?.length ?? 0) ===
+            0 ? (
               <div className="text-gray-400">
                 暂无用例，可在高级模式中导入。
               </div>

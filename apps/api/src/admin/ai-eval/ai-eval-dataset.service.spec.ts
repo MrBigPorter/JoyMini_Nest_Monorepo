@@ -823,6 +823,7 @@ describe('AiEvalDatasetService', () => {
       id: 'ds-1',
       cases: [],
       runs: [],
+      _count: { cases: 0, runs: 0 },
     });
 
     await service.updateCase('ds-1', 'case-1', {
@@ -853,6 +854,7 @@ describe('AiEvalDatasetService', () => {
       id: 'ds-1',
       cases: [],
       runs: [],
+      _count: { cases: 0, runs: 0 },
     });
 
     await service.updateCase('ds-1', 'case-1', {
@@ -883,6 +885,7 @@ describe('AiEvalDatasetService', () => {
       id: 'ds-1',
       cases: [],
       runs: [],
+      _count: { cases: 0, runs: 0 },
     });
 
     await service.updateCase('ds-1', 'case-1', { answer: '新答案' });
@@ -917,6 +920,7 @@ describe('AiEvalDatasetService', () => {
       id: 'ds-1',
       cases: [],
       runs: [],
+      _count: { cases: 0, runs: 0 },
     });
 
     await service.deleteCase('ds-1', 'case-1');
@@ -1372,6 +1376,71 @@ describe('AiEvalDatasetService', () => {
       expect(prisma.aiEvalResult.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ orderBy: { createdAt: 'asc' } }),
       );
+    });
+  });
+
+  describe('addCases 返回新建用例标识', () => {
+    it('分页后仍能拿到本次新建用例的 id', async () => {
+      const { service, prisma } = makeService();
+      prisma.aiEvalDataset.findUnique.mockResolvedValue({
+        id: 'ds-1',
+        name: 'qa',
+        cases: [],
+        runs: [],
+        _count: { cases: 120, runs: 0 },
+      });
+      prisma.aiEvalCase.findMany.mockImplementation((args: any) => {
+        if (args?.where?.question?.in) {
+          return Promise.resolve(
+            args.where.question.in.map((question: string, i: number) => ({
+              id: `new-${i}`,
+              question,
+            })),
+          );
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await service.addCases('ds-1', {
+        cases: [{ question: '新问题', answer: 'a' }],
+      });
+
+      expect(result.created).toBe(1);
+      expect(result.createdCases).toEqual([{ id: 'new-0', question: '新问题' }]);
+    });
+  });
+
+  describe('getDataset 用例分页', () => {
+    it('120 条用例默认返回 50 条，总数取 _count.cases', async () => {
+      const { service, prisma } = makeService();
+      prisma.aiEvalDataset.findUnique.mockResolvedValue({
+        id: 'ds-1',
+        name: 'qa',
+        cases: [],
+        runs: [],
+        _count: { runs: 2, cases: 120 },
+      });
+      prisma.aiEvalCase.findMany.mockResolvedValue(
+        Array.from({ length: 50 }, (_, i) => ({ id: `c-${i}` })),
+      );
+
+      const dataset = await service.getDataset('ds-1');
+
+      expect(dataset.cases).toHaveLength(50);
+      expect(dataset.casesTotal).toBe(120);
+      expect(dataset.page).toBe(1);
+      expect(dataset.pageSize).toBe(50);
+      expect(prisma.aiEvalCase.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 0, take: 50 }),
+      );
+    });
+
+    it('页大小超过 200 直接 400', async () => {
+      const { service } = makeService();
+
+      await expect(
+        service.getDataset('ds-1', { pageSize: 10000 }),
+      ).rejects.toThrow('pageSize');
     });
   });
 });

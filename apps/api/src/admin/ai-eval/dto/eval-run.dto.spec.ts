@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { RunResultsQueryDto } from './eval-run.dto';
+import { EvalPageQueryDto } from './eval-run.dto';
 
 async function errorsOf(payload: unknown) {
-  return validate(plainToInstance(RunResultsQueryDto, payload), {
+  return validate(plainToInstance(EvalPageQueryDto, payload), {
     whitelist: true,
     forbidNonWhitelisted: true,
   });

@@ -3,10 +3,10 @@ import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { EVAL_RUN_RESULTS_LIMITS } from './eval-input.validators';
 
 /**
- * 运行结果分页参数。`pageSize` 上限由 spec 固定为 200，
+ * 运行结果 / 数据集用例共用的分页参数。`pageSize` 上限由 spec 固定为 200，
  * 超过时由校验直接返回 400，不做静默截断。
  */
-export class RunResultsQueryDto {
+export class EvalPageQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()

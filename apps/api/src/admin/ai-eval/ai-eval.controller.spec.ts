@@ -211,7 +211,7 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('数据集详情：VIEWER 的用例原文与期望置空，保留 id/tags', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getDataset('dataset-1', Role.VIEWER);
+    const result: any = await controller.getDataset('dataset-1', {}, Role.VIEWER);
 
     expect(result.cases[0]).toEqual({
       id: 'case-1',
@@ -231,7 +231,7 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('数据集详情：ADMIN 保留用例原文与期望', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getDataset('dataset-1', Role.ADMIN);
+    const result: any = await controller.getDataset('dataset-1', {}, Role.ADMIN);
 
     expect(result.cases[0].question).toBe('qa_eval_question_secret');
     expect(result.cases[0].answer).toBe('qa_eval_answer_secret');
