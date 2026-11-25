@@ -21,6 +21,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
 import { CreateAiFeedbackDto } from './dto/create-ai-feedback.dto';
+import { CreateRegressionCaseDto } from './dto/create-regression-case.dto';
 import { UpdateAiFeedbackDto } from './dto/update-ai-feedback.dto';
 import { QueryAiFeedbackDto } from './dto/query-ai-feedback.dto';
 import { CurrentRole } from '@api/common/decorators/user.decorator';
@@ -47,6 +48,16 @@ export class AiFeedbackController {
   private assertEnabled(): void {
     if (process.env.AI_FEEDBACK_UI_ENABLED !== 'true') {
       throw new ForbiddenException('AI feedback is disabled');
+    }
+  }
+
+  /** 评测写入口与评测模块同一开关：关闭时不允许新增回归用例。 */
+  private assertEvalEnabled(): void {
+    const enabled =
+      process.env.AI_EVAL_ENABLED === 'true' ||
+      process.env.NODE_ENV === 'development';
+    if (!enabled) {
+      throw new ForbiddenException('AI eval is disabled');
     }
   }
 
@@ -87,6 +98,20 @@ export class AiFeedbackController {
     // 读取不依赖写开关：运营需要能查看历史反馈；关闭开关只关闭写入。
     const result = await this.feedbackService.list(query);
     return redactSensitiveFields(result, role, ['list.input', 'list.answer']);
+  }
+
+  @Post(':id/regression-case')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: '把一条反馈沉淀为回归用例（事务 + 幂等）' })
+  async createRegressionCase(
+    @Param('id') id: string,
+    @Body() dto: CreateRegressionCaseDto,
+    @CurrentAdminId() adminId: string,
+  ) {
+    this.assertEnabled();
+    this.assertEvalEnabled();
+    return this.feedbackService.createRegressionCase(id, dto, adminId);
   }
 
   @Patch(':id')

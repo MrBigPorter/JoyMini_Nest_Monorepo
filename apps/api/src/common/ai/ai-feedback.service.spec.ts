@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { AiFeedbackService } from './ai-feedback.service';
 
 function createService() {
@@ -40,6 +40,15 @@ function createService() {
     aiTrace: {
       findFirst: jest.fn().mockResolvedValue(null),
     },
+    aiEvalDataset: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ id: 'ds-1', name: '售后退款回归集' }),
+    },
+    aiEvalCase: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({ id: 'case-1', datasetId: 'ds-1' }),
+    },
     conversation: {
       findMany: jest.fn().mockResolvedValue([]),
     },
@@ -49,6 +58,7 @@ function createService() {
       findFirst: jest.fn().mockResolvedValue(null),
     },
     $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+    $queryRaw: jest.fn().mockResolvedValue([]),
     $transaction: jest.fn(),
   };
   // 交互式事务：测试里 tx 就是同一个 mock，断言仍落在 prisma 上。
@@ -285,7 +295,9 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
       .mockResolvedValueOnce(10)
       .mockResolvedValueOnce(4);
     prisma.aiAnswerFeedback.groupBy
-      .mockResolvedValueOnce([{ failureKind: 'MODEL_ERROR', _count: { id: 2 } }])
+      .mockResolvedValueOnce([
+        { failureKind: 'MODEL_ERROR', _count: { id: 2 } },
+      ])
       .mockResolvedValueOnce([{ resolution: 'OPEN', _count: { id: 4 } }])
       .mockResolvedValueOnce([{ reviewStatus: 'PENDING', _count: { id: 4 } }]);
 
@@ -307,7 +319,10 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
     const { service, prisma } = createService();
     prisma.aiTrace.findFirst.mockResolvedValueOnce({ id: 'trace-1' });
 
-    await service.recordExplicit({ conversationId: 'c1', verdict: 'incorrect' });
+    await service.recordExplicit({
+      conversationId: 'c1',
+      verdict: 'incorrect',
+    });
 
     expect(prisma.aiAnswerFeedback.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -335,7 +350,10 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
   it('显式反馈 incorrect：自动 MODEL_ERROR + OPEN', async () => {
     const { service, prisma } = createService();
 
-    await service.recordExplicit({ conversationId: 'c1', verdict: 'incorrect' });
+    await service.recordExplicit({
+      conversationId: 'c1',
+      verdict: 'incorrect',
+    });
 
     expect(prisma.aiAnswerFeedback.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -404,9 +422,7 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
 
     const pendingWhere = prisma.aiAnswerFeedback.count.mock.calls[1][0].where;
     expect(pendingWhere.AND).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ resolution: 'OPEN' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ resolution: 'OPEN' })]),
     );
   });
 
@@ -481,11 +497,15 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
   it('updateTriage 用 resolution 双写 reviewStatus', async () => {
     const { service, prisma } = createService();
 
-    await service.updateTriage('fb-1', {
-      resolution: 'CONFIRMED',
-      failureKind: 'MODEL_ERROR',
-      note: '答非所问',
-    }, 'admin-1');
+    await service.updateTriage(
+      'fb-1',
+      {
+        resolution: 'CONFIRMED',
+        failureKind: 'MODEL_ERROR',
+        note: '答非所问',
+      },
+      'admin-1',
+    );
 
     expect(prisma.aiAnswerFeedback.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -644,7 +664,10 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
         },
         aiScore: { create: jest.fn() },
       };
-      const prisma = { ...tx, $transaction: jest.fn(async (fn: any) => fn(tx)) };
+      const prisma = {
+        ...tx,
+        $transaction: jest.fn(async (fn: any) => fn(tx)),
+      };
       const service = new AiFeedbackService(prisma as any);
 
       const results = await Promise.allSettled([
@@ -677,11 +700,7 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
       });
 
       await expect(
-        service.updateTriage(
-          'fb-1',
-          { ownerAdminId: 'admin-2' },
-          'admin-2',
-        ),
+        service.updateTriage('fb-1', { ownerAdminId: 'admin-2' }, 'admin-2'),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.aiAnswerFeedback.updateMany).not.toHaveBeenCalled();
 
@@ -696,5 +715,148 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
         }),
       );
     });
+  });
+});
+
+describe('AiFeedbackService · 加入回归（quality-console-trust 3.1）', () => {
+  const regressionFeedback = {
+    id: 'fb-1',
+    conversationId: 'c1',
+    messageId: 'ai-1',
+    input: '我的券怎么还不发',
+    source: 'implicit',
+    failureKind: 'UNEXPECTED_TRANSFER',
+    resolution: 'OPEN',
+    reviewStatus: 'PENDING',
+    linkedEvalCaseId: null,
+    version: 3,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+
+  function arrange() {
+    const { service, prisma } = createService();
+    prisma.aiAnswerFeedback.findUnique.mockResolvedValue({
+      ...regressionFeedback,
+    });
+    prisma.chatMessage.findUnique.mockResolvedValue({
+      content: '请稍等，正在为你查询',
+      source: 'ai',
+    });
+    return { service, prisma };
+  }
+
+  it('先取咨询锁，再建用例并回链', async () => {
+    const { service, prisma } = arrange();
+
+    const result = await service.createRegressionCase(
+      'fb-1',
+      {
+        datasetId: 'ds-1',
+        expected: '退款券 24 小时内发出',
+        expectedVersion: 3,
+      },
+      'admin-1',
+    );
+
+    // 同一反馈的并发请求必须串行化，锁在事务里、按 feedbackId 取。
+    expect(prisma.$queryRaw).toHaveBeenCalled();
+    expect(prisma.aiEvalCase.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        datasetId: 'ds-1',
+        question: '我的券怎么还不发',
+        answer: '请稍等，正在为你查询',
+        expect: { mustMention: ['退款券 24 小时内发出'] },
+        sourceFeedbackId: 'fb-1',
+        source: 'feedback',
+      }),
+      select: { id: true, datasetId: true },
+    });
+    expect(prisma.aiAnswerFeedback.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'fb-1', version: 3 },
+        data: expect.objectContaining({
+          linkedEvalCaseId: 'case-1',
+          resolution: 'ADDED_TO_EVAL',
+          version: { increment: 1 },
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      created: true,
+      linkedEvalCaseId: 'case-1',
+    });
+  });
+
+  it('同反馈已有用例时幂等返回，不再创建', async () => {
+    const { service, prisma } = arrange();
+    prisma.aiEvalCase.findFirst.mockResolvedValue({
+      id: 'case-1',
+      datasetId: 'ds-1',
+    });
+
+    const result = await service.createRegressionCase(
+      'fb-1',
+      { datasetId: 'ds-1', expected: '随便写' },
+      'admin-1',
+    );
+
+    expect(prisma.aiEvalCase.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      created: false,
+      linkedEvalCaseId: 'case-1',
+    });
+  });
+
+  it('回链失败时整个事务失败，不返回部分成功', async () => {
+    const { service, prisma } = arrange();
+    // 读取后别人先改了版本：条件更新命中 0 行。
+    prisma.aiAnswerFeedback.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.createRegressionCase(
+        'fb-1',
+        {
+          datasetId: 'ds-1',
+          expected: '退款券 24 小时内发出',
+          expectedVersion: 3,
+        },
+        'admin-1',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    // 用例在同事务内创建过；事务失败后数据库整体回滚，不留孤立用例。
+    expect(prisma.aiEvalCase.create).toHaveBeenCalled();
+  });
+
+  it('拒绝往 e2e: 只读数据集写用例', async () => {
+    const { service, prisma } = arrange();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-e2e',
+      name: 'e2e:feedback-20260101',
+    });
+
+    await expect(
+      service.createRegressionCase(
+        'fb-1',
+        { datasetId: 'ds-e2e', expected: '退款券 24 小时内发出' },
+        'admin-1',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.aiEvalCase.create).not.toHaveBeenCalled();
+  });
+
+  it('反馈没有用户问题时拒绝生成用例', async () => {
+    const { service, prisma } = arrange();
+    prisma.aiAnswerFeedback.findUnique.mockResolvedValue({
+      ...regressionFeedback,
+      input: '   ',
+    });
+
+    await expect(
+      service.createRegressionCase(
+        'fb-1',
+        { datasetId: 'ds-1', expected: '退款券 24 小时内发出' },
+        'admin-1',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

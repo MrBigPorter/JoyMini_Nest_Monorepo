@@ -4,6 +4,9 @@ import { AiFeedbackController } from './ai-feedback.controller';
 function createController() {
   const service = {
     recordExplicit: jest.fn().mockResolvedValue({ id: 'fb-1' }),
+    createRegressionCase: jest
+      .fn()
+      .mockResolvedValue({ created: true, linkedEvalCaseId: 'case-1' }),
     list: jest.fn().mockResolvedValue({
       list: [{ id: 'fb-1', input: '用户问题', answer: 'AI 回答' }],
       total: 1,
@@ -84,5 +87,66 @@ describe('AiFeedbackController 开关（5.3）', () => {
     expect(service.recordExplicit).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: 'c1', adminId: 'admin-1' }),
     );
+  });
+});
+
+describe('AiFeedbackController 加入回归（quality-console-trust 3.1）', () => {
+  const originalFeedback = process.env.AI_FEEDBACK_UI_ENABLED;
+  const originalEval = process.env.AI_EVAL_ENABLED;
+
+  afterEach(() => {
+    if (originalFeedback === undefined)
+      delete process.env.AI_FEEDBACK_UI_ENABLED;
+    else process.env.AI_FEEDBACK_UI_ENABLED = originalFeedback;
+    if (originalEval === undefined) delete process.env.AI_EVAL_ENABLED;
+    else process.env.AI_EVAL_ENABLED = originalEval;
+  });
+
+  it('写入交给服务端专用方法，datasetId/expected/version 原样传递', async () => {
+    process.env.AI_FEEDBACK_UI_ENABLED = 'true';
+    process.env.AI_EVAL_ENABLED = 'true';
+    const { controller, service } = createController();
+
+    await controller.createRegressionCase(
+      'fb-1',
+      { datasetId: 'ds-1', expected: '退款券 24 小时内发出', expectedVersion: 3 },
+      'admin-1',
+    );
+
+    expect(service.createRegressionCase).toHaveBeenCalledWith(
+      'fb-1',
+      { datasetId: 'ds-1', expected: '退款券 24 小时内发出', expectedVersion: 3 },
+      'admin-1',
+    );
+  });
+
+  it('评测开关关闭时拒绝沉淀，不落用例', async () => {
+    process.env.AI_FEEDBACK_UI_ENABLED = 'true';
+    delete process.env.AI_EVAL_ENABLED;
+    const { controller, service } = createController();
+
+    await expect(
+      controller.createRegressionCase(
+        'fb-1',
+        { datasetId: 'ds-1', expected: '退款券 24 小时内发出' },
+        'admin-1',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.createRegressionCase).not.toHaveBeenCalled();
+  });
+
+  it('反馈写开关关闭时拒绝沉淀，不落用例', async () => {
+    delete process.env.AI_FEEDBACK_UI_ENABLED;
+    process.env.AI_EVAL_ENABLED = 'true';
+    const { controller, service } = createController();
+
+    await expect(
+      controller.createRegressionCase(
+        'fb-1',
+        { datasetId: 'ds-1', expected: '退款券 24 小时内发出' },
+        'admin-1',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.createRegressionCase).not.toHaveBeenCalled();
   });
 });

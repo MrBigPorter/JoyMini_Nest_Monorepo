@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -720,6 +721,197 @@ export class AiFeedbackService {
 
       return updated;
     });
+  }
+
+  /**
+   * 把一条反馈沉淀为回归用例（quality-console-trust D4）。
+   *
+   * 前端旧的「addCases + 按 question 反查」在并发下会关联错用例：
+   * 同一个反馈点两次，会生成两条题干相同的用例，再按题干回查可能拿到别人那条。
+   * 这里用「事务 + 按 feedbackId 的咨询锁 + 部分唯一索引」把语义收口到
+   * 「一条反馈最多一个回归用例」，重复调用返回已有用例。
+   *
+   * 回链（写 linkedEvalCaseId）失败时整个事务回滚，不留下没有来源的孤儿用例。
+   */
+  async createRegressionCase(
+    feedbackId: string,
+    input: { datasetId: string; expected: string; expectedVersion?: number },
+    adminId: string,
+  ): Promise<{
+    created: boolean;
+    linkedEvalCaseId: string;
+    datasetId: string;
+    feedbackId: string;
+  }> {
+    const expected = input.expected?.trim();
+    if (!expected) {
+      throw new BadRequestException(
+        'Regression case requires an expectation (expected)',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 事务级咨询锁：同一反馈的并发请求在数据库层串行，锁随事务结束释放。
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${feedbackId}))`;
+
+      const feedback = await tx.aiAnswerFeedback.findUnique({
+        where: { id: feedbackId },
+        select: {
+          id: true,
+          conversationId: true,
+          messageId: true,
+          input: true,
+          source: true,
+          failureKind: true,
+          resolution: true,
+          linkedEvalCaseId: true,
+          version: true,
+          createdAt: true,
+        },
+      });
+      if (!feedback) {
+        throw new NotFoundException('Feedback not found');
+      }
+      if (
+        input.expectedVersion != null &&
+        input.expectedVersion !== feedback.version
+      ) {
+        throw new ConflictException(
+          'Feedback changed since it was loaded; reload and retry',
+        );
+      }
+
+      // 已有用例：幂等返回；回链缺失时补上，但不重复建用例。
+      const existing = await tx.aiEvalCase.findFirst({
+        where: { sourceFeedbackId: feedbackId },
+        select: { id: true, datasetId: true },
+      });
+      if (existing) {
+        if (
+          feedback.linkedEvalCaseId !== existing.id ||
+          feedback.resolution !== 'ADDED_TO_EVAL'
+        ) {
+          await tx.aiAnswerFeedback.update({
+            where: { id: feedbackId },
+            data: {
+              linkedEvalCaseId: existing.id,
+              resolution: 'ADDED_TO_EVAL',
+              reviewStatus: 'REVIEWED',
+              reviewedBy: adminId,
+              reviewedAt: new Date(),
+              version: { increment: 1 },
+            },
+          });
+        }
+        return {
+          created: false,
+          linkedEvalCaseId: existing.id,
+          datasetId: existing.datasetId,
+          feedbackId,
+        };
+      }
+
+      const dataset = await tx.aiEvalDataset.findUnique({
+        where: { id: input.datasetId },
+        select: { id: true, name: true },
+      });
+      if (!dataset) {
+        throw new NotFoundException('Eval dataset not found');
+      }
+      if (
+        typeof dataset.name === 'string' &&
+        dataset.name.trim().toLowerCase().startsWith('e2e:')
+      ) {
+        throw new BadRequestException(
+          'External harness datasets are read-only; cannot add regression case',
+        );
+      }
+
+      const question = feedback.input?.trim();
+      if (!question) {
+        throw new BadRequestException(
+          'Feedback has no user question; cannot build a regression case',
+        );
+      }
+      const answer = await this.resolveFeedbackAnswer(tx, feedback);
+
+      const created = await tx.aiEvalCase.create({
+        data: {
+          datasetId: dataset.id,
+          question,
+          answer: answer ?? '',
+          expect: { mustMention: [expected] } as any,
+          expected: expected as any,
+          metadata: { sourceFeedbackId: feedbackId } as any,
+          sourceFeedbackId: feedbackId,
+          source: 'feedback',
+          tags: ['from-feedback', feedback.failureKind ?? 'UNKNOWN'] as any,
+        },
+        select: { id: true, datasetId: true },
+      });
+
+      // 版本条件更新：读取后若有人先改了这条反馈，回链落空 → 409 并回滚建用例。
+      const written = await tx.aiAnswerFeedback.updateMany({
+        where: { id: feedbackId, version: feedback.version },
+        data: {
+          linkedEvalCaseId: created.id,
+          resolution: 'ADDED_TO_EVAL',
+          reviewStatus: 'REVIEWED',
+          reviewedBy: adminId,
+          reviewedAt: new Date(),
+          version: { increment: 1 },
+        },
+      });
+      if (written.count === 0) {
+        throw new ConflictException(
+          'Feedback changed while linking the regression case; retry',
+        );
+      }
+
+      return {
+        created: true,
+        linkedEvalCaseId: created.id,
+        datasetId: created.datasetId,
+        feedbackId,
+      };
+    });
+  }
+
+  /**
+   * 回归用例里的答案取被评价的 AI 消息；显式反馈按 messageId 精确取，
+   * 隐式信号回退到该反馈时间点前最近一条 AI 消息。取不到就留空，
+   * 由运营在评测集里补，不能让「找不到答案」阻断沉淀。
+   */
+  private async resolveFeedbackAnswer(
+    tx: {
+      chatMessage: {
+        findUnique: (args: any) => Promise<any>;
+        findFirst: (args: any) => Promise<any>;
+      };
+    },
+    feedback: {
+      conversationId: string;
+      messageId: string | null;
+      createdAt: Date;
+    },
+  ): Promise<string | null> {
+    if (feedback.messageId) {
+      const message = await tx.chatMessage.findUnique({
+        where: { id: feedback.messageId },
+        select: { content: true, source: true },
+      });
+      if (message?.source === 'ai') return message.content ?? null;
+    }
+    const latest = await tx.chatMessage.findFirst({
+      where: {
+        conversationId: feedback.conversationId,
+        source: 'ai',
+        createdAt: { lte: feedback.createdAt },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { content: true },
+    });
+    return latest?.content ?? null;
   }
 }
 
