@@ -5,7 +5,7 @@
  */
 import { redactPiiText } from '@api/common/utils/pii-redaction';
 
-export const PRELABEL_PROMPT_VERSION = '2.1.0';
+export const PRELABEL_PROMPT_VERSION = '2.2.0';
 
 export const PRELABEL_CORRECTNESS = [
   'solved',
@@ -18,8 +18,6 @@ export type PrelabelCorrectness = (typeof PRELABEL_CORRECTNESS)[number];
 
 export interface PrelabelResult {
   correctness: PrelabelCorrectness;
-  helpfulness: number | null;
-  tone_safety: number | null;
   confidence: number;
   reason: string;
 }
@@ -80,11 +78,10 @@ export function buildPrelabelMessages(input: PrelabelInput): Array<{
 11. 政策类问题（隐私、退款、配送）只给“帮助中心/联系客服”而不给直接答案，判 partial。
 unsafe 覆盖一切，即使内容正确也记 unsafe。
 
-helpfulness / tone_safety：1–5 整数，5 最好，1 最差。
 confidence：0–1，表示你对本次判断的把握；不确定就低。
 
 只输出一个 JSON 对象，不要 markdown：
-{"correctness":"solved|partial|unsolved|unsafe|abstain","helpfulness":1,"tone_safety":1,"confidence":0.0,"reason":"不超过80字"}`;
+{"correctness":"solved|partial|unsolved|unsafe|abstain","confidence":0.0,"reason":"不超过80字"}`;
 
   const user = [
     `意图：${input.intent ?? 'unknown'}`,
@@ -126,19 +123,6 @@ export function parsePrelabelOutput(raw: string): PrelabelResult | null {
     return null;
   }
 
-  const scoreOf = (input: unknown): number | null | undefined => {
-    if (input == null) return null;
-    const number = Number(input);
-    if (!Number.isInteger(number) || number < 1 || number > 5) return undefined;
-    return number;
-  };
-
-  const helpfulness = scoreOf(value.helpfulness);
-  const toneSafety = scoreOf(value.tone_safety);
-  if (helpfulness === undefined || toneSafety === undefined) {
-    return null;
-  }
-
   const confidenceRaw = Number(value.confidence);
   const confidence = Number.isFinite(confidenceRaw)
     ? Math.min(1, Math.max(0, confidenceRaw))
@@ -146,11 +130,8 @@ export function parsePrelabelOutput(raw: string): PrelabelResult | null {
 
   return {
     correctness: correctness as PrelabelCorrectness,
-    helpfulness,
-    tone_safety: toneSafety,
     confidence,
-    reason:
-      typeof value.reason === 'string' ? value.reason.slice(0, 200) : '',
+    reason: typeof value.reason === 'string' ? value.reason.slice(0, 200) : '',
   };
 }
 

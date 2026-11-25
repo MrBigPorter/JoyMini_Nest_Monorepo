@@ -2698,8 +2698,6 @@ export interface AiEvalReportSummary {
 
 export interface AiAnnotationLabels {
   correctness: 'solved' | 'partial' | 'unsolved' | 'unsafe' | 'abstain' | null;
-  helpfulness: number | null;
-  tone_safety: number | null;
   comment: string;
 }
 
@@ -2714,4 +2712,16 @@ export interface AiAnnotationRow {
   answer: string;
   status: 'pending' | 'done';
   labels: AiAnnotationLabels;
+  labelerId: string;
+  /** 当前展示的标签来自人工还是预标注；null 表示还没标注。 */
+  labelSource: 'human' | 'prelabel' | null;
+  confidence: number | null;
+  guidelineVersion: string | null;
+  /** 预标注建议单独保留，人工改判后仍可追溯。 */
+  prelabel: {
+    correctness: AiAnnotationLabels['correctness'];
+    confidence: number | null;
+    guidelineVersion: string;
+  } | null;
+  updatedAt: string | null;
 }

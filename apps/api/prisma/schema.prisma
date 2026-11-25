@@ -2602,6 +2602,31 @@ model AiEvalResult {
   @@map("ai_eval_results")
 }
 
+/// 人工/预标注结果。只用于校准判官，不进入任何质量指标。
+/// `runId` 是作用域：评测运行写真实 run id，离线工作表写 `worksheet:<文件名>`。
+model AiEvalAnnotation {
+  id               String   @id @default(cuid()) @db.VarChar(32)
+  runId            String   @map("run_id") @db.VarChar(128)
+  caseId           String   @map("case_id") @db.VarChar(64)
+  /// 工作表按轮标注；运行级标注固定 0
+  turn             Int      @default(0)
+  /// 管理员 id；预标注固定为 "prelabel"
+  labelerId        String   @map("labeler_id") @db.VarChar(64)
+  correctness      String?  @db.VarChar(16)
+  comment          String   @default("") @db.VarChar(500)
+  guidelineVersion String   @map("guideline_version") @db.VarChar(64)
+  /// human | prelabel
+  source           String   @default("human") @db.VarChar(16)
+  /// 预标注置信度；人工标注为空
+  confidence       Float?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([runId, caseId, turn, labelerId], map: "uniq_ai_eval_annotation_scope_case_turn_labeler")
+  @@index([runId, caseId])
+  @@map("ai_eval_annotations")
+}
+
 /// 标准化问题事件（119 Phase 1）。不存原文，只存 ID 与脱敏摘要。
 model AiProblemEvent {
   id             String   @id @default(cuid()) @db.VarChar(32)

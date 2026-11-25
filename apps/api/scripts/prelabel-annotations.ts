@@ -1,8 +1,9 @@
 /**
  * AI 预标注（不是 ground truth）。
  *
- * 读取人工工作表，用不同厂商的 judge 生成草稿标签，写出 annotations-ai.jsonl。
- * 人审后只使用人工标签算 kappa；AI 标签只做参考与分歧发现。
+ * 读取人工工作表，用不同厂商的 judge 生成草稿标签。预标注落库
+ * `ai_eval_annotations`（labeler_id='prelabel'，带来源与置信度），
+ * 同时写一份 JSONL 仅作导出；人审后只使用人工标签算 kappa。
  *
  * 用法（apps/api 下）：
  *   ../../node_modules/.bin/tsx --env-file=.env scripts/prelabel-annotations.ts \
@@ -12,13 +13,19 @@
  * 常用参数：--limit=N --dry-run --resume --force --delay-ms=200
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
+import { PrismaClient } from '@prisma/client';
 import {
   buildPrelabelMessages,
   parsePrelabelOutput,
   vendorOf,
   type PrelabelResult,
 } from '../src/admin/ai-eval/prelabel/prelabel';
+import {
+  ANNOTATION_GUIDELINE_VERSION,
+  PRELABEL_LABELER,
+  worksheetScope,
+} from '../src/admin/ai-eval/annotation-labels';
 import { parseApiKeys } from '../src/common/utils/api-keys';
 
 interface WorksheetRow {
@@ -78,8 +85,7 @@ async function main() {
       ];
   const baseURL =
     process.env.AI_PRELABEL_BASE_URL ?? 'https://api.groq.com/openai/v1';
-  const allowSameVendor =
-    process.env.AI_PRELABEL_ALLOW_SAME_VENDOR === 'true';
+  const allowSameVendor = process.env.AI_PRELABEL_ALLOW_SAME_VENDOR === 'true';
   const rawKey =
     process.env.AI_PRELABEL_API_KEY ??
     process.env.GROQ_API_KEY ??
@@ -95,13 +101,10 @@ async function main() {
   if (args.includes('--list-models')) {
     for (let index = 0; index < apiKeys.length; index += 1) {
       try {
-        const response = await fetch(
-          `${baseURL.replace(/\/$/, '')}/models`,
-          {
-            headers: { Authorization: `Bearer ${apiKeys[index]}` },
-            signal: AbortSignal.timeout(15_000),
-          },
-        );
+        const response = await fetch(`${baseURL.replace(/\/$/, '')}/models`, {
+          headers: { Authorization: `Bearer ${apiKeys[index]}` },
+          signal: AbortSignal.timeout(15_000),
+        });
         if (response.status === 401 || response.status === 403) {
           console.log(`[prelabel] key ${index + 1}: unauthorized`);
           continue;
@@ -128,6 +131,54 @@ async function main() {
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#'))
     .map((line) => JSON.parse(line) as WorksheetRow);
+
+  const prisma = dryRun ? null : new PrismaClient();
+  const scope = worksheetScope(basename(worksheetPath));
+  /**
+   * 预标注写库以便校准与人工改判追溯；写库失败不终止整批，
+   * JSONL 仍然落盘，补跑可用 --resume。
+   */
+  async function persistPrelabel(
+    row: WorksheetRow,
+    correctness: string | null,
+    confidence: number | null,
+  ) {
+    if (!prisma || !correctness) return;
+    try {
+      await prisma.aiEvalAnnotation.upsert({
+        where: {
+          runId_caseId_turn_labelerId: {
+            runId: scope,
+            caseId: row.caseId,
+            turn: row.turn,
+            labelerId: PRELABEL_LABELER,
+          },
+        },
+        create: {
+          runId: scope,
+          caseId: row.caseId,
+          turn: row.turn,
+          labelerId: PRELABEL_LABELER,
+          correctness,
+          comment: '',
+          guidelineVersion: ANNOTATION_GUIDELINE_VERSION,
+          source: 'prelabel',
+          confidence,
+        },
+        update: {
+          correctness,
+          comment: '',
+          guidelineVersion: ANNOTATION_GUIDELINE_VERSION,
+          source: 'prelabel',
+          confidence,
+        },
+      });
+    } catch (error: any) {
+      console.warn(
+        `[prelabel] db persist failed for ${keyOf(row)}: ${error?.message ?? error}`,
+      );
+    }
+  }
 
   const existing = new Map<string, Record<string, unknown>>();
   if (resume && existsSync(outPath)) {
@@ -212,18 +263,14 @@ async function main() {
             const tag = `model:${candidate}:400`;
             if (!loggedFailures.has(tag)) {
               loggedFailures.add(tag);
-              console.warn(
-                `[prelabel] model ${candidate} rejected: ${detail}`,
-              );
+              console.warn(`[prelabel] model ${candidate} rejected: ${detail}`);
             }
             modelUnavailable = true;
             break;
           }
           if (response.status === 429) {
             lastError = new Error('rate limited');
-            await new Promise((resolveSleep) =>
-              setTimeout(resolveSleep, 1000),
-            );
+            await new Promise((resolveSleep) => setTimeout(resolveSleep, 1000));
             continue;
           }
           if (!response.ok) {
@@ -277,6 +324,17 @@ async function main() {
       if (status === 'ok' || status === 'abstain') {
         output.push(previous);
         skipped += 1;
+        const previousLabels = previous.labels as
+          | { correctness?: string }
+          | undefined;
+        const previousPrelabel = previous.prelabel as
+          | { confidence?: number }
+          | undefined;
+        await persistPrelabel(
+          row,
+          previousLabels?.correctness ?? null,
+          previousPrelabel?.confidence ?? null,
+        );
         continue;
       }
     }
@@ -290,7 +348,9 @@ async function main() {
 
     if (dryRun) {
       console.log(`[prelabel] dry-run ${key}`);
-      console.log(`  promptChars=${messages.reduce((sum, m) => sum + m.content.length, 0)}`);
+      console.log(
+        `  promptChars=${messages.reduce((sum, m) => sum + m.content.length, 0)}`,
+      );
       processed += 1;
       continue;
     }
@@ -314,8 +374,9 @@ async function main() {
       ...row,
       labels: {
         correctness: parsed?.correctness ?? null,
-        helpfulness: parsed?.helpfulness ?? null,
-        tone_safety: parsed?.tone_safety ?? null,
+        // 导出格式保持离线 annotate.py 兼容；1-5 维度已废弃，固定为空。
+        helpfulness: null,
+        tone_safety: null,
         comment: '',
       },
       prelabel: {
@@ -331,6 +392,11 @@ async function main() {
 
     output.push(next);
     processed += 1;
+    await persistPrelabel(
+      row,
+      parsed?.correctness ?? null,
+      parsed?.confidence ?? null,
+    );
     if (status === 'ok') ok += 1;
     else if (status === 'abstain') abstain += 1;
     else if (status === 'invalid') invalid += 1;
@@ -357,6 +423,7 @@ async function main() {
     `${output.map((row) => JSON.stringify(row)).join('\n')}\n`,
     'utf8',
   );
+  if (prisma) await prisma.$disconnect();
 
   console.log(
     `[prelabel] done: processed=${processed}, skipped=${skipped}, ok=${ok}, abstain=${abstain}, invalid=${invalid}, error=${errors}`,
@@ -367,8 +434,7 @@ async function main() {
   );
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

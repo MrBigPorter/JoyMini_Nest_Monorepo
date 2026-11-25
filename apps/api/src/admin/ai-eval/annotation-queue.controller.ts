@@ -43,6 +43,16 @@ export class AnnotationQueueController {
     return { worksheets: await this.service.listWorksheets() };
   }
 
+  @Get('export')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '导出当前管理员的已标注 JSONL（兼容离线脚本）' })
+  async export(
+    @CurrentUserId() adminId: string,
+    @Query('worksheet') worksheet?: string,
+  ) {
+    return { jsonl: await this.service.exportJsonl(adminId, worksheet) };
+  }
+
   @Patch(':caseId/:turn')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '保存一条人工标注' })
@@ -51,12 +61,17 @@ export class AnnotationQueueController {
     @Param('caseId') caseId: string,
     @Param('turn', ParseIntPipe) turn: number,
     @Body() dto: UpdateAnnotationDto,
+    @Query('worksheet') worksheet?: string,
   ) {
-    return this.service.save(adminId, caseId, turn, {
-      correctness: dto.correctness ?? null,
-      helpfulness: dto.helpfulness ?? null,
-      tone_safety: dto.tone_safety ?? null,
-      comment: dto.comment ?? '',
-    });
+    return this.service.save(
+      adminId,
+      caseId,
+      turn,
+      {
+        correctness: dto.correctness ?? null,
+        comment: dto.comment ?? '',
+      },
+      { worksheet, guidelineVersion: dto.guidelineVersion },
+    );
   }
 }

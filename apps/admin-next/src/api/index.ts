@@ -1587,11 +1587,18 @@ export const aiOpsApi = {
     caseId: string,
     turn: number,
     labels: import('@/type/types').AiAnnotationLabels,
+    worksheet?: string,
   ) =>
     http.patch<import('@/type/types').AiAnnotationRow>(
       `/v1/admin/ai-eval/annotations/${encodeURIComponent(caseId)}/${turn}`,
       labels,
+      worksheet ? { params: { worksheet } } : undefined,
     ),
+  /** GET /v1/admin/ai-eval/annotations/export — 导出 JSONL（兼容离线脚本） */
+  exportAnnotations: (worksheet?: string) =>
+    http.get<{ jsonl: string }>('/v1/admin/ai-eval/annotations/export', {
+      ...(worksheet ? { worksheet } : {}),
+    }),
   /** GET /v1/admin/ai-eval/reports — 定时评测报告 */
   getEvalReports: (limit = 20) =>
     http.get<import('@/type/types').AiEvalReportSummary[]>(
