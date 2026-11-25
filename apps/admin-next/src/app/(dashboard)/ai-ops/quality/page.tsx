@@ -32,9 +32,16 @@ import {
   toLocalDayRangeIso,
   type FeedbackFilters,
 } from '@/lib/ai-ops-quality-filters';
+import {
+  pickTraceForMessage,
+  selectFailedSpans,
+  suggestAttribution,
+  type TraceMatch,
+} from '@/lib/ai-ops-evidence';
 import type {
   AiFeedbackItem,
   AiFeedbackSummary,
+  AiTraceDetail,
   DocumentChunkDiff,
   DocumentChunkDiffEntry,
   EvalCaseHistory,
@@ -209,6 +216,146 @@ function DiagnosisBadges({ item }: { item: FeedbackRow }) {
 const RESOLUTION_OPTIONS = Object.entries(RESOLUTION_LABELS).map(
   ([value, label]) => ({ value, label }),
 );
+
+type EvidenceState =
+  | { status: 'loading' }
+  | { status: 'ready'; match: TraceMatch; trace: AiTraceDetail }
+  | { status: 'expired' }
+  | { status: 'error' };
+
+/**
+ * 质检卡片的证据面板：优先直接关联的 traceId，其次按 messageId 精确匹配，
+ * 只能回退会话最新时标「近似」，一条都没有就说明链路已过期。
+ * 任何情况下都不展示与当前记录无关的链路。
+ */
+function EvidencePanel({
+  conversationId,
+  messageId,
+  traceId,
+}: {
+  conversationId?: string | null;
+  messageId?: string | null;
+  traceId?: string | null;
+}) {
+  const [state, setState] = useState<EvidenceState>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setState({ status: 'loading' });
+      try {
+        if (traceId) {
+          const trace = await aiOpsApi.getTrace(traceId, { showError: false });
+          if (!cancelled) {
+            setState({ status: 'ready', match: 'exact', trace });
+          }
+          return;
+        }
+        if (!conversationId) {
+          if (!cancelled) setState({ status: 'expired' });
+          return;
+        }
+        const result = await aiOpsApi.getTraces(
+          { conversationId, pageSize: 20 },
+          { showError: false },
+        );
+        const pick = pickTraceForMessage(result?.list ?? [], messageId);
+        if (!pick.trace) {
+          if (!cancelled) setState({ status: 'expired' });
+          return;
+        }
+        const trace = await aiOpsApi.getTrace(pick.trace.id, {
+          showError: false,
+        });
+        if (!cancelled) {
+          setState({ status: 'ready', match: pick.match, trace });
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        // 链路被保留期清理后详情返回 404：按「证据已过期」对待，不当成加载失败。
+        setState(
+          err?.response?.status === 404
+            ? { status: 'expired' }
+            : { status: 'error' },
+        );
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, messageId, traceId]);
+
+  const failed =
+    state.status === 'ready'
+      ? selectFailedSpans(state.trace.spans ?? []).slice(0, 3)
+      : [];
+  const attribution = suggestAttribution(failed);
+
+  return (
+    <div
+      aria-label="证据面板"
+      className="mt-3 rounded-lg border bg-white p-3 text-sm dark:border-white/10 dark:bg-gray-900"
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span>这条回答的证据</span>
+        {state.status === 'ready' ? (
+          <span className="rounded-full border px-2 py-0.5 dark:border-white/10">
+            {state.match === 'exact' ? '证据 · 精确匹配' : '证据 · 近似'}
+          </span>
+        ) : null}
+      </div>
+
+      {state.status === 'loading' ? (
+        <div className="text-xs text-gray-500">正在加载关联链路…</div>
+      ) : null}
+
+      {state.status === 'error' ? (
+        <div className="text-xs text-red-600 dark:text-red-400">
+          证据读取失败，请稍后重试；未展示任何替代链路
+        </div>
+      ) : null}
+
+      {state.status === 'expired' ? (
+        <div className="text-xs text-amber-700 dark:text-amber-300">
+          证据已过期：关联链路已超过保留期被清理，不展示其他链路顶替
+        </div>
+      ) : null}
+
+      {state.status === 'ready' ? (
+        <div className="space-y-1 text-xs">
+          {state.match === 'approx' ? (
+            <div className="text-amber-700 dark:text-amber-300">
+              近似：回退到会话最新链路，可能与本条不对应，仅作参考
+            </div>
+          ) : null}
+          {failed.length > 0 ? (
+            failed.map((span) => (
+              <div key={span.id} className="text-gray-700 dark:text-gray-300">
+                失败步骤：{span.name}
+                {span.error
+                  ? `：${span.error.slice(0, 140)}`
+                  : `（${span.status ?? '未知状态'}）`}
+              </div>
+            ))
+          ) : (
+            <div className="text-gray-500">
+              未发现失败步骤（链路状态：{state.trace.status ?? '未知'}）
+            </div>
+          )}
+          {attribution ? (
+            <div className="flex flex-wrap items-center gap-1 text-gray-600 dark:text-gray-400">
+              建议归因：{attribution}
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                推断
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const RUN_STATUS_LABELS: Record<string, string> = {
   RUNNING: '运行中',
@@ -1540,6 +1687,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
               </a>
             </div>
           </div>
+          <EvidencePanel
+            conversationId={current.conversationId}
+            messageId={current.messageId}
+            traceId={current.traceId}
+          />
         </section>
       ) : null}
 

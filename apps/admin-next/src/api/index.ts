@@ -1803,20 +1803,27 @@ export const aiOpsApi = {
       params,
     ),
 
-  getTraces: (params?: {
-    conversationId?: string;
-    intent?: string;
-    page?: number;
-    pageSize?: number;
-  }) =>
+  getTraces: (
+    params?: {
+      conversationId?: string;
+      intent?: string;
+      page?: number;
+      pageSize?: number;
+    },
+    config?: { showError?: boolean },
+  ) =>
     http.get<{
       list: import('@/type/types').AiTraceRow[];
       total: number;
       page: number;
       pageSize: number;
-    }>('/v1/admin/ai-traces', params),
-  getTrace: (id: string) =>
-    http.get<import('@/type/types').AiTraceDetail>(`/v1/admin/ai-traces/${id}`),
+    }>('/v1/admin/ai-traces', params, config),
+  getTrace: (id: string, config?: { showError?: boolean }) =>
+    http.get<import('@/type/types').AiTraceDetail>(
+      `/v1/admin/ai-traces/${id}`,
+      undefined,
+      config,
+    ),
 
   getMemoryUser: (userId: string) =>
     http.get<{

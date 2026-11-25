@@ -36,6 +36,8 @@ const mockQualityStats = vi.hoisted(() => vi.fn());
 const mockGetChunksDiff = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
 const mockKbStatus = vi.hoisted(() => vi.fn());
+const mockGetTraces = vi.hoisted(() => vi.fn());
+const mockGetTrace = vi.hoisted(() => vi.fn());
 const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
 const mockAdminId = vi.hoisted(() => ({ current: 'admin-1' }));
 
@@ -46,6 +48,8 @@ vi.mock('ahooks', () => ({
 vi.mock('@/api', () => ({
   aiOpsApi: {
     getFeatures: mockGetFeatures,
+    getTraces: (...args: unknown[]) => mockGetTraces(...args),
+    getTrace: (...args: unknown[]) => mockGetTrace(...args),
   },
   chatApi: {
     getFeedbackList: (...args: unknown[]) => mockGetFeedbackList(...args),
@@ -463,6 +467,19 @@ describe('AiQualityPage', () => {
       skipped: [],
     });
     mockGetFeedbackList.mockResolvedValue({ list: [feedback], total: 1 });
+    // 默认：会话没有可保留的链路 → 证据已过期，不伪造其他链路。
+    mockGetTraces.mockResolvedValue({
+      list: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+    });
+    mockGetTrace.mockResolvedValue({
+      id: 'trace-1',
+      conversationId: 'conv-1',
+      status: 'SUCCESS',
+      spans: [],
+    });
     mockGetFeedbackSummary.mockResolvedValue(summary);
     mockListDatasets.mockResolvedValue(datasets);
     mockAddCases.mockResolvedValue({ id: 'ds-1', cases: [] });
@@ -580,6 +597,102 @@ describe('AiQualityPage', () => {
         expectedVersion: 3,
       }),
     );
+  });
+
+  it('证据按 messageId 精确匹配失败 span 并给出推断归因', async () => {
+    mockGetTraces.mockResolvedValue({
+      list: [
+        {
+          id: 'trace-exact',
+          conversationId: 'conv-1',
+          aiMessageId: 'msg-1',
+          triggerMessageId: 'msg-0',
+          status: 'ERROR',
+          createdAt: '2026-11-25T08:00:00.000Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+    mockGetTrace.mockResolvedValue({
+      id: 'trace-exact',
+      conversationId: 'conv-1',
+      status: 'ERROR',
+      spans: [
+        {
+          id: 'span-1',
+          traceId: 'trace-exact',
+          type: 'llm',
+          name: 'deepseek-chat',
+          status: 'ERROR',
+          input: null,
+          output: null,
+          error: 'upstream timeout',
+          startedAt: '2026-11-25T08:00:00.000Z',
+          endedAt: null,
+          durationMs: 30000,
+          metadata: null,
+        },
+      ],
+    });
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+
+    const panel = await screen.findByLabelText('证据面板');
+    await waitFor(() =>
+      expect(within(panel).getByText(/upstream timeout/)).toBeTruthy(),
+    );
+    expect(within(panel).getByText('证据 · 精确匹配')).toBeTruthy();
+    expect(within(panel).queryByText(/近似/)).toBeNull();
+    expect(within(panel).getByText(/建议归因：模型生成/)).toBeTruthy();
+    expect(within(panel).getByText('推断')).toBeTruthy();
+  });
+
+  it('证据只能回退会话最新链路时标注近似', async () => {
+    mockGetTraces.mockResolvedValue({
+      list: [
+        {
+          id: 'trace-latest',
+          conversationId: 'conv-1',
+          aiMessageId: 'msg-other',
+          triggerMessageId: 'msg-x',
+          status: 'SUCCESS',
+          createdAt: '2026-11-25T08:05:00.000Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+
+    const panel = await screen.findByLabelText('证据面板');
+    await waitFor(() =>
+      expect(within(panel).getByText('证据 · 近似')).toBeTruthy(),
+    );
+    expect(
+      within(panel).getByText(/会话最新链路，可能与本条不对应/),
+    ).toBeTruthy();
+  });
+
+  it('无链路时标证据已过期且不展示其他链路', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+
+    const panel = await screen.findByLabelText('证据面板');
+    await waitFor(() =>
+      expect(within(panel).getByText(/证据已过期/)).toBeTruthy(),
+    );
+    expect(within(panel).queryByText(/失败步骤/)).toBeNull();
+    expect(mockGetTrace).not.toHaveBeenCalled();
   });
 
   it('双击提交或连按 Enter 只发一次分诊请求', async () => {
