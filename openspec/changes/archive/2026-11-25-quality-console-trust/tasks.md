@@ -28,6 +28,20 @@
 
 - [x] 4.1 全量验证：`openspec validate "quality-console-trust" --strict`、两端 tsc、api jest（ai-feedback）、admin vitest、`ai-ops-smoke`；验证：全部命令以 0 退出 [Req: 管理端页面必须如实呈现失败、禁用与未知]
 - [ ] 4.2 手工演练：`AI_EVAL_ENABLED=false` 打开页面，确认无写入口、无假成功、未知不显示 0；恢复开关后确认入口出现；验证：两项均符合预期 [Req: 管理端页面必须如实呈现失败、禁用与未知]
+  - 未完成原因（2026-11-25 本地核实）：features 与写接口的门都是 `AI_EVAL_ENABLED === 'true' || NODE_ENV === 'development'`，本地后端固定 `NODE_ENV=development`，设 `AI_EVAL_ENABLED=false` 不会生效，禁用态无法在本地呈现。该状态由 vitest 开关关闭用例与 `ai-ops-smoke` 覆盖。反馈分诊的禁用态（`AI_FEEDBACK_UI_ENABLED=false`）已在真实后端上人工确认：只读提示、无写入口、无假成功。
+
+## 遗留问题（归档后另起变更处理，来自 2026-11-25 质量待办页人工走查）
+
+- 默认视图：`/ai-ops/quality/` 默认不带 `queue`，打开是全部 217 条；tab 叫「质量待办」却先展示全量。建议默认 `queue=TODO`，全量作为可选项（仅动前端默认筛选与跳转）。
+- KPI 口径混叠：六张卡分别按 `resolution`（待处理/已进回归）、队列（系统信号）、`failureKind`（模型答错/服务故障/误转）计算，互不独立且合计 ≠ 总数；最大类别「归因未知」（112 条）没有卡片。
+- 「待处理」同词不同义：KPI 指可行动队列（3 条服务故障），表格「处理结果」列指 `resolution=OPEN`（113 行）。需要区分标签（如「待办队列」与「未结案」）。
+- 诊断列噪声：`无链路` 徽标对 56% 的行（121/217）恒亮，失去判断价值，且与证据面板「证据已过期」语义重复。
+- 诊断误报：`中问英答` 会把静态兜底话术（`ai-failure-handler.ts` 的 offline_handoff）判成模型语言问题，需先排除模板回复再判定。
+- 筛选与列不匹配：有「分诊状态」筛选（`reviewStatus`），表格却只展示 `resolution`，筛完无处核对。
+- 只读态表格空列多：备注、负责人等列在该状态下全空，占宽不提供信息。
+- 时间格式：`toLocaleString()` 在中文界面渲染成 `11/24/2026, 9:43:08 PM`，需统一格式。
+- 知识质量分数不重算（2026-11-25 核实）：11/21 提交 `e4eff5ab` 给截断检查加了表格行/列表项/代码块/标题豁免，但 11/11 上传的 Account Guide、Group Buying Guide、Order Management 仍是 `quality_score=75` + `truncation`——它们的结尾分别是列表项和表格行，按现行规则应为 100。`待复核 3` 是过期数据，且没有重算入口。修法：上传新版本时重算，或提供批量重新体检动作。
+- 知识质量页其余空洞：`parse_checks` 从未写入（27 篇全为「解析未采集」，无法定位具体失败项）；有效性（检索命中/引用正确率）没有采集链路，分档只反映解析层；「待复核」没有复核动作入口，只能看新旧分块、无法落结论。
 
 ## Workflow follow-up
 
