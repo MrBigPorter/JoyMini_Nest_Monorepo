@@ -251,8 +251,35 @@ const isHarnessDataset = (ds?: { name?: string | null } | null): boolean =>
   typeof ds?.name === 'string' &&
   ds.name.trim().toLowerCase().startsWith(HARNESS_DATASET_PREFIX);
 
-function reviewStatusLabel(raw?: string | null): string {
-  return raw ? (REVIEW_STATUS_LABELS[raw as ReviewStatus] ?? raw) : '-';
+/**
+ * REVIEWED 只是“已处理”的大类，会吞掉无问题/进回归/待验证/已关闭。
+ * 列表统一展示具体处理结果，避免运营把不同结局都读成“已确认”。
+ */
+function feedbackOutcomeLabel(item: {
+  reviewStatus?: string | null;
+  resolution?: string | null;
+}): string {
+  if (item.reviewStatus === 'IGNORED') return '已排除';
+  if (item.reviewStatus !== 'REVIEWED') return '待处理';
+  switch (item.resolution) {
+    case 'NO_ISSUE':
+      return '已确认·无问题';
+    case 'CONFIRMED':
+      return '已确认·待修复';
+    case 'ADDED_TO_EVAL':
+      return '已进回归';
+    case 'FIXED_PENDING_VERIFY':
+      return '已修复待验证';
+    case 'CLOSED':
+      return '已关闭';
+    default:
+      return '已确认';
+  }
+}
+
+/** 下拉项带计数；汇总未加载时不显示数字，避免把未知当成 0。 */
+function withCount(label: string, count?: number): string {
+  return typeof count === 'number' ? `${label}（${count}）` : label;
 }
 
 function countByValue(
@@ -448,6 +475,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   );
 
   const summary = summaryData as AiFeedbackSummary | undefined;
+  const reviewStatusCount = (value: ReviewStatus) =>
+    summary ? countByValue(summary.byReviewStatus, 'status', value) : undefined;
+  const resolutionCount = (value: string) =>
+    summary ? countByValue(summary.byResolution, 'resolution', value) : undefined;
   const list = ((data as any)?.list ?? []) as FeedbackRow[];
   const datasetList: EvalDataset[] = Array.isArray(datasetListData)
     ? (datasetListData as EvalDataset[])
@@ -494,6 +525,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     },
   ];
 
+  /** 409 = 别人先改了同一行；刷新拿新版本，避免用户对着旧数据反复失败。 */
+  const isVersionConflict = (err: any) =>
+    err?.response?.status === 409 || err?.status === 409;
+
   const triage = async (
     id: string,
     patch: {
@@ -503,17 +538,27 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
       verdict?: 'correct' | 'incorrect';
       errorType?: string;
     },
+    expectedVersion?: number,
   ) => {
     const note = window.prompt('备注（可选，用于记录分诊原因）') ?? undefined;
     setActionError('');
     setActionInfo('');
     try {
-      await aiQualityApi.updateFeedback(id, { ...patch, note } as any);
+      await aiQualityApi.updateFeedback(id, {
+        ...patch,
+        note,
+        ...(expectedVersion != null ? { expectedVersion } : {}),
+      } as any);
       // 必须等刷新完成再前进，否则候选列表还是旧数据，会跳过下一条。
       await Promise.all([refreshListAsync(), refreshSummaryAsync()]);
       return true;
     } catch (err: any) {
-      setActionError(err?.message ?? '分诊失败，请重试');
+      if (isVersionConflict(err)) {
+        await Promise.all([refreshListAsync(), refreshSummaryAsync()]);
+        setActionError('这条反馈刚被他人更新，列表已刷新，请重试');
+      } else {
+        setActionError(err?.message ?? '分诊失败，请重试');
+      }
       return false;
     }
   };
@@ -526,32 +571,59 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const applyResolution = async (
     id: string,
     resolution: 'FIXED_PENDING_VERIFY' | 'CLOSED',
+    expectedVersion?: number,
   ) => {
     setActionError('');
     setActionInfo('');
     try {
-      await aiQualityApi.updateFeedback(id, { resolution } as any);
+      await aiQualityApi.updateFeedback(id, {
+        resolution,
+        ...(expectedVersion != null ? { expectedVersion } : {}),
+      } as any);
       await refreshAfterAction();
       setActionInfo(`已标记为${labelOf(RESOLUTION_LABELS, resolution)}`);
     } catch (err: any) {
-      setActionError(err?.message ?? '更新处理状态失败，请重试');
+      if (isVersionConflict(err)) {
+        await refreshAfterAction();
+        setActionError('这条反馈刚被他人更新，列表已刷新，请重试');
+      } else {
+        setActionError(err?.message ?? '更新处理状态失败，请重试');
+      }
     }
   };
 
-  /** 认领：负责人写当前管理员；已有负责人时可接手。 */
-  const claimOwner = async (id: string) => {
+  /**
+   * 认领：仅空位可认领；已有他人认领时必须显式 takeOver 才覆盖。
+   * 认领与处理完成分开——认领只写负责人，不改 reviewStatus/resolution。
+   */
+  const claimOwner = async (item: FeedbackRow) => {
     if (!adminId) {
       setActionError('未获取到当前管理员身份，无法认领');
       return;
     }
+    const currentOwner = item.claimedBy ?? item.ownerAdminId ?? null;
+    if (currentOwner === adminId) {
+      setActionInfo('这条反馈已经由你认领');
+      return;
+    }
+    const takeOver = Boolean(currentOwner);
     setActionError('');
     setActionInfo('');
     try {
-      await aiQualityApi.updateFeedback(id, { ownerAdminId: adminId } as any);
+      await aiQualityApi.updateFeedback(item.id, {
+        ownerAdminId: adminId,
+        ...(item.version != null ? { expectedVersion: item.version } : {}),
+        ...(takeOver ? { takeOver: true } : {}),
+      } as any);
       await refreshAfterAction();
-      setActionInfo('已认领，负责人是你');
+      setActionInfo(takeOver ? '已接手，负责人是你' : '已认领，负责人是你');
     } catch (err: any) {
-      setActionError(err?.message ?? '认领失败，请重试');
+      if (isVersionConflict(err)) {
+        await refreshAfterAction();
+        setActionError('这条反馈刚被他人认领或更新，列表已刷新，请重试');
+      } else {
+        setActionError(err?.message ?? '认领失败，请重试');
+      }
     }
   };
 
@@ -583,6 +655,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
           reviewStatus: 'IGNORED',
           resolution: 'EXCLUDED',
           failureKind: 'SERVICE_ERROR',
+          ...(item.version != null ? { expectedVersion: item.version } : {}),
         } as any),
       ),
     );
@@ -654,6 +727,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
       await aiQualityApi.updateFeedback(target.id, {
         linkedEvalCaseId: created.id,
         resolution: 'ADDED_TO_EVAL',
+        ...(target.version != null ? { expectedVersion: target.version } : {}),
       });
       setAddTarget(null);
       setActionInfo('已加入回归评测集');
@@ -707,7 +781,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
               resolution: 'EXCLUDED' as const,
               failureKind,
             };
-    const ok = await triage(current.id, patch);
+    const ok = await triage(current.id, patch, current.version);
     if (ok) {
       setDecision(null);
       advanceReview();
@@ -830,7 +904,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
               >
             ).map(([value, label]) => (
               <option key={value} value={value}>
-                {label}
+                {withCount(label, reviewStatusCount(value))}
               </option>
             ))}
           </select>
@@ -870,7 +944,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             <option value="">全部处理状态</option>
             {RESOLUTION_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {withCount(option.label, resolutionCount(option.value))}
               </option>
             ))}
           </select>
@@ -1103,7 +1177,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   {labelOf(TRANSFER_REASON_LABELS, current.transferReason)}
                 </div>
                 <div>处理客服：{handlerLabel(current.handlerId)}</div>
-                <div>负责人：{ownerLabel(current.ownerAdminId, adminId)}</div>
+                <div>
+                  负责人：
+                  {ownerLabel(current.claimedBy ?? current.ownerAdminId, adminId)}
+                </div>
+                <div>处理结果：{feedbackOutcomeLabel(current)}</div>
               </div>
             </div>
             <div className="rounded-lg border bg-white p-3 dark:border-white/10 dark:bg-gray-900">
@@ -1144,19 +1222,24 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={!adminId || current.ownerAdminId === adminId}
+                  disabled={
+                    !adminId ||
+                    (current.claimedBy ?? current.ownerAdminId) === adminId
+                  }
                   title={
                     !adminId
                       ? '未获取到当前管理员身份'
-                      : current.ownerAdminId === adminId
+                      : (current.claimedBy ?? current.ownerAdminId) === adminId
                         ? '你已经是这条反馈的负责人'
-                        : '把负责人设为当前管理员'
+                        : current.claimedBy ?? current.ownerAdminId
+                          ? '从其他管理员手中接手'
+                          : '把负责人设为当前管理员'
                   }
-                  onClick={() => void claimOwner(current.id)}
+                  onClick={() => void claimOwner(current)}
                 >
-                  {current.ownerAdminId === adminId
+                  {(current.claimedBy ?? current.ownerAdminId) === adminId
                     ? '已认领'
-                    : current.ownerAdminId
+                    : current.claimedBy ?? current.ownerAdminId
                       ? '接手'
                       : '认领'}
                 </Button>
@@ -1213,8 +1296,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 '来源',
                 '判定/信号',
                 '归因',
-                '分诊状态',
-                '处理状态',
+                '处理结果',
+                '负责人',
                 '诊断',
                 '用户问题',
                 'AI 回答',
@@ -1269,10 +1352,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                     {labelOf(FAILURE_KIND_LABELS, item.failureKind)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {reviewStatusLabel(item.reviewStatus)}
+                    {feedbackOutcomeLabel(item)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {labelOf(RESOLUTION_LABELS, item.resolution)}
+                    {ownerLabel(item.claimedBy ?? item.ownerAdminId, adminId)}
                   </td>
                   <td className="px-3 py-2">
                     <DiagnosisBadges item={item} />
@@ -1315,22 +1398,34 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                             size="sm"
                             variant="outline"
                             onClick={() =>
-                              void triage(item.id, {
-                                reviewStatus: 'IGNORED',
-                                resolution: 'EXCLUDED',
-                                failureKind: item.failureKind ?? 'UNKNOWN',
-                              })
+                              void triage(
+                                item.id,
+                                {
+                                  reviewStatus: 'IGNORED',
+                                  resolution: 'EXCLUDED',
+                                  failureKind: item.failureKind ?? 'UNKNOWN',
+                                },
+                                item.version,
+                              )
                             }
                           >
                             排除
                           </Button>
-                          {!item.ownerAdminId && adminId ? (
+                          {adminId &&
+                          (item.claimedBy ?? item.ownerAdminId) !== adminId ? (
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => void claimOwner(item.id)}
+                              title={
+                                item.claimedBy ?? item.ownerAdminId
+                                  ? '从其他管理员手中接手'
+                                  : '把负责人设为当前管理员'
+                              }
+                              onClick={() => void claimOwner(item)}
                             >
-                              认领
+                              {item.claimedBy ?? item.ownerAdminId
+                                ? '接手'
+                                : '认领'}
                             </Button>
                           ) : null}
                           {item.resolution === 'CONFIRMED' ? (
@@ -1342,6 +1437,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                                   void applyResolution(
                                     item.id,
                                     'FIXED_PENDING_VERIFY',
+                                    item.version,
                                   )
                                 }
                               >
@@ -1351,7 +1447,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                                 size="sm"
                                 variant="outline"
                                 onClick={() =>
-                                  void applyResolution(item.id, 'CLOSED')
+                                  void applyResolution(item.id, 'CLOSED', item.version)
                                 }
                               >
                                 关闭

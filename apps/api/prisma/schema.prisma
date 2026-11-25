@@ -2446,6 +2446,11 @@ model AiAnswerFeedback {
   resolution       String? @db.VarChar(24)
   /// 当前负责人
   ownerAdminId     String? @map("owner_admin_id") @db.VarChar(32)
+  /// 认领者与认领时间：与处理完成正交，认领不改 reviewStatus
+  claimedBy        String?   @map("claimed_by") @db.VarChar(32)
+  claimedAt        DateTime? @map("claimed_at")
+  /// 乐观锁版本：每次分诊写入 +1；并发提交用版本条件更新检测冲突
+  version          Int       @default(0)
   /// 已转成的评测用例
   linkedEvalCaseId String? @map("linked_eval_case_id") @db.VarChar(32)
   /// 关联的 trace（Phase 2 启用）

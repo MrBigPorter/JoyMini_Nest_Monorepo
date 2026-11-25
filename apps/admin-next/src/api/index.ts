@@ -1810,6 +1810,10 @@ export const aiQualityApi = {
       note?: string;
       ownerAdminId?: string;
       linkedEvalCaseId?: string;
+      /** 前端读到的版本；不一致说明别人先改了，服务端返回 409 */
+      expectedVersion?: number;
+      /** 已被他人认领时显式接手 */
+      takeOver?: boolean;
     },
   ) => http.patch(`/v1/admin/ai-feedback/${id}`, data),
 

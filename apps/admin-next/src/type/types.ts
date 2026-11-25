@@ -1352,6 +1352,11 @@ export interface AiFeedbackItem {
   failureKind?: string | null;
   resolution?: string | null;
   ownerAdminId?: string | null;
+  /** 认领者（与 ownerAdminId 同步，CAS 认领用） */
+  claimedBy?: string | null;
+  claimedAt?: string | null;
+  /** 乐观并发版本；分诊/认领时回传，服务端不一致返回 409 */
+  version?: number;
   linkedEvalCaseId?: string | null;
   traceId?: string | null;
   transferReason?: string | null;
@@ -1446,6 +1451,8 @@ export interface AiFeedbackSummary {
   signals?: number;
   byFailureKind: Array<{ failureKind: string | null; count: number }>;
   byResolution: Array<{ resolution: string | null; count: number }>;
+  /** 分诊状态计数；旧后端没有该字段时按未采集处理 */
+  byReviewStatus?: Array<{ status: string | null; count: number }>;
 }
 
 export interface QueryAiFeedbackParams {

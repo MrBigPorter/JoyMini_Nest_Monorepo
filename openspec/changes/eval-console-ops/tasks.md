@@ -2,9 +2,9 @@
 
 ## 1. 写路径
 
-- [ ] 1.1 手写迁移：`AiAnswerFeedback` 增 `version`（默认 0）、`claimedBy/claimedAt`；DTO 增 `expectedVersion/takeOver`；`updateTriage` 改交互式事务 + CAS + `AiScore` 同事务（删除 `.catch()`）；select 扩全；spec mock 改交互式事务；验证：jest 并发提交返回 409、评分失败整体回滚、仅改备注不写 reviewedBy [Req: 反馈必须可分诊]
-- [ ] 1.2 认领 CAS：仅空位可认领，`takeOver=true` 才覆盖；前端带 `expectedVersion`；验证：jest 两人同时认领只有一个成功，vitest 覆盖按钮态 [Req: 反馈必须可分诊]
-- [ ] 1.3 认领与处理完成分开呈现；`REVIEWED` 不再吞 `NO_ISSUE/ADDED_TO_EVAL/FIXED_PENDING_VERIFY/CLOSED`；验证：vitest 状态文案与筛选计数正确 [Req: 反馈必须可分诊]
+- [x] 1.1 手写迁移：`AiAnswerFeedback` 增 `version`（默认 0）、`claimedBy/claimedAt`；DTO 增 `expectedVersion/takeOver`；`updateTriage` 改交互式事务 + CAS + `AiScore` 同事务（删除 `.catch()`）；select 扩全；spec mock 改交互式事务；验证：jest 并发提交返回 409、评分失败整体回滚、仅改备注不写 reviewedBy [Req: 反馈必须可分诊]
+- [x] 1.2 认领 CAS：仅空位可认领，`takeOver=true` 才覆盖；前端带 `expectedVersion`；验证：jest 两人同时认领只有一个成功，vitest 覆盖按钮态 [Req: 反馈必须可分诊]
+- [x] 1.3 认领与处理完成分开呈现；`REVIEWED` 不再吞 `NO_ISSUE/ADDED_TO_EVAL/FIXED_PENDING_VERIFY/CLOSED`；验证：vitest 状态文案与筛选计数正确 [Req: 反馈必须可分诊]
 
 ## 2. 输入与判分条件
 

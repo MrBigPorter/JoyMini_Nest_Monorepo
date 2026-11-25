@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import {
   deriveExplicit,
@@ -462,7 +467,7 @@ export class AiFeedbackService {
       : actionable;
     const signalWhere = createdAt ? { AND: [{ createdAt }, signal] } : signal;
 
-    const [total, pending, signals, byFailureKind, byResolution] =
+    const [total, pending, signals, byFailureKind, byResolution, byReviewStatus] =
       await Promise.all([
         this.prisma.aiAnswerFeedback.count({ where: base }),
         this.prisma.aiAnswerFeedback.count({ where: pendingWhere as never }),
@@ -474,6 +479,12 @@ export class AiFeedbackService {
         }),
         this.prisma.aiAnswerFeedback.groupBy({
           by: ['resolution'],
+          where: base,
+          _count: { id: true },
+        }),
+        // 分诊状态计数：REVIEWED 是多种处理结果的集合，页面需要独立计数
+        this.prisma.aiAnswerFeedback.groupBy({
+          by: ['reviewStatus'],
           where: base,
           _count: { id: true },
         }),
@@ -490,6 +501,10 @@ export class AiFeedbackService {
         resolution: row.resolution,
         count: row._count.id,
       })),
+      byReviewStatus: byReviewStatus.map((row) => ({
+        status: row.reviewStatus,
+        count: row._count.id,
+      })),
     };
   }
 
@@ -504,90 +519,151 @@ export class AiFeedbackService {
       note?: string;
       ownerAdminId?: string;
       linkedEvalCaseId?: string;
+      /** 客户端读到的版本；过期说明别人先改了，返回 409 让前端重读。 */
+      expectedVersion?: number;
+      /** 已被他人认领时，显式接手才允许改写负责人。 */
+      takeOver?: boolean;
     },
     adminId: string,
   ) {
-    const existing = await this.prisma.aiAnswerFeedback.findUnique({
-      where: { id },
-      select: {
-        verdict: true,
-        failureKind: true,
-        resolution: true,
-        reviewStatus: true,
-      },
-    });
-    if (!existing) {
-      throw new NotFoundException('Feedback not found');
-    }
+    // 读→派生→写必须在同一事务里：分成两步时，两个管理员能写出
+    // 「verdict=correct + resolution=EXCLUDED」这类互相矛盾的行。
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.aiAnswerFeedback.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          conversationId: true,
+          messageId: true,
+          traceId: true,
+          verdict: true,
+          failureKind: true,
+          resolution: true,
+          reviewStatus: true,
+          note: true,
+          ownerAdminId: true,
+          claimedBy: true,
+          version: true,
+        },
+      });
+      if (!existing) {
+        throw new NotFoundException('Feedback not found');
+      }
+      if (
+        input.expectedVersion != null &&
+        input.expectedVersion !== existing.version
+      ) {
+        throw new ConflictException(
+          'Feedback changed since it was loaded; reload and retry',
+        );
+      }
 
-    const nextVerdict = input.verdict ?? existing.verdict;
-    const nextFailureKind =
-      nextVerdict === 'correct'
-        ? null
-        : (input.failureKind ?? existing.failureKind);
-
-    // 结论与旧状态必须同时派生，避免 reviewStatus / resolution 分叉（113 §9）。
-    let nextResolution: FeedbackResolution | undefined;
-    let nextReviewStatus: string | undefined;
-    if (input.resolution) {
-      nextResolution = input.resolution;
-      nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[input.resolution];
-    } else if (input.reviewStatus) {
-      nextResolution =
+      const nextVerdict = input.verdict ?? existing.verdict;
+      const nextFailureKind =
         nextVerdict === 'correct'
-          ? 'NO_ISSUE'
-          : REVIEW_STATUS_TO_RESOLUTION[input.reviewStatus];
-      nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[nextResolution];
-    } else if (input.verdict === 'correct') {
-      nextResolution = 'NO_ISSUE';
-      nextReviewStatus = 'REVIEWED';
-    } else if (input.verdict === 'incorrect' && !existing.resolution) {
-      nextResolution = 'OPEN';
-      nextReviewStatus = 'PENDING';
-    }
+          ? null
+          : (input.failureKind ?? existing.failureKind);
 
-    const judgmentProvided = Boolean(
-      input.verdict ||
-      input.failureKind ||
-      input.reviewStatus ||
-      input.resolution,
-    );
-    const judgmentChanged =
-      (input.verdict != null && nextVerdict !== existing.verdict) ||
-      (input.failureKind != null && nextFailureKind !== existing.failureKind);
+      // 结论与旧状态必须同时派生，避免 reviewStatus / resolution 分叉（113 §9）。
+      let nextResolution: FeedbackResolution | undefined;
+      let nextReviewStatus: string | undefined;
+      if (input.resolution) {
+        nextResolution = input.resolution;
+        nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[input.resolution];
+      } else if (input.reviewStatus) {
+        nextResolution =
+          nextVerdict === 'correct'
+            ? 'NO_ISSUE'
+            : REVIEW_STATUS_TO_RESOLUTION[input.reviewStatus];
+        nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[nextResolution];
+      } else if (input.verdict === 'correct') {
+        nextResolution = 'NO_ISSUE';
+        nextReviewStatus = 'REVIEWED';
+      } else if (input.verdict === 'incorrect' && !existing.resolution) {
+        nextResolution = 'OPEN';
+        nextReviewStatus = 'PENDING';
+      }
 
-    const updated = await this.prisma.aiAnswerFeedback.update({
-      where: { id },
-      data: {
-        ...(nextResolution
-          ? { resolution: nextResolution, reviewStatus: nextReviewStatus }
-          : {}),
-        ...(nextVerdict === 'correct'
-          ? { failureKind: null }
-          : input.failureKind
-            ? { failureKind: input.failureKind }
+      const judgmentProvided = Boolean(
+        input.verdict ||
+        input.failureKind ||
+        input.reviewStatus ||
+        input.resolution,
+      );
+      const judgmentChanged =
+        (input.verdict != null && nextVerdict !== existing.verdict) ||
+        (input.failureKind != null && nextFailureKind !== existing.failureKind);
+
+      // 认领与处理完成是正交属性：只改负责人时不碰 reviewStatus/reviewedBy。
+      // 已有人认领时必须显式 takeOver，不静默覆盖负责人。
+      const claimData: Record<string, unknown> = {};
+      if (input.ownerAdminId !== undefined) {
+        const owner = input.ownerAdminId.trim() || null;
+        if (
+          owner &&
+          existing.claimedBy &&
+          existing.claimedBy !== owner &&
+          input.takeOver !== true
+        ) {
+          throw new ConflictException(
+            'Feedback is already claimed; pass takeOver=true to take over',
+          );
+        }
+        if (owner && existing.claimedBy !== owner) {
+          claimData.claimedBy = owner;
+          claimData.claimedAt = new Date();
+        } else if (!owner && existing.claimedBy) {
+          // 释放认领，回到「未认领」而不是留下一个失效的负责人。
+          claimData.claimedBy = null;
+          claimData.claimedAt = null;
+        }
+        claimData.ownerAdminId = owner;
+      }
+
+      // 版本条件更新 = 乐观锁：并发请求只有一个 count=1，另一个拿到 409。
+      const written = await tx.aiAnswerFeedback.updateMany({
+        where: { id, version: existing.version },
+        data: {
+          ...(nextResolution
+            ? { resolution: nextResolution, reviewStatus: nextReviewStatus }
             : {}),
-        ...(input.verdict ? { verdict: input.verdict } : {}),
-        ...(input.errorType !== undefined
-          ? { errorType: input.errorType ?? null }
-          : {}),
-        ...(input.note !== undefined ? { note: input.note.slice(0, 500) } : {}),
-        ...(input.ownerAdminId !== undefined
-          ? { ownerAdminId: input.ownerAdminId }
-          : {}),
-        ...(input.linkedEvalCaseId !== undefined
-          ? { linkedEvalCaseId: input.linkedEvalCaseId }
-          : {}),
-        ...(judgmentProvided
-          ? { reviewedBy: adminId, reviewedAt: new Date() }
-          : {}),
-      },
-    });
+          ...(nextVerdict === 'correct'
+            ? { failureKind: null }
+            : input.failureKind
+              ? { failureKind: input.failureKind }
+              : {}),
+          ...(input.verdict ? { verdict: input.verdict } : {}),
+          ...(input.errorType !== undefined
+            ? { errorType: input.errorType ?? null }
+            : {}),
+          ...(input.note !== undefined
+            ? { note: input.note.slice(0, 500) }
+            : {}),
+          ...claimData,
+          ...(input.linkedEvalCaseId !== undefined
+            ? { linkedEvalCaseId: input.linkedEvalCaseId }
+            : {}),
+          ...(judgmentProvided
+            ? { reviewedBy: adminId, reviewedAt: new Date() }
+            : {}),
+          version: { increment: 1 },
+        },
+      });
+      if (written.count === 0) {
+        throw new ConflictException(
+          'Feedback changed since it was loaded; reload and retry',
+        );
+      }
 
-    // 只有判定变化才写评分；仅改备注/指派不重复写 HUMAN score。
-    if (judgmentChanged) {
-      await this.prisma.aiScore
-        .create({
+      const updated = await tx.aiAnswerFeedback.findUnique({ where: { id } });
+      if (!updated) {
+        throw new NotFoundException('Feedback not found');
+      }
+
+      // 只有判定变化才写评分；仅改备注/认领不重复写 HUMAN score。
+      // 评分写失败必须让整个分诊回滚：不能出现「状态改了、评分没写」的半截事实。
+      if (judgmentChanged) {
+        await tx.aiScore.create({
           data: {
             conversationId: updated.conversationId,
             messageId: updated.messageId ?? null,
@@ -608,15 +684,11 @@ export class AiFeedbackService {
               failureKind: updated.failureKind,
             },
           },
-        })
-        .catch((err) =>
-          this.logger.warn(
-            `[feedback] score write failed for feedback ${updated.id}: ${err?.message ?? err}`,
-          ),
-        );
-    }
+        });
+      }
 
-    return updated;
+      return updated;
+    });
   }
 }
 

@@ -97,6 +97,9 @@ const feedback = {
   failureKind: 'UNEXPECTED_TRANSFER',
   resolution: 'OPEN',
   ownerAdminId: null,
+  claimedBy: null,
+  claimedAt: null,
+  version: 3,
   transferReason: 'ai_error',
   handlerId: 'awaiting_human',
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -111,6 +114,11 @@ const summary = {
     { failureKind: 'UNEXPECTED_TRANSFER', count: 3 },
   ],
   byResolution: [{ resolution: 'ADDED_TO_EVAL', count: 4 }],
+  byReviewStatus: [
+    { status: 'PENDING', count: 7 },
+    { status: 'REVIEWED', count: 4 },
+    { status: 'IGNORED', count: 1 },
+  ],
 };
 
 const stats = {
@@ -459,6 +467,7 @@ describe('AiQualityPage', () => {
         resolution: 'NO_ISSUE',
         verdict: 'correct',
         note: '已确认是模型答非所问',
+        expectedVersion: 3,
       }),
     );
   });
@@ -524,6 +533,7 @@ describe('AiQualityPage', () => {
         failureKind: 'MODEL_ERROR',
         verdict: 'incorrect',
         note: '已确认是模型答非所问',
+        expectedVersion: 3,
       }),
     );
     expect(refresh).toHaveBeenCalled();
@@ -541,6 +551,7 @@ describe('AiQualityPage', () => {
         resolution: 'EXCLUDED',
         failureKind: 'UNEXPECTED_TRANSFER',
         note: '已确认是模型答非所问',
+        expectedVersion: 3,
       }),
     );
   });
@@ -566,6 +577,7 @@ describe('AiQualityPage', () => {
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-confirmed', {
         resolution: 'FIXED_PENDING_VERIFY',
+        expectedVersion: 3,
       }),
     );
 
@@ -573,6 +585,7 @@ describe('AiQualityPage', () => {
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-confirmed', {
         resolution: 'CLOSED',
+        expectedVersion: 3,
       }),
     );
   });
@@ -590,9 +603,143 @@ describe('AiQualityPage', () => {
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
         ownerAdminId: 'admin-1',
+        expectedVersion: 3,
       }),
     );
     expect(screen.getByText('已认领，负责人是你')).toBeTruthy();
+  });
+
+  it('takes over a row claimed by another admin with takeOver=true', async () => {
+    wireFeedback({
+      listData: {
+        list: [{ ...feedback, claimedBy: 'admin-2', ownerAdminId: 'admin-2' }],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    expect(within(card).getByText('负责人：管理员（admin-2）')).toBeTruthy();
+
+    fireEvent.click(within(card).getByRole('button', { name: '接手' }));
+
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
+        ownerAdminId: 'admin-1',
+        expectedVersion: 3,
+        takeOver: true,
+      }),
+    );
+    expect(screen.getByText('已接手，负责人是你')).toBeTruthy();
+  });
+
+  it('disables the claim button when the current admin already owns the row', () => {
+    wireFeedback({
+      listData: {
+        list: [{ ...feedback, claimedBy: 'admin-1', ownerAdminId: 'admin-1' }],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    const claim = within(card).getByRole('button', {
+      name: '已认领',
+    }) as HTMLButtonElement;
+    expect(claim.disabled).toBe(true);
+  });
+
+  it('refreshes and explains when triage hits a version conflict', async () => {
+    mockUpdateFeedback.mockRejectedValueOnce({
+      status: 409,
+      message: 'Feedback changed since it was loaded',
+    });
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    const listCallsBefore = mockGetFeedbackList.mock.calls.length;
+    fireEvent.click(within(card).getByRole('button', { name: '确认问题' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('这条反馈刚被他人更新，列表已刷新，请重试'),
+      ).toBeTruthy(),
+    );
+    // 冲突后必须重新拉列表，拿新版本再让用户重试
+    expect(mockGetFeedbackList.mock.calls.length).toBeGreaterThan(
+      listCallsBefore,
+    );
+  });
+
+  it('shows the specific outcome for REVIEWED rows instead of a generic confirmed label', () => {
+    wireFeedback({
+      listData: {
+        list: [
+          {
+            ...feedback,
+            id: 'fb-closed',
+            reviewStatus: 'REVIEWED',
+            resolution: 'CLOSED',
+          },
+          {
+            ...feedback,
+            id: 'fb-eval',
+            reviewStatus: 'REVIEWED',
+            resolution: 'ADDED_TO_EVAL',
+          },
+        ],
+        total: 2,
+      },
+    });
+    render(<AiQualityPage />);
+
+    const closed = screen.getByText('已关闭').closest('tr')!;
+    expect(within(closed).queryByText('已确认')).toBeNull();
+    expect(screen.getAllByText('已进回归').length).toBeGreaterThan(0);
+  });
+
+  it('shows claim as a separate column from the completion outcome', () => {
+    wireFeedback({
+      listData: {
+        list: [
+          {
+            ...feedback,
+            id: 'fb-claimed',
+            reviewStatus: 'PENDING',
+            resolution: 'OPEN',
+            claimedBy: 'admin-1',
+            ownerAdminId: 'admin-1',
+          },
+        ],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    const row = within(screen.getByRole('table'))
+      .getByText('待处理')
+      .closest('tr')!;
+    // 认领不等于处理完成：状态仍是待处理，负责人单独展示
+    expect(within(row).queryByText('已确认')).toBeNull();
+    expect(within(row).getByText('我')).toBeTruthy();
+  });
+
+  it('shows counts on the triage and resolution filters', () => {
+    render(<AiQualityPage />);
+
+    expect(
+      screen.getByRole('option', { name: '待处理（7）' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('option', { name: '已确认（4）' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('option', { name: '已进回归（4）' }),
+    ).toBeTruthy();
   });
 
   it('supports J/K, 1/2/3, Enter and Esc shortcuts in review mode', async () => {
@@ -656,11 +803,13 @@ describe('AiQualityPage', () => {
       reviewStatus: 'IGNORED',
       resolution: 'EXCLUDED',
       failureKind: 'SERVICE_ERROR',
+      expectedVersion: 3,
     });
     expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-svc-2', {
       reviewStatus: 'IGNORED',
       resolution: 'EXCLUDED',
       failureKind: 'SERVICE_ERROR',
+      expectedVersion: 3,
     });
     expect(mockUpdateFeedback).not.toHaveBeenCalledWith(
       'fb-model',
@@ -755,6 +904,7 @@ describe('AiQualityPage', () => {
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
         linkedEvalCaseId: 'case-new',
         resolution: 'ADDED_TO_EVAL',
+        expectedVersion: 3,
       }),
     );
     expect(refresh).toHaveBeenCalled();
