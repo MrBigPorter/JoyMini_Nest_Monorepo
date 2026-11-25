@@ -1222,6 +1222,36 @@ describe('AiQualityPage', () => {
     expect(mockAddCases).not.toHaveBeenCalled();
   });
 
+  it('does not offer harness read-only datasets when adding to regression', () => {
+    wireFeedback({
+      datasetsData: [
+        { ...datasets[0], id: 'ds-e2e', name: 'e2e:feedback-20260101' },
+        datasets[0],
+      ],
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+
+    const select = screen.getByLabelText(
+      '选择回归评测集',
+    ) as HTMLSelectElement;
+    // e2e: 数据集由 harness 物化，控制台写入会被覆盖。
+    expect(within(select).queryByText(/e2e:/)).toBeNull();
+    // 默认落到可写数据集，而不是列表里的第一个只读数据集。
+    expect(select.value).toBe('ds-1');
+  });
+
+  it('tells the operator the expectation is required when adding a regression case', () => {
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+
+    // 弹窗文案必须与提交校验一致：期望答案必填，不是「稍后补充」。
+    expect(screen.getByText(/期望答案必填/)).toBeTruthy();
+    expect(screen.queryByText(/稍后可补充/)).toBeNull();
+  });
+
   it('routes to the eval tab when no regression dataset exists', () => {
     wireFeedback({ datasetsData: [] });
     render(<AiQualityPage />);

@@ -648,6 +648,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const datasetList: EvalDataset[] = Array.isArray(datasetListData)
     ? (datasetListData as EvalDataset[])
     : [];
+  // e2e: 数据集由 harness 物化并整体覆盖，控制台写入不算数，不能作为回归落点。
+  const writableDatasets = datasetList.filter(
+    (dataset) => !isHarnessDataset(dataset),
+  );
   const rawTotal = (data as any)?.total;
   const total: number | undefined =
     typeof rawTotal === 'number' ? rawTotal : undefined;
@@ -868,7 +872,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
 
   const openAddToRegression = (item: FeedbackRow) => {
     setAddTarget(item);
-    setAddDatasetId((current) => current || datasetList[0]?.id || '');
+    setAddDatasetId((current) =>
+      writableDatasets.some((dataset) => dataset.id === current)
+        ? current
+        : writableDatasets[0]?.id ?? '',
+    );
     setActionError('');
     setActionInfo('');
   };
@@ -1316,16 +1324,18 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             </button>
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            将这条反馈沉淀为一条评测用例，期望结果可稍后在回归测试中补充。
+            将这条反馈沉淀为一条评测用例。期望答案必填，提交时填写，作为回归判分标准。
           </p>
           <div className="mt-2 text-xs text-gray-500">
             问题：{addTarget.input ?? '-'} · 归因：
             {labelOf(FAILURE_KIND_LABELS, addTarget.failureKind)}
           </div>
-          {datasetList.length === 0 ? (
+          {writableDatasets.length === 0 ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-sm text-amber-700 dark:text-amber-300">
-                先创建评测集
+                {datasetList.length === 0
+                  ? '先创建评测集'
+                  : '现有数据集均为 e2e: 只读数据集，请先创建可写评测集'}
               </span>
               <Button
                 size="sm"
@@ -1347,7 +1357,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 onChange={(e) => setAddDatasetId(e.target.value)}
               >
                 <option value="">选择评测集</option>
-                {datasetList.map((dataset) => (
+                {writableDatasets.map((dataset) => (
                   <option key={dataset.id} value={dataset.id}>
                     {dataset.name}（{dataset._count?.cases ?? '未知'} 条用例）
                   </option>
