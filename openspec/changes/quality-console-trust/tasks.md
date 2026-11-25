@@ -26,7 +26,7 @@
 
 ## 4. 集成验证
 
-- [ ] 4.1 全量验证：`openspec validate "quality-console-trust" --strict`、两端 tsc、api jest（ai-feedback）、admin vitest、`ai-ops-smoke`；验证：全部命令以 0 退出 [Req: 管理端页面必须如实呈现失败、禁用与未知]
+- [x] 4.1 全量验证：`openspec validate "quality-console-trust" --strict`、两端 tsc、api jest（ai-feedback）、admin vitest、`ai-ops-smoke`；验证：全部命令以 0 退出 [Req: 管理端页面必须如实呈现失败、禁用与未知]
 - [ ] 4.2 手工演练：`AI_EVAL_ENABLED=false` 打开页面，确认无写入口、无假成功、未知不显示 0；恢复开关后确认入口出现；验证：两项均符合预期 [Req: 管理端页面必须如实呈现失败、禁用与未知]
 
 ## Workflow follow-up
