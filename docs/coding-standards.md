@@ -92,6 +92,18 @@
 | 接口契约 | 函数参数和返回值类型明确 |
 | 解耦 | 改 A 模块不需要改 B 模块 |
 
+### 11. AI 质量链路 — "这个数字还能被解释吗？"
+
+改动 `apps/api/src/admin/ai-eval/`、`tools/eval/e2e/` 或 `/ai-ops/quality` 页面时逐项勾选：
+
+| 检查项 | 说明 |
+|--------|------|
+| 链路步骤 | 声明改的是 122 总纲 §3 的哪一步（采集/反馈/分诊/归因/转用例/数据集/运行/汇总/基线/证据/A/B） |
+| 四不变量 | 逐条回答 122 §8.1：指标可复算、标注可归属、失败可定位、回归可解释；受影响就写清影响 |
+| 契约登记 | 新增 summary 字段/枚举值/指标族/状态转移先登记 `quality-contract.registry.ts`，否则测试红 |
+| 跑门禁 | `yarn workspace @lucky/api test -- quality-contract` + 核对 `openspec/changes/ai-quality-loop-contract/design.md` 的映射表 |
+| 族与版本 | 不同族不得共用版本号；跨族禁止 `delta/newFailures/fixed`；缺 `metricFamily` 即违约 |
+
 ---
 
 ## 每次写代码的流程
