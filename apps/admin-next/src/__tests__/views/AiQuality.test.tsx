@@ -363,6 +363,44 @@ function wireEvalTab(
   };
 }
 
+/**
+ * 运行状态会随轮询/取消变化：run hook 返回 getter 的当前值，
+ * 数据集列表与数据集详情各挂一个 refresh spy，用来数「终态刷新」次数。
+ */
+function wireEvalTransitions(
+  detail: unknown,
+  getRunData: () => unknown,
+  refreshDataset: () => void,
+  refreshDatasets: () => void,
+) {
+  let index = 0;
+  let inEval = false;
+  mockUseRequest.mockImplementation((service: unknown) => {
+    if (service === mockKbStatus) return makeUseRequest(kbRegressionStatus);
+    if (typeof service === 'function') void (service as () => unknown)();
+    const slot = index % 4;
+    index += 1;
+    if (!inEval) {
+      if (slot === 0)
+        return makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true });
+      if (slot === 1) return makeUseRequest(summary);
+      if (slot === 2)
+        return makeUseRequest({ list: [feedback], total: 1 });
+      return makeUseRequest(datasets);
+    }
+    if (slot === 0)
+      return { ...makeUseRequest(datasets), refresh: refreshDatasets };
+    if (slot === 1)
+      return { ...makeUseRequest(detail), refresh: refreshDataset };
+    if (slot === 2) return makeUseRequest(getRunData());
+    return makeUseRequest(null);
+  });
+  return () => {
+    inEval = true;
+    index = 0;
+  };
+}
+
 const mockReplace = vi.fn();
 
 describe('AiQualityPage', () => {
@@ -1548,6 +1586,42 @@ describe('AiQualityPage', () => {
     expect(screen.queryByText(/request failed/i)).toBeNull();
   });
 
+  it('运行卡展示运行标识、范围、指标族、进度与失败类别', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-detail-1',
+      datasetId: 'ds-1',
+      status: 'FAILED',
+      mode: 'STORED',
+      scope: 'full',
+      metricFamily: 'verdict3',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: {
+        total: 20,
+        processed: 18,
+        judged: 16,
+        failureCategory: 'judge_unavailable',
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+
+    expect(screen.getByText(/运行 ID：run-detail-1/)).toBeTruthy();
+    expect(screen.getByText(/运行范围：全量/)).toBeTruthy();
+    expect(screen.getByText(/指标族：verdict3/)).toBeTruthy();
+    expect(screen.getByText(/已处理 18 \/ 共 20/)).toBeTruthy();
+    expect(screen.getByText(/失败类别：judge_unavailable/)).toBeTruthy();
+  });
+
   it('shows mode, baseline delta, new failures and fixed on the run card', () => {
     const enterEval = wireEvalTab(evalDatasetDetail, {
       id: 'run-1',
@@ -1716,6 +1790,106 @@ describe('AiQualityPage', () => {
       expect(mockCancelRun).toHaveBeenCalledWith('running-run'),
     );
     expect(screen.getByText('已取消本次运行')).toBeTruthy();
+  });
+
+  const runningRun = {
+    id: 'run-1',
+    datasetId: 'ds-1',
+    status: 'RUNNING',
+    mode: 'LIVE',
+    baselineRunId: null,
+    createdBy: 'admin',
+    summary: { total: 10 },
+    startedAt: '2026-01-02T00:00:00.000Z',
+    finishedAt: null,
+    results: [],
+  };
+
+  it('运行进入终态后刷新数据集与基线下拉各一次', async () => {
+    const refreshDataset = vi.fn();
+    const refreshDatasets = vi.fn();
+    let currentRun: any = { ...runningRun };
+    const enterEval = wireEvalTransitions(
+      evalDatasetDetail,
+      () => currentRun,
+      refreshDataset,
+      refreshDatasets,
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStartRun.mockResolvedValueOnce({ id: 'run-1', status: 'RUNNING' });
+
+    const { rerender } = render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+
+    currentRun = {
+      ...currentRun,
+      status: 'COMPLETED',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+    };
+    rerender(<AiQualityPage />);
+
+    await waitFor(() => expect(refreshDataset).toHaveBeenCalledTimes(1));
+    expect(refreshDatasets).toHaveBeenCalledTimes(1);
+  });
+
+  it('打开历史终态运行不触发刷新', async () => {
+    const refreshDataset = vi.fn();
+    const refreshDatasets = vi.fn();
+    const enterEval = wireEvalTransitions(
+      evalDatasetDetail,
+      () => ({
+        ...runningRun,
+        id: 'base-run-1',
+        status: 'COMPLETED',
+        finishedAt: '2026-01-01T01:00:00.000Z',
+      }),
+      refreshDataset,
+      refreshDatasets,
+    );
+
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    await waitFor(() =>
+      expect(mockGetRun).toHaveBeenCalledWith('base-run-1', { page: 1 }),
+    );
+    expect(refreshDataset).not.toHaveBeenCalled();
+    expect(refreshDatasets).not.toHaveBeenCalled();
+  });
+
+  it('取消成功也刷新数据集与基线下拉各一次', async () => {
+    const refreshDataset = vi.fn();
+    const refreshDatasets = vi.fn();
+    const enterEval = wireEvalTransitions(
+      evalDatasetDetail,
+      () => ({ ...runningRun, id: 'running-run' }),
+      refreshDataset,
+      refreshDatasets,
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockCancelRun.mockResolvedValueOnce({ id: 'running-run', status: 'CANCELLED' });
+
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '取消运行' }));
+
+    await waitFor(() => expect(refreshDataset).toHaveBeenCalledTimes(1));
+    expect(refreshDatasets).toHaveBeenCalledTimes(1);
   });
 
   it('shows the CANCELLED label and cancellation note on a run card', () => {

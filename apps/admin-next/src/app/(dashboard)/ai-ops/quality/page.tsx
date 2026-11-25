@@ -177,6 +177,13 @@ const RUN_STATUS_LABELS: Record<string, string> = {
   CANCELLED: '已取消',
 };
 
+/** 终态：轮询停止，且数据集卡片与基线下拉需要刷新。 */
+function isTerminalRunStatus(status: string | null | undefined): boolean {
+  return (
+    status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED'
+  );
+}
+
 const RESULT_VERDICT_LABELS: Record<string, string> = {
   solved: '解决',
   partial: '部分解决',
@@ -1913,16 +1920,33 @@ function EvalPanel() {
     { refreshDeps: [showEvidence, runId] },
   );
   const runStatus = (run as EvalRun | null | undefined)?.status;
+  // 运行结束（含取消）后，数据集卡片与“基线”下拉各刷新一次。
+  // 用 runId+状态去重：取消路径会先显式刷新，随后的状态变更不能重复刷。
+  const lastRunRefreshRef = useRef('');
+  const refreshRunDependents = (status: string | null | undefined) => {
+    if (!status) return;
+    const key = `${runId}:${status}`;
+    if (lastRunRefreshRef.current === key) return;
+    lastRunRefreshRef.current = key;
+    void refreshDataset();
+    void refreshDatasets();
+  };
+  const prevRunStatusRef = useRef<{
+    runId: string;
+    status: string | null;
+  } | null>(null);
   useEffect(() => {
-    runStatusRef.current = runStatus ?? null;
-    if (
-      runStatus === 'COMPLETED' ||
-      runStatus === 'FAILED' ||
-      runStatus === 'CANCELLED'
-    ) {
-      setPollRun(false);
+    const status = runStatus ?? null;
+    const prev = prevRunStatusRef.current;
+    // 只有同一次运行的 RUNNING → 终态才算“刚刚结束”；打开历史终态不算。
+    const sameRun = prev?.runId === runId;
+    prevRunStatusRef.current = { runId, status };
+    runStatusRef.current = status;
+    if (sameRun && prev.status === 'RUNNING' && isTerminalRunStatus(status)) {
+      refreshRunDependents(status);
     }
-  }, [runStatus]);
+    if (isTerminalRunStatus(status)) setPollRun(false);
+  }, [runId, runStatus]);
   useEffect(() => {
     setShowEvidence(false);
   }, [runId]);
@@ -2058,7 +2082,8 @@ function EvalPanel() {
       setPollRun(false);
       setMessage('已取消本次运行');
       await refreshRun();
-      await refreshDatasets();
+      // 若服务端状态还没翻到 CANCELLED，这里先补一次；状态变更效果按 runId+状态去重。
+      refreshRunDependents('CANCELLED');
     } catch (err: any) {
       setMessage(err?.message ?? '取消失败');
     } finally {
@@ -2402,8 +2427,7 @@ function EvalPanel() {
             {runData.mode !== 'EXTERNAL' &&
             runData.summary?.total != null ? (
               <span className="text-xs text-gray-500">
-                已处理 {runData.summary.processed ?? 0} / 共{' '}
-                {runData.summary.total} · 已判定 {runData.summary.judged ?? 0}
+                已判定 {runData.summary.judged ?? '未记录'}
               </span>
             ) : null}
             {typeof runData.summary?.judgeErrorRate === 'number' ? (
@@ -2422,16 +2446,24 @@ function EvalPanel() {
             <span className="text-xs text-gray-500">
               运行 ID：{runData.id}
             </span>
-            {runData.scope ? (
-              <span className="text-xs text-gray-500">
-                运行范围：
-                {runData.scope === 'full'
-                  ? '全量'
-                  : runData.scope === 'subset'
-                    ? '受影响子集'
-                    : runData.scope}
-              </span>
-            ) : null}
+            <span className="text-xs text-gray-500">
+              运行范围：
+              {runData.scope === 'full'
+                ? '全量'
+                : runData.scope === 'subset'
+                  ? '受影响子集'
+                  : '未记录'}
+            </span>
+            <span className="text-xs text-gray-500">
+              指标族：{runData.metricFamily ?? '未记录'}
+            </span>
+            <span className="text-xs text-gray-500">
+              已处理 {runData.summary?.processed ?? '未记录'} / 共{' '}
+              {runData.summary?.total ?? '未记录'}
+            </span>
+            <span className="text-xs text-gray-500">
+              失败类别：{runData.summary?.failureCategory ?? '未记录'}
+            </span>
             {runData.mode !== 'EXTERNAL' &&
             typeof runData.judgeSampleCount === 'number' ? (
               <span className="text-xs text-gray-500">

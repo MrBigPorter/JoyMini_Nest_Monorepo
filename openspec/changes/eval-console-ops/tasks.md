@@ -27,8 +27,8 @@
 
 ## 5. 状态与未知态
 
-- [ ] 5.1 `prevStatusRef` 检测 RUNNING→终态后刷新数据集与基线下拉，`cancel()` 成功同样刷新；验证：vitest 各触发一次，打开历史终态不触发 [Req: 运行终态必须刷新且状态必须可解释]
-- [ ] 5.2 运行卡展示 `runId/scope/metricFamily/processed/total/failureCategory`；验证：vitest 断言齐全 [Req: 运行终态必须刷新且状态必须可解释]
+- [x] 5.1 `prevStatusRef` 检测 RUNNING→终态后刷新数据集与基线下拉，`cancel()` 成功同样刷新；验证：vitest 各触发一次，打开历史终态不触发 [Req: 运行终态必须刷新且状态必须可解释]
+- [x] 5.2 运行卡展示 `runId/scope/metricFamily/processed/total/failureCategory`；验证：vitest 断言齐全 [Req: 运行终态必须刷新且状态必须可解释]
 - [ ] 5.3 未知态规范全站落地（`null` → 未知/未检查，推断标「推断」）；验证：`grep -n "?? 0"` 在质量页归零，vitest 覆盖三类未知 [Req: 枚举与摘要字段不得有幽灵值]
 
 ## 6. 溯源
