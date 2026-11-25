@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Param,
   Patch,
+  Query,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -29,6 +30,7 @@ import {
   CreateExternalRunDto,
   IngestExternalResultsDto,
 } from './dto/external-eval.dto';
+import { RunResultsQueryDto } from './dto/eval-run.dto';
 import {
   CurrentRole,
   CurrentUserId,
@@ -204,8 +206,12 @@ export class AiEvalController {
   @Get('runs/:id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '评测运行结果' })
-  async getRun(@Param('id') id: string, @CurrentRole() role: string | null) {
-    const run = await this.datasetService.getRun(id);
+  async getRun(
+    @Param('id') id: string,
+    @Query() query: RunResultsQueryDto,
+    @CurrentRole() role: string | null,
+  ) {
+    const run = await this.datasetService.getRun(id, query);
     return redactSensitiveFields(run, role, [
       'results.actualAnswer',
       'results.reason',

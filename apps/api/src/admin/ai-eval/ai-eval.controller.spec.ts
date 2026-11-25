@@ -242,7 +242,7 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('运行结果：VIEWER 不返回实际回答/判分理由/用例原文，保留判分元信息', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getRun('run-1', Role.VIEWER);
+    const result: any = await controller.getRun('run-1', {}, Role.VIEWER);
 
     expect(result.results[0]).toEqual({
       id: 'result-1',
@@ -277,7 +277,7 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('运行结果：ADMIN 保留实际回答/判分理由/用例原文', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getRun('run-1', Role.ADMIN);
+    const result: any = await controller.getRun('run-1', {}, Role.ADMIN);
 
     expect(result.results[0].actualAnswer).toBe('qa_eval_actual_answer_secret');
     expect(result.results[0].reason).toBe('qa_eval_reason_secret');
@@ -334,7 +334,7 @@ describe('AiEvalController VIEWER 脱敏', () => {
       ],
     });
 
-    const result: any = await controller.getRun('run-ext-1', Role.VIEWER);
+    const result: any = await controller.getRun('run-ext-1', {}, Role.VIEWER);
 
     expect(result.mode).toBe('EXTERNAL');
     // 判官错误率与错误类型分布对 VIEWER 可见：这是质量信号，不是原文

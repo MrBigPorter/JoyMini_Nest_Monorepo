@@ -17,6 +17,12 @@ export const EVAL_CASE_LIMITS = {
   resultBatch: 500,
 } as const;
 
+/** 运行结果分页：默认 50，上限 200；超限返回 400 而不是静默截断。 */
+export const EVAL_RUN_RESULTS_LIMITS = {
+  defaultPageSize: 50,
+  maxPageSize: 200,
+} as const;
+
 function serializedBytes(value: unknown): number {
   if (typeof value === 'string') return Buffer.byteLength(value);
   // mustMention 有自己的条数/长度上限；8KB 只约束其余判分条件，

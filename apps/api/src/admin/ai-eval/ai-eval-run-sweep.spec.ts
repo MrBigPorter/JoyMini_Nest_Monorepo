@@ -81,6 +81,10 @@ function makeService(rows: FakeRun[]) {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
     },
+    aiEvalResult: {
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
   };
   const service = new AiEvalDatasetService(
     prisma,

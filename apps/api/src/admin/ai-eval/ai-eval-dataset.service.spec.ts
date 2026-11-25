@@ -78,7 +78,11 @@ function makeService() {
       update: jest.fn(),
       delete: jest.fn(),
     },
-    aiEvalResult: { create: jest.fn().mockResolvedValue({}) },
+    aiEvalResult: {
+      create: jest.fn().mockResolvedValue({}),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
   };
   const judge = {
     judge: jest.fn(),
@@ -1307,6 +1311,67 @@ describe('AiEvalDatasetService', () => {
       failureCategory: null,
       metricFamily: 'verdict3',
       metricSpecVersion: 'verdict3-1',
+    });
+  });
+
+  describe('getRun 结果分页', () => {
+    function wireRun(prisma: any, status: string) {
+      prisma.aiEvalRun.findUnique.mockResolvedValue({
+        id: 'run-1',
+        status,
+        datasetId: 'ds-1',
+      });
+    }
+
+    it('2000 条结果默认返回 50 条并带总数', async () => {
+      const { service, prisma } = makeService();
+      wireRun(prisma, 'COMPLETED');
+      prisma.aiEvalResult.count.mockResolvedValue(2000);
+      prisma.aiEvalResult.findMany.mockResolvedValue(
+        Array.from({ length: 50 }, (_, i) => ({ id: `r-${i}` })),
+      );
+
+      const run = await service.getRun('run-1');
+
+      expect(run.results).toHaveLength(50);
+      expect(run.resultsTotal).toBe(2000);
+      expect(run.page).toBe(1);
+      expect(run.pageSize).toBe(50);
+      expect(prisma.aiEvalResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 0, take: 50 }),
+      );
+    });
+
+    it('页大小超过 200 直接 400，不查库', async () => {
+      const { service, prisma } = makeService();
+      wireRun(prisma, 'COMPLETED');
+
+      await expect(
+        service.getRun('run-1', { page: 1, pageSize: 10000 }),
+      ).rejects.toThrow('pageSize');
+      expect(prisma.aiEvalResult.findMany).not.toHaveBeenCalled();
+    });
+
+    it('RUNNING 按创建时间倒序，让最新结果落在第一页', async () => {
+      const { service, prisma } = makeService();
+      wireRun(prisma, 'RUNNING');
+
+      await service.getRun('run-1');
+
+      expect(prisma.aiEvalResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: { createdAt: 'desc' } }),
+      );
+    });
+
+    it('终态运行保持创建时间正序', async () => {
+      const { service, prisma } = makeService();
+      wireRun(prisma, 'COMPLETED');
+
+      await service.getRun('run-1');
+
+      expect(prisma.aiEvalResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: { createdAt: 'asc' } }),
+      );
     });
   });
 });

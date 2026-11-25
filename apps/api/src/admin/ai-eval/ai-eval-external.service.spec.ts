@@ -111,7 +111,11 @@ function makeService() {
       update: jest.fn().mockResolvedValue({}),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
-    aiEvalResult: { createMany: jest.fn().mockResolvedValue({ count: 3 }) },
+    aiEvalResult: {
+      createMany: jest.fn().mockResolvedValue({ count: 3 }),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
     aiScore: { create: jest.fn() },
     $queryRawUnsafe: jest.fn().mockResolvedValue([{}]),
   };

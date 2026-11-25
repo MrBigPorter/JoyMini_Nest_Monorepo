@@ -18,6 +18,7 @@ import { evaluateKnowledgeStability } from '@api/common/knowledge/corpus-fingerp
 import type { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { runWithContext } from '@api/common/logger/trace-context';
 import { classifyJudgeError } from '@api/admin/rag/judge-input-spec';
+import { EVAL_RUN_RESULTS_LIMITS } from './dto/eval-input.validators';
 import {
   AiEvalJudgeService,
   JudgeFailureError,
@@ -992,18 +993,46 @@ export class AiEvalDatasetService {
     });
   }
 
-  async getRun(id: string) {
-    const run = await this.prisma.aiEvalRun.findUnique({
-      where: { id },
-      include: {
-        results: {
-          include: { case: true },
-          orderBy: { createdAt: 'asc' },
-        },
-      },
-    });
+  /**
+   * 读取一次运行。`results` 仍是数组，但只承载当前页；
+   * 总数走 `resultsTotal`，避免大运行一次拉全量拖垮接口。
+   * RUNNING 倒序，让轮询的第一页始终是最新结果。
+   */
+  async getRun(
+    id: string,
+    options: { page?: number; pageSize?: number } = {},
+  ) {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? EVAL_RUN_RESULTS_LIMITS.defaultPageSize;
+    if (
+      !Number.isInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > EVAL_RUN_RESULTS_LIMITS.maxPageSize
+    ) {
+      throw new BadRequestException(
+        `pageSize must be an integer between 1 and ${EVAL_RUN_RESULTS_LIMITS.maxPageSize}`,
+      );
+    }
+    if (!Number.isInteger(page) || page < 1) {
+      throw new BadRequestException('page must be an integer >= 1');
+    }
+
+    const run = await this.prisma.aiEvalRun.findUnique({ where: { id } });
     if (!run) throw new NotFoundException('Eval run not found');
-    return run;
+
+    const where = { runId: id };
+    const [resultsTotal, results] = await Promise.all([
+      this.prisma.aiEvalResult.count({ where }),
+      this.prisma.aiEvalResult.findMany({
+        where,
+        include: { case: true },
+        orderBy: { createdAt: run.status === 'RUNNING' ? 'desc' : 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return { ...run, results, resultsTotal, page, pageSize };
   }
 
   /**
