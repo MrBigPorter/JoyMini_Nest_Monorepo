@@ -1,6 +1,6 @@
 # Current Task — 两周补齐计划（生产化 + 岗位就绪）
 
-> 更新: 2026-11-19
+> 更新: 2026-11-25（M3–M6 状态已按代码事实校正；此后以 `openspec list` 为唯一状态源）
 > 依据: [#85 生产化差距审计](./AI-joymini/85-生产化差距审计与企业上线清单.md)、[#86 岗位匹配度与路线图](./AI-joymini/86-岗位匹配度评估与两周补齐路线图.md)
 > 当前得分: **≈79 / 100**（2026-11-20 按 #86 §10 逐维重评）
 
@@ -28,10 +28,17 @@
 | M1 | 发布事件、`kb-generation` 队列、生成/过滤/裁判/去重、补偿扫描 | ✅ 2026-11-23（含端到端） |
 | M2a | 关键词自动生效（`autoKeywords`、回滚、审计） | ✅ 2026-11-23（含端到端） |
 | M2b | 示例/golden 人工审核 API + `/knowledge/candidates` | ✅ 2026-11-23（后端 + 前端） |
-| M3 | 合成评测集 + RAG 报告 API/UI | 待做 |
-| M4 | 评测 CI 闸门 + 语料指纹 + 基线治理 | 待做 |
-| M5 | 可观测与运营趋势 | 待做 |
-| M6 | 既有缺陷修复（元数据 PATCH、软删、队列错误、未注册标签） | 待做 |
+| M3 | 合成评测集 + RAG 报告 API/UI | ✅ 2026-11-24（评测控制台 `/ai-ops/quality`：数据集 / 运行 / 证据 / KB 回归） |
+| M4 | 评测 CI 闸门 + 语料指纹 + 基线治理 | ✅ 主体 2026-11-24（`d380dcb3`；`kb-regression-gate` 28/32，剩 QA 全量 run 7.1 与门禁演练 7.3） |
+| M5 | 可观测与运营趋势 | 待做（`/ai-ops/reports` 只有每日抽样报告，无趋势 / 运营看板） |
+| M6 | 既有缺陷修复（元数据 PATCH、软删、队列错误、未注册标签） | 🟡 部分：PATCH 正文已收口；软删、队列错误、未注册 `human_support` 未做 |
+
+**2026-11-25 状态校正（此前 M3–M6 标「待做」已失实）**
+
+- 状态源迁移：`openspec/specs/` 是系统行为契约，`openspec/changes/<name>/tasks.md` 是任务清单；本文件只保留历史进展叙述，不再作为实时状态。
+- 当前 in-progress change（`openspec list`）：`kb-regression-gate` 28/32、`admin-ai-governance-console` 19/20、`fix-ai-coupon-claim-correctness` 34/35、`ai-action-card-contract` 33/34；另有 4 个 0 任务的 AI 质量台 change（`eval-console-ops` / `quality-console-trust` / `eval-run-integrity` / `ai-quality-loop-contract`，未提交）。
+- AI 质量台 2026-11-25 静态审计见 [`docs/system-review/2026-11-25-ai-quality-console-audit.md`](./system-review/2026-11-25-ai-quality-console-audit.md)；P0（删用例级联删证据、内部 run 无快照、启动竞态）按新流程走上面 4 个 L2 change，不直接开修。
+- 入口规则：新需求先走 `/req-gate`（分级 → 边界四问 → WHAT 简报 → openspec-propose），已合并进 `main`（`942f216b`）。
 
 **M0 完成（2026-11-23）**：增量迁移 `20261123190000_add_kb_generation_pipeline` 已 apply；`intent_domains` 9 行、`knowledge_domains` 8 行已灌种子。新增 `intent-domain-registry`（DB 优先 + 60s 缓存 + 空表/报错回退 TS seed）、`IntentDomainService`、`KnowledgeDomainService`、`domain-normalization`。分类器与 LLM 兜底 prompt 改读注册表；LLM 返回未注册标签一律丢弃并回退 `general`。文档上传/创建/更新统一走域归一 + 校验（`general → common`）。parity 测试覆盖种子 ↔ 标签表 ↔ `AGENT_BASE_MAP` ↔ prompt；`tsc` 0 error，相关 19+33 条测试通过。存量盘点：文档域 8 个全部合法（order 6 / common 5 / product 5 / wallet 3 / user 3 / coupon 2 / kyc 2 / lucky-draw 1）；`intent_examples` 中 `human_support` 30 条为未注册孤儿，M0 起分类时忽略并告警，M6 决定注册为 transfer 或删除。
 
