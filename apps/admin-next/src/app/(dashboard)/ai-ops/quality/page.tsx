@@ -388,13 +388,20 @@ const isHarnessDataset = (ds?: { name?: string | null } | null): boolean =>
 /**
  * REVIEWED 只是“已处理”的大类，会吞掉无问题/进回归/待验证/已关闭。
  * 列表统一展示具体处理结果，避免运营把不同结局都读成“已确认”。
+ *
+ * 认领只表示谁在处理，不代表处理完成；已认领但未处理的记录必须单独标出，
+ * 否则队列会把「有人跟进中」读成「还没人管」。
  */
 function feedbackOutcomeLabel(item: {
   reviewStatus?: string | null;
   resolution?: string | null;
+  claimedBy?: string | null;
+  ownerAdminId?: string | null;
 }): string {
   if (item.reviewStatus === 'IGNORED') return '已排除';
-  if (item.reviewStatus !== 'REVIEWED') return '待处理';
+  if (item.reviewStatus !== 'REVIEWED') {
+    return item.claimedBy ?? item.ownerAdminId ? '已认领' : '待处理';
+  }
   switch (item.resolution) {
     case 'NO_ISSUE':
       return '已确认·无问题';

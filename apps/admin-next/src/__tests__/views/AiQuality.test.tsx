@@ -851,6 +851,38 @@ describe('AiQualityPage', () => {
     expect(claim.disabled).toBe(true);
   });
 
+  it('shows a claimed-but-unreviewed row as 已认领 without changing pending counts', () => {
+    wireFeedback({
+      listData: {
+        list: [
+          {
+            ...feedback,
+            claimedBy: 'admin-2',
+            ownerAdminId: 'admin-2',
+            claimedAt: '2026-01-02T00:00:00.000Z',
+          },
+        ],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    const row = screen.getByText('我的券怎么还不发').closest('tr')!;
+    // 认领是分派，不是处理完成；状态列必须与「待处理」区分开。
+    expect(within(row).getByText('已认领')).toBeTruthy();
+    expect(within(row).queryByText('待处理')).toBeNull();
+    // 未处理的记录仍计入待处理筛选，计数不因展示口径变化。
+    expect(
+      (screen.getByLabelText('反馈分诊状态') as HTMLSelectElement).textContent,
+    ).toContain('待处理（7）');
+
+    // 卡片同样把认领与处理结果分开：负责人有名字，处理结果仍标已认领。
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    expect(within(card).getByText('处理结果：已认领')).toBeTruthy();
+    expect(within(card).getByText('负责人：管理员（admin-2）')).toBeTruthy();
+  });
+
   it('refreshes and explains when triage hits a version conflict', async () => {
     mockUpdateFeedback.mockRejectedValueOnce({
       status: 409,
@@ -922,9 +954,10 @@ describe('AiQualityPage', () => {
     render(<AiQualityPage />);
 
     const row = within(screen.getByRole('table'))
-      .getByText('待处理')
+      .getByText('已认领')
       .closest('tr')!;
-    // 认领不等于处理完成：状态仍是待处理，负责人单独展示
+    // 认领不等于处理完成：状态标已认领，负责人单独展示，不冒充已确认。
+    expect(within(row).queryByText('待处理')).toBeNull();
     expect(within(row).queryByText('已确认')).toBeNull();
     expect(within(row).getByText('我')).toBeTruthy();
   });
