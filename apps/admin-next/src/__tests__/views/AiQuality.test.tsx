@@ -23,6 +23,8 @@ const mockAddCases = vi.hoisted(() => vi.fn());
 const mockUpdateCase = vi.hoisted(() => vi.fn());
 const mockGetDataset = vi.hoisted(() => vi.fn());
 const mockGetRun = vi.hoisted(() => vi.fn());
+const mockGetRunDiff = vi.hoisted(() => vi.fn());
+const mockGetCaseHistory = vi.hoisted(() => vi.fn());
 const mockStartRun = vi.hoisted(() => vi.fn());
 const mockCancelRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
@@ -56,6 +58,8 @@ vi.mock('@/api', () => ({
     updateCase: (...args: unknown[]) => mockUpdateCase(...args),
     startRun: (...args: unknown[]) => mockStartRun(...args),
     getRun: (...args: unknown[]) => mockGetRun(...args),
+    getRunDiff: (...args: unknown[]) => mockGetRunDiff(...args),
+    getCaseHistory: (...args: unknown[]) => mockGetCaseHistory(...args),
     cancelRun: (...args: unknown[]) => mockCancelRun(...args),
     ragSearch: (...args: unknown[]) => mockRagSearch(...args),
     kbRegressionStatus: mockKbStatus,
@@ -318,7 +322,7 @@ function openTab(name: string) {
 }
 
 /**
- * EvalPanel 每轮渲染固定注册 4 个 useRequest（列表 / 详情 / 运行 / 证据），
+ * EvalPanel 每轮渲染固定注册 5 个 useRequest（列表 / 详情 / 运行 / 证据 / 差异），
  * 反馈页 4 个槽位（features/summary/list/datasets）；
  * 回归状态卡片单独按 service 身份识别，不参与槽位计数。
  * 返回的函数在打开页签前调用。
@@ -328,15 +332,16 @@ function wireEvalTab(
   runData: unknown = null,
   datasetsData: unknown = datasets,
   kbStatusData: unknown = kbRegressionStatus,
+  diffData: unknown = null,
 ) {
   let index = 0;
   let inEval = false;
   mockUseRequest.mockImplementation((service: unknown) => {
     if (service === mockKbStatus) return makeUseRequest(kbStatusData);
     if (typeof service === 'function') void (service as () => unknown)();
-    const slot = index % 4;
-    index += 1;
     if (!inEval) {
+      const slot = index % 4;
+      index += 1;
       if (slot === 0)
         return {
           ...makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true }),
@@ -351,10 +356,13 @@ function wireEvalTab(
         };
       return { ...makeUseRequest(datasets), refreshAsync: vi.fn() };
     }
+    const slot = index % 5;
+    index += 1;
     if (slot === 0) return makeUseRequest(datasetsData);
     if (slot === 1) return makeUseRequest(detail);
     if (slot === 2) return makeUseRequest(runData);
-    return makeUseRequest(null);
+    if (slot === 3) return makeUseRequest(null);
+    return makeUseRequest(diffData);
   });
   return () => {
     inEval = true;
@@ -378,9 +386,9 @@ function wireEvalTransitions(
   mockUseRequest.mockImplementation((service: unknown) => {
     if (service === mockKbStatus) return makeUseRequest(kbRegressionStatus);
     if (typeof service === 'function') void (service as () => unknown)();
-    const slot = index % 4;
-    index += 1;
     if (!inEval) {
+      const slot = index % 4;
+      index += 1;
       if (slot === 0)
         return makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true });
       if (slot === 1) return makeUseRequest(summary);
@@ -388,6 +396,8 @@ function wireEvalTransitions(
         return makeUseRequest({ list: [feedback], total: 1 });
       return makeUseRequest(datasets);
     }
+    const slot = index % 5;
+    index += 1;
     if (slot === 0)
       return { ...makeUseRequest(datasets), refresh: refreshDatasets };
     if (slot === 1)
@@ -2090,5 +2100,180 @@ describe('AiQualityPage', () => {
 
     expect(screen.getByText('知识质量统计加载失败，请重试')).toBeTruthy();
     expect(screen.queryByText('暂无知识库文档质量数据。')).toBeNull();
+  });
+
+  describe('回归用例可解释', () => {
+    const runWithBaseline = {
+      id: 'run-diff-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      scope: 'full',
+      baselineRunId: 'base-run-1',
+      createdBy: 'admin',
+      summary: { total: 5, solved: 4, partial: 0, unsolved: 1 },
+      startedAt: '2026-01-03T00:00:00.000Z',
+      finishedAt: '2026-01-03T00:10:00.000Z',
+      results: [
+        {
+          id: 'res-h1',
+          verdict: 'solved',
+          score: 1,
+          reason: '关键信息齐全',
+          latencyMs: 5,
+          case: evalDatasetDetail.cases[0],
+        },
+      ],
+    };
+    const runDiff = {
+      runId: 'run-diff-1',
+      baselineRunId: 'base-run-1',
+      metricFamily: 'verdict3',
+      comparability: { compared: 5, undecided: 1, missingBaseline: 2 },
+      counts: { newFailure: 2, fixed: 1, regressed: 1, stillFailing: 3 },
+      classes: { newFailure: [], fixed: [], regressed: [], stillFailing: [] },
+      note: '描述性分类，不构成统计显著性结论；显著性由 compare.py 配对检验给出。',
+    };
+
+    function openWithBaselineRun(
+      runData: unknown,
+      diffData: unknown = runDiff,
+    ) {
+      const enterEval = wireEvalTab(
+        { ...evalDatasetDetail, runs: [runWithBaseline] },
+        runData,
+        datasets,
+        kbRegressionStatus,
+        diffData,
+      );
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+      fireEvent.change(screen.getByLabelText('选择评测集'), {
+        target: { value: 'ds-1' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /run-diff/ }));
+    }
+
+    it('运行卡展示与基线的四类差异与可比性，不声称显著', async () => {
+      openWithBaselineRun(runWithBaseline);
+
+      expect(await screen.findByText('与基线差异')).toBeTruthy();
+      expect(screen.getByText(/新增失败 2/)).toBeTruthy();
+      expect(screen.getByText(/修复 1/)).toBeTruthy();
+      expect(screen.getByText(/回退 1/)).toBeTruthy();
+      expect(screen.getByText(/仍失败 3/)).toBeTruthy();
+      expect(
+        screen.getByText(/可比对 5 条 · 判官未判定 1 条 · 基线缺少 2 条/),
+      ).toBeTruthy();
+      expect(screen.getByText(/不构成统计显著性结论/)).toBeTruthy();
+      await waitFor(() =>
+        expect(mockGetRunDiff).toHaveBeenCalledWith('run-diff-1', 'base-run-1'),
+      );
+    });
+
+    it('没有基线的运行不请求也不展示差异', async () => {
+      openWithBaselineRun({
+        ...runWithBaseline,
+        id: 'run-diff-1',
+        baselineRunId: null,
+      });
+
+      await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+      expect(screen.queryByText('与基线差异')).toBeNull();
+      expect(mockGetRunDiff).not.toHaveBeenCalled();
+    });
+
+    it('单条结果可展开时间线，逐次展示判定与未判定', async () => {
+      mockGetCaseHistory.mockResolvedValue({
+        caseId: 'case-1',
+        datasetId: 'ds-1',
+        case: {
+          id: 'case-1',
+          question: '怎么退款',
+          tags: null,
+          sourceFeedbackId: null,
+        },
+        timeline: [
+          {
+            runId: 'run-old',
+            status: 'COMPLETED',
+            mode: 'LIVE',
+            scope: 'full',
+            isBaseline: true,
+            startedAt: '2026-01-01T00:00:00.000Z',
+            verdict: 'unsolved',
+            answerVerdict: null,
+            judgeErrorKind: null,
+            score: 0,
+            answerScore: null,
+            outcome: 'fail',
+          },
+          {
+            runId: 'run-mid',
+            status: 'COMPLETED',
+            mode: 'LIVE',
+            scope: 'full',
+            isBaseline: false,
+            startedAt: '2026-01-02T00:00:00.000Z',
+            verdict: 'solved',
+            answerVerdict: null,
+            judgeErrorKind: null,
+            score: 1,
+            answerScore: null,
+            outcome: 'pass',
+          },
+          {
+            runId: 'run-judge',
+            status: 'COMPLETED',
+            mode: 'LIVE',
+            scope: 'full',
+            isBaseline: false,
+            startedAt: '2026-01-03T00:00:00.000Z',
+            verdict: null,
+            answerVerdict: null,
+            judgeErrorKind: 'timeout',
+            score: null,
+            answerScore: null,
+            outcome: 'undecided',
+          },
+        ],
+      });
+      openWithBaselineRun(runWithBaseline);
+
+      fireEvent.click(screen.getByRole('button', { name: '查看历史' }));
+
+      await waitFor(() =>
+        expect(mockGetCaseHistory).toHaveBeenCalledWith('run-diff-1', 'case-1'),
+      );
+      expect(
+        screen.getByTestId('history-outcome-run-old').textContent,
+      ).toBe('失败');
+      expect(
+        screen.getByTestId('history-outcome-run-mid').textContent,
+      ).toBe('通过');
+      expect(
+        screen.getByTestId('history-outcome-run-judge').textContent,
+      ).toBe('未判定');
+    });
+
+    it('待验反馈在列表展示待验徽标', () => {
+      wireFeedback({
+        listData: {
+          list: [
+            {
+              ...feedback,
+              reviewStatus: 'REVIEWED',
+              resolution: 'FIXED_PENDING_VERIFY',
+            },
+          ],
+          total: 1,
+        },
+      });
+      render(<AiQualityPage />);
+
+      expect(screen.getByText('已修复待验证')).toBeTruthy();
+      expect(screen.getByText('待验')).toBeTruthy();
+    });
   });
 });

@@ -33,6 +33,7 @@ import type {
   DocumentChunkDiff,
   DocumentChunkDiffEntry,
   EvalCase,
+  EvalCaseHistory,
   EvalDataset,
   EvalRun,
   KbRegressionStatus,
@@ -92,6 +93,21 @@ const RESOLUTION_LABELS: Record<string, string> = {
   FIXED_PENDING_VERIFY: '已修复待验证',
   CLOSED: '已关闭',
   NO_ISSUE: '无问题',
+};
+
+/** 单用例时间线的判定归一；未判定（判官无结论）既不算通过也不算失败。 */
+const CASE_OUTCOME_LABELS: Record<string, string> = {
+  pass: '通过',
+  fail: '失败',
+  undecided: '未判定',
+};
+
+/** 两次运行的描述性差异分类；顺序即展示顺序。 */
+const DIFF_CLASS_LABELS: Record<string, string> = {
+  newFailure: '新增失败',
+  fixed: '修复',
+  regressed: '回退',
+  stillFailing: '仍失败',
 };
 
 /** 转人工原因翻译成运营语言；未知值原样展示，避免隐藏信息。 */
@@ -1462,6 +1478,15 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {feedbackOutcomeLabel(item)}
+                    {item.reviewStatus === 'REVIEWED' &&
+                    item.resolution === 'FIXED_PENDING_VERIFY' ? (
+                      <span
+                        className="ml-1 rounded border border-amber-300 px-1 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/40 dark:text-amber-300"
+                        title="下一轮评测通过后自动关闭；判定失败会打回并记录回退时间"
+                      >
+                        待验
+                      </span>
+                    ) : null}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {ownerLabel(item.claimedBy ?? item.ownerAdminId, adminId)}
@@ -1885,6 +1910,14 @@ function EvalPanel() {
   const [showEvidence, setShowEvidence] = useState(false);
   const [casesPage, setCasesPage] = useState(1);
   const [resultsPage, setResultsPage] = useState(1);
+  // 单条结果的时间线是按需加载的，不做全量预取。
+  const [historyCaseId, setHistoryCaseId] = useState<string | null>(null);
+  const [history, setHistory] = useState<{
+    caseId: string;
+    data: EvalCaseHistory;
+  } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
   const role = useAiOpsRole();
   const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
 
@@ -1931,6 +1964,41 @@ function EvalPanel() {
         : Promise.resolve(null),
     { refreshDeps: [showEvidence, runId] },
   );
+  // 差异只在运行登记了基线时请求；未登记基线不拿别的运行顶替。
+  const { data: runDiff } = useRequest(
+    () => {
+      const current = run as EvalRun | null | undefined;
+      return runId && current?.baselineRunId
+        ? aiQualityApi.getRunDiff(runId, current.baselineRunId)
+        : Promise.resolve(null);
+    },
+    { refreshDeps: [runId, (run as EvalRun | null | undefined)?.baselineRunId] },
+  );
+  const loadCaseHistory = async (caseId: string) => {
+    setHistoryError('');
+    setHistory(null);
+    if (!runId) {
+      setHistoryError('缺少运行 ID，无法加载时间线');
+      return;
+    }
+    setHistoryLoading(true);
+    try {
+      const data = await aiQualityApi.getCaseHistory(runId, caseId);
+      setHistory({ caseId, data });
+    } catch (err: any) {
+      setHistoryError(err?.message ?? '时间线加载失败');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+  const toggleCaseHistory = (caseId: string) => {
+    if (historyCaseId === caseId) {
+      setHistoryCaseId(null);
+      return;
+    }
+    setHistoryCaseId(caseId);
+    void loadCaseHistory(caseId);
+  };
   const runStatus = (run as EvalRun | null | undefined)?.status;
   // 运行结束（含取消）后，数据集卡片与“基线”下拉各刷新一次。
   // 用 runId+状态去重：取消路径会先显式刷新，随后的状态变更不能重复刷。
@@ -2544,6 +2612,35 @@ function EvalPanel() {
               </span>
             ) : null}
           </div>
+          {runData.baselineRunId && runDiff ? (
+            <div className="mt-3 rounded-lg border p-3 dark:border-white/10">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold">与基线差异</span>
+                <span className="text-xs text-gray-500">
+                  基线运行{' '}
+                  <span className="font-mono">
+                    {runDiff.baselineRunId.slice(0, 8)}
+                  </span>{' '}
+                  · 指标族 {runDiff.metricFamily}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                {(
+                  ['newFailure', 'fixed', 'regressed', 'stillFailing'] as const
+                ).map((klass) => (
+                  <span key={klass} data-testid={`diff-${klass}`}>
+                    {DIFF_CLASS_LABELS[klass]} {runDiff.counts[klass]}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-1 text-xs text-gray-500">
+                可比对 {runDiff.comparability.compared} 条 · 判官未判定{' '}
+                {runDiff.comparability.undecided} 条 · 基线缺少{' '}
+                {runDiff.comparability.missingBaseline} 条
+              </div>
+              <div className="mt-1 text-xs text-gray-400">{runDiff.note}</div>
+            </div>
+          ) : null}
           {runData.summary?.error ? (
             <div className="mt-2 text-xs text-red-600 dark:text-red-300">
               失败原因：{runData.summary.error}
@@ -2666,6 +2763,80 @@ function EvalPanel() {
                       <div className="text-gray-500">依据分型：未检查</div>
                     ) : null}
                     <div className="text-gray-500">{r.reason}</div>
+                    {r.case?.id && runData.status !== 'RUNNING' ? (
+                      <div className="mt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          aria-expanded={historyCaseId === r.case.id}
+                          onClick={() => toggleCaseHistory(r.case.id)}
+                        >
+                          {historyCaseId === r.case.id ? '收起历史' : '查看历史'}
+                        </Button>
+                        {historyCaseId === r.case.id ? (
+                          <div className="mt-2 rounded border-l-2 border-gray-200 pl-2 dark:border-white/10">
+                            {historyLoading ? (
+                              <div className="text-gray-500">加载时间线…</div>
+                            ) : null}
+                            {historyError ? (
+                              <div className="text-red-600 dark:text-red-300">
+                                {historyError}{' '}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void loadCaseHistory(r.case.id)}
+                                >
+                                  重试
+                                </Button>
+                              </div>
+                            ) : null}
+                            {history?.caseId === r.case.id ? (
+                              history.data.timeline.length === 0 ? (
+                                <div className="text-gray-400">
+                                  该用例还没有运行记录。
+                                </div>
+                              ) : (
+                                <ol className="space-y-1">
+                                  {history.data.timeline.map((point) => (
+                                    <li key={point.runId}>
+                                      <span className="font-mono">
+                                        {point.runId.slice(0, 8)}
+                                      </span>{' '}
+                                      ·{' '}
+                                      {new Date(
+                                        point.startedAt,
+                                      ).toLocaleString()}{' '}
+                                      ·{' '}
+                                      {labelOf(
+                                        RUN_STATUS_LABELS,
+                                        point.status,
+                                      ) || point.status}
+                                      {point.isBaseline ? ' · 基线' : ''} ·{' '}
+                                      <span
+                                        data-testid={`history-outcome-${point.runId}`}
+                                        className={
+                                          point.outcome === 'pass'
+                                            ? 'text-emerald-600 dark:text-emerald-300'
+                                            : point.outcome === 'fail'
+                                              ? 'text-red-600 dark:text-red-300'
+                                              : 'text-gray-500'
+                                        }
+                                      >
+                                        {CASE_OUTCOME_LABELS[point.outcome] ??
+                                          point.outcome}
+                                      </span>
+                                      {point.judgeErrorKind
+                                        ? ` · 判官错误：${point.judgeErrorKind}`
+                                        : ''}
+                                    </li>
+                                  ))}
+                                </ol>
+                              )
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })

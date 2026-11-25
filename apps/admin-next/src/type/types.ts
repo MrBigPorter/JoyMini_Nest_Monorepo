@@ -2444,6 +2444,65 @@ export interface RunEvidence {
   checks: RunEvidenceCheck[];
 }
 
+/** 单用例一次运行的判定归一：未判定（判官无结论）不算失败。 */
+export type EvalCaseOutcome = 'pass' | 'fail' | 'undecided';
+
+export interface EvalCaseHistoryPoint {
+  runId: string;
+  status: string;
+  mode: string | null;
+  scope: string | null;
+  isBaseline: boolean | null;
+  startedAt: string;
+  verdict: string | null;
+  answerVerdict: string | null;
+  judgeErrorKind: string | null;
+  score: number | null;
+  answerScore: number | null;
+  outcome: EvalCaseOutcome;
+}
+
+export interface EvalCaseHistory {
+  caseId: string;
+  datasetId: string;
+  case: {
+    id: string;
+    question: string;
+    tags: string[] | null;
+    sourceFeedbackId: string | null;
+  };
+  timeline: EvalCaseHistoryPoint[];
+}
+
+/** 两次运行的描述性差异分类；显著性由 compare.py 负责，页面不得声称。 */
+export type EvalDiffClass =
+  | 'newFailure'
+  | 'fixed'
+  | 'regressed'
+  | 'stillFailing';
+
+export interface EvalDiffItem {
+  caseId: string;
+  question: string;
+  baselineVerdict: string | null;
+  currentVerdict: string | null;
+}
+
+export interface EvalRunDiff {
+  runId: string;
+  baselineRunId: string;
+  metricFamily: string;
+  comparability: {
+    compared: number;
+    undecided: number;
+    missingBaseline: number;
+  };
+  counts: Record<EvalDiffClass, number>;
+  classes: Record<EvalDiffClass, EvalDiffItem[]>;
+  note: string;
+}
+
+
 export interface EvalRun {
   id: string;
   datasetId: string;

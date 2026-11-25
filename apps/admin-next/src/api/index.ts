@@ -1908,6 +1908,16 @@ export const aiQualityApi = {
     http.get<import('@/type/types').RunEvidence>(
       `/v1/admin/ai-eval/runs/${id}/evidence`,
     ),
+  getRunDiff: (id: string, baselineRunId?: string) =>
+    http.get<import('@/type/types').EvalRunDiff>(
+      `/v1/admin/ai-eval/runs/${id}/diff`,
+      baselineRunId ? { baselineRunId } : undefined,
+    ),
+  getCaseHistory: (id: string, caseId: string) =>
+    http.get<import('@/type/types').EvalCaseHistory>(
+      `/v1/admin/ai-eval/runs/${id}/history`,
+      { caseId },
+    ),
   cancelRun: (id: string) =>
     http.post<import('@/type/types').EvalRun>(
       `/v1/admin/ai-eval/runs/${id}/cancel`,
