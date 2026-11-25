@@ -30,7 +30,11 @@ import {
   CreateExternalRunDto,
   IngestExternalResultsDto,
 } from './dto/external-eval.dto';
-import { EvalPageQueryDto } from './dto/eval-run.dto';
+import {
+  EvalCaseHistoryQueryDto,
+  EvalPageQueryDto,
+  EvalRunDiffQueryDto,
+} from './dto/eval-run.dto';
 import {
   CurrentRole,
   CurrentUserId,
@@ -202,6 +206,39 @@ export class AiEvalController {
   async getRunEvidence(@Param('id') id: string) {
     this.assertEnabled();
     return this.datasetService.getRunEvidence(id);
+  }
+
+  /** 单用例跨运行的判定时间线（回归用例可解释）。 */
+  @Get('runs/:id/history')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '回归用例时间线' })
+  async getCaseHistory(
+    @Param('id') id: string,
+    @Query() query: EvalCaseHistoryQueryDto,
+    @CurrentRole() role: string | null,
+  ) {
+    const history = await this.datasetService.getCaseHistory(id, query.caseId);
+    return redactSensitiveFields(history, role, ['case.question']);
+  }
+
+  /** 两次运行的描述性差异，不声称统计显著。 */
+  @Get('runs/:id/diff')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '两次运行差异（新增失败/修复/回退/仍失败）' })
+  async getRunDiff(
+    @Param('id') id: string,
+    @Query() query: EvalRunDiffQueryDto,
+    @CurrentRole() role: string | null,
+  ) {
+    const diff = await this.datasetService.getRunDiff(id, {
+      baselineRunId: query.baselineRunId,
+    });
+    return redactSensitiveFields(diff, role, [
+      'classes.newFailure.question',
+      'classes.fixed.question',
+      'classes.regressed.question',
+      'classes.stillFailing.question',
+    ]);
   }
 
   @Get('runs/:id')

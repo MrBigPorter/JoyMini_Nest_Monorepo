@@ -62,10 +62,63 @@ function createController() {
     ],
   });
 
+  const history = () => ({
+    caseId: 'case-1',
+    datasetId: 'dataset-1',
+    case: {
+      id: 'case-1',
+      question: 'qa_eval_question_secret',
+      tags: ['refund'],
+      sourceFeedbackId: 'fb-1',
+    },
+    timeline: [
+      {
+        runId: 'run-1',
+        status: 'COMPLETED',
+        mode: 'STORED',
+        scope: 'full',
+        isBaseline: false,
+        startedAt: new Date('2026-11-21T00:00:00Z'),
+        verdict: 'unsolved',
+        answerVerdict: null,
+        judgeErrorKind: null,
+        score: 0,
+        answerScore: null,
+        outcome: 'fail',
+      },
+    ],
+  });
+
+  const diff = () => ({
+    runId: 'run-2',
+    baselineRunId: 'run-1',
+    metricFamily: 'verdict3',
+    comparability: { compared: 1, undecided: 0, missingBaseline: 0 },
+    counts: { newFailure: 0, fixed: 1, regressed: 0, stillFailing: 0 },
+    classes: {
+      newFailure: [],
+      fixed: [
+        {
+          caseId: 'case-1',
+          question: 'qa_eval_question_secret',
+          baselineVerdict: 'unsolved',
+          currentVerdict: 'solved',
+        },
+      ],
+      regressed: [],
+      stillFailing: [],
+    },
+    note: '描述性分类，不构成统计显著性结论；显著性由 compare.py 配对检验给出。',
+  });
+
   const datasetService = {
     // Return a fresh object on every call: redaction mutates in place.
     getDataset: jest.fn().mockImplementation(() => Promise.resolve(dataset())),
     getRun: jest.fn().mockImplementation(() => Promise.resolve(run())),
+    getCaseHistory: jest
+      .fn()
+      .mockImplementation(() => Promise.resolve(history())),
+    getRunDiff: jest.fn().mockImplementation(() => Promise.resolve(diff())),
     cancelRun: jest
       .fn()
       .mockResolvedValue({ id: 'run-1', status: 'CANCELLED' }),
@@ -211,7 +264,11 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('数据集详情：VIEWER 的用例原文与期望置空，保留 id/tags', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getDataset('dataset-1', {}, Role.VIEWER);
+    const result: any = await controller.getDataset(
+      'dataset-1',
+      {},
+      Role.VIEWER,
+    );
 
     expect(result.cases[0]).toEqual({
       id: 'case-1',
@@ -231,7 +288,11 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('数据集详情：ADMIN 保留用例原文与期望', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getDataset('dataset-1', {}, Role.ADMIN);
+    const result: any = await controller.getDataset(
+      'dataset-1',
+      {},
+      Role.ADMIN,
+    );
 
     expect(result.cases[0].question).toBe('qa_eval_question_secret');
     expect(result.cases[0].answer).toBe('qa_eval_answer_secret');
@@ -355,5 +416,63 @@ describe('AiEvalController VIEWER 脱敏', () => {
       actualAnswer: null,
     });
     expect(result.results[0].case.question).toBeNull();
+  });
+});
+
+describe('AiEvalController 回归用例可解释', () => {
+  it('时间线与差异端点仍允许 VIEWER 读取', () => {
+    for (const method of [
+      AiEvalController.prototype.getCaseHistory,
+      AiEvalController.prototype.getRunDiff,
+    ]) {
+      const roles = Reflect.getMetadata(ROLES_KEY, method) as Role[];
+      expect(roles).toContain(Role.VIEWER);
+      expect(roles).toContain(Role.ADMIN);
+    }
+  });
+
+  it('用例时间线：VIEWER 看不到用例原文，ADMIN 可见', async () => {
+    const { controller, datasetService } = createController();
+
+    const viewer: any = await controller.getCaseHistory(
+      'run-1',
+      { caseId: 'case-1' },
+      Role.VIEWER,
+    );
+    expect(viewer.case.question).toBeNull();
+    expect(viewer.timeline[0].outcome).toBe('fail');
+    expect(datasetService.getCaseHistory).toHaveBeenCalledWith(
+      'run-1',
+      'case-1',
+    );
+
+    const admin: any = await controller.getCaseHistory(
+      'run-1',
+      { caseId: 'case-1' },
+      Role.ADMIN,
+    );
+    expect(admin.case.question).toBe('qa_eval_question_secret');
+  });
+
+  it('两次运行差异：VIEWER 看不到用例原文，admin 可见；基线参数原样转发', async () => {
+    const { controller, datasetService } = createController();
+
+    const viewer: any = await controller.getRunDiff(
+      'run-2',
+      { baselineRunId: 'run-1' },
+      Role.VIEWER,
+    );
+    expect(viewer.classes.fixed[0].question).toBeNull();
+    expect(viewer.counts.fixed).toBe(1);
+    expect(datasetService.getRunDiff).toHaveBeenCalledWith('run-2', {
+      baselineRunId: 'run-1',
+    });
+
+    const admin: any = await controller.getRunDiff(
+      'run-2',
+      {},
+      Role.ADMIN,
+    );
+    expect(admin.classes.fixed[0].question).toBe('qa_eval_question_secret');
   });
 });

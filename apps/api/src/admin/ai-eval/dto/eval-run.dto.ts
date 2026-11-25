@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { EVAL_RUN_RESULTS_LIMITS } from './eval-input.validators';
 
 /**
@@ -19,4 +27,20 @@ export class EvalPageQueryDto {
   @Min(1)
   @Max(EVAL_RUN_RESULTS_LIMITS.maxPageSize)
   pageSize?: number;
+}
+
+/** 单用例时间线：必须显式给出 caseId，避免误把整次运行当时间线。 */
+export class EvalCaseHistoryQueryDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  caseId!: string;
+}
+
+/** 两次运行差异：不传时回退到 run.baselineRunId。 */
+export class EvalRunDiffQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  baselineRunId?: string;
 }
