@@ -305,6 +305,14 @@ export class RagController {
     return this.ragService.getChunks(id);
   }
 
+  @Get(':id/chunks/diff')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: 'Diff the two latest chunk versions' })
+  @ApiParam({ name: 'id', description: 'Document UUID' })
+  async getChunksDiff(@Param('id') id: string) {
+    return this.ragService.getChunksDiff(id);
+  }
+
   @Post(':id/reindex')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.OK)

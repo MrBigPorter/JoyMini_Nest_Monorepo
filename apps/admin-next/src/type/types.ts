@@ -1860,6 +1860,20 @@ export interface DocumentChunk {
   updatedAt: string;
 }
 
+export interface DocumentChunkDiffEntry {
+  chunkIndex: number;
+  change: 'added' | 'removed' | 'modified' | 'unchanged';
+  previous: DocumentChunk | null;
+  current: DocumentChunk | null;
+}
+
+export interface DocumentChunkDiff {
+  currentVersion: number | null;
+  previousVersion: number | null;
+  changes: DocumentChunkDiffEntry[];
+  summary: { added: number; removed: number; modified: number; unchanged: number };
+}
+
 export interface CreateKnowledgeDocPayload {
   title: string;
   domain: string;

@@ -69,6 +69,7 @@ import {
   QueryLuckyDrawResultsParams,
   KnowledgeDocument,
   DocumentChunk,
+  DocumentChunkDiff,
   CreateKnowledgeDocPayload,
   UpdateKnowledgeDocPayload,
   QueryKnowledgeDocParams,
@@ -1240,6 +1241,11 @@ export const knowledgeApi = {
   /** Get chunks for a document */
   getChunks: (documentId: string) =>
     http.get<DocumentChunk[]>(`/v1/admin/rag/documents/${documentId}/chunks`),
+  /** Server-side diff of the two latest chunk versions */
+  getChunksDiff: (documentId: string) =>
+    http.get<DocumentChunkDiff>(
+      `/v1/admin/rag/documents/${documentId}/chunks/diff`,
+    ),
 
   /** Re-chunk and re-embed a document */
   reindex: (documentId: string) =>

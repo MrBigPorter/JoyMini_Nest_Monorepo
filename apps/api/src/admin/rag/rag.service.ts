@@ -304,6 +304,76 @@ export class RagService {
   }
 
   /**
+   * 新旧版本分块差异：按两版本 chunkIndex 并集逐位比对。
+   * 只做诊断（新增/删除/修改/未变），不判断内容对错。
+   */
+  async getChunksDiff(documentId: string) {
+    await this.getById(documentId);
+    const chunks = await this.prisma.documentChunk.findMany({
+      where: { documentId },
+      orderBy: [{ documentVersion: 'desc' }, { chunkIndex: 'asc' }],
+      select: {
+        id: true,
+        chunkIndex: true,
+        content: true,
+        tokenCount: true,
+        documentVersion: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const versions = [...new Set(chunks.map((chunk) => chunk.documentVersion))]
+      .sort((a, b) => b - a);
+    const currentVersion = versions[0] ?? null;
+    const previousVersion = versions[1] ?? null;
+    const empty = {
+      added: 0,
+      removed: 0,
+      modified: 0,
+      unchanged: 0,
+    };
+    if (currentVersion === null || previousVersion === null) {
+      return {
+        currentVersion,
+        previousVersion,
+        changes: [],
+        summary: empty,
+      };
+    }
+
+    const byVersion = new Map<number, Map<number, (typeof chunks)[number]>>();
+    for (const chunk of chunks) {
+      if (!byVersion.has(chunk.documentVersion)) {
+        byVersion.set(chunk.documentVersion, new Map());
+      }
+      byVersion.get(chunk.documentVersion)!.set(chunk.chunkIndex, chunk);
+    }
+    const current = byVersion.get(currentVersion)!;
+    const previous = byVersion.get(previousVersion)!;
+    const indexes = [
+      ...new Set([...current.keys(), ...previous.keys()]),
+    ].sort((a, b) => a - b);
+
+    const summary = { ...empty };
+    const changes = indexes.map((chunkIndex) => {
+      const before = previous.get(chunkIndex) ?? null;
+      const after = current.get(chunkIndex) ?? null;
+      const change = !before
+        ? 'added'
+        : !after
+          ? 'removed'
+          : before.content === after.content
+            ? 'unchanged'
+            : 'modified';
+      summary[change] += 1;
+      return { chunkIndex, change, previous: before, current: after };
+    });
+
+    return { currentVersion, previousVersion, changes, summary };
+  }
+
+  /**
    * 按业务 docId 取 chunk（判官输入规范用）。
    *
    * `KnowledgeDocument.docId` 不是全局唯一，唯一约束是 `[docId, locale]`；

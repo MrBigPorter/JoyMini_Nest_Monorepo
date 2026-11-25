@@ -20,6 +20,7 @@ function buildService() {
     kbGenerationCandidate: { deleteMany: jest.fn().mockReturnValue('cands') },
     kbGenerationRun: { deleteMany: jest.fn().mockReturnValue('runs') },
     kbSyntheticGolden: { deleteMany: jest.fn().mockReturnValue('golden') },
+    documentChunk: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn().mockResolvedValue([]),
   };
   const meilisearch = {
@@ -211,5 +212,75 @@ describe('RagService 正文写入与版本保留', () => {
 
     const [createArgs] = prisma.documentChunk.createMany.mock.calls[0];
     expect(createArgs.data[0].documentVersion).toBe(2);
+  });
+});
+
+
+describe('RagService.getChunksDiff', () => {
+  function chunk(documentVersion: number, chunkIndex: number, content: string) {
+    return {
+      id: `c-${documentVersion}-${chunkIndex}`,
+      chunkIndex,
+      content,
+      tokenCount: content.length,
+      documentVersion,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
+  it('按两版本 chunkIndex 并集分类新增/删除/修改', async () => {
+    const { service, prisma } = buildService();
+    prisma.documentChunk.findMany.mockResolvedValue([
+      chunk(2, 0, '相同'),
+      chunk(2, 1, '改后'),
+      chunk(2, 2, '新增'),
+      chunk(1, 0, '相同'),
+      chunk(1, 1, '改前'),
+      chunk(1, 3, '已删'),
+    ]);
+
+    const diff = await service.getChunksDiff('doc-1');
+
+    expect(diff.currentVersion).toBe(2);
+    expect(diff.previousVersion).toBe(1);
+    expect(
+      diff.changes.map((row) => [row.chunkIndex, row.change]),
+    ).toEqual([
+      [0, 'unchanged'],
+      [1, 'modified'],
+      [2, 'added'],
+      [3, 'removed'],
+    ]);
+    expect(diff.summary).toEqual({
+      added: 1,
+      removed: 1,
+      modified: 1,
+      unchanged: 1,
+    });
+  });
+
+  it('只有一个版本时没有可对比项，但仍返回版本号', async () => {
+    const { service, prisma } = buildService();
+    prisma.documentChunk.findMany.mockResolvedValue([chunk(3, 0, '唯一版本')]);
+
+    const diff = await service.getChunksDiff('doc-1');
+
+    expect(diff).toEqual({
+      currentVersion: 3,
+      previousVersion: null,
+      changes: [],
+      summary: { added: 0, removed: 0, modified: 0, unchanged: 0 },
+    });
+  });
+
+  it('getChunks 仍返回全量数组（tools/eval 依赖）', async () => {
+    const { service, prisma } = buildService();
+    prisma.documentChunk.findMany.mockResolvedValue([chunk(1, 0, 'a')]);
+
+    const chunks = await service.getChunks('doc-1');
+
+    expect(Array.isArray(chunks)).toBe(true);
+    expect(chunks).toHaveLength(1);
   });
 });

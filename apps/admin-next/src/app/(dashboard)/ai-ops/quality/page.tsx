@@ -29,7 +29,8 @@ import {
 import type {
   AiFeedbackItem,
   AiFeedbackSummary,
-  DocumentChunk,
+  DocumentChunkDiff,
+  DocumentChunkDiffEntry,
   EvalCase,
   EvalDataset,
   EvalRun,
@@ -2591,30 +2592,21 @@ function ChunkVersionDiff({
   onClose: () => void;
 }) {
   const { data, loading, error, refresh } = useRequest(
-    () => knowledgeApi.getChunks(documentId),
+    () => knowledgeApi.getChunksDiff(documentId),
     { refreshDeps: [documentId] },
   );
 
-  const chunks = Array.isArray(data) ? (data as DocumentChunk[]) : [];
-  const byVersion = new Map<number, Map<number, DocumentChunk>>();
-  for (const chunk of chunks) {
-    if (!byVersion.has(chunk.documentVersion)) {
-      byVersion.set(chunk.documentVersion, new Map());
-    }
-    byVersion.get(chunk.documentVersion)!.set(chunk.chunkIndex, chunk);
-  }
-  const versions = [...byVersion.keys()].sort((a, b) => b - a);
-  const currentVersion = versions[0];
-  const previousVersion = versions[1];
-  const indexes =
-    currentVersion != null && previousVersion != null
-      ? [
-          ...new Set([
-            ...byVersion.get(currentVersion)!.keys(),
-            ...byVersion.get(previousVersion)!.keys(),
-          ]),
-        ].sort((a, b) => a - b)
-      : [];
+  // 差异由服务端按两版本 chunkIndex 并集计算；页面只负责展示。
+  const diff = data as DocumentChunkDiff | undefined;
+  const changes = diff?.changes ?? [];
+  const hasTwoVersions =
+    diff?.currentVersion != null && diff?.previousVersion != null;
+  const changeLabels: Record<DocumentChunkDiffEntry['change'], string> = {
+    added: '新增',
+    removed: '删除',
+    modified: '变化',
+    unchanged: '相同',
+  };
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
@@ -2631,7 +2623,7 @@ function ChunkVersionDiff({
         </div>
       ) : loading ? (
         <div className="mt-2 text-xs text-gray-500">加载中…</div>
-      ) : versions.length < 2 ? (
+      ) : !hasTwoVersions ? (
         <div className="mt-2 text-xs text-gray-500">
           当前只保留一个版本，暂无可对比的旧版本。旧分块只在更新后的 7
           天保留期内可读。
@@ -2639,50 +2631,38 @@ function ChunkVersionDiff({
       ) : (
         <>
           <div className="mt-2 text-xs text-gray-500">
-            旧版本 v{previousVersion}（{byVersion.get(previousVersion)!.size}{' '}
-            块）→ 当前版本 v{currentVersion}（
-            {byVersion.get(currentVersion)!.size} 块）
+            旧版本 v{diff!.previousVersion} → 当前版本 v{diff!.currentVersion} ·
+            新增 {diff!.summary.added} · 删除 {diff!.summary.removed} · 修改{' '}
+            {diff!.summary.modified}
           </div>
           <div className="mt-2 space-y-2">
-            {indexes.map((index) => {
-              const previous = byVersion.get(previousVersion)!.get(index);
-              const current = byVersion.get(currentVersion)!.get(index);
-              const change =
-                previous && current
-                  ? previous.content === current.content
-                    ? '相同'
-                    : '变化'
-                  : current
-                    ? '新增'
-                    : '删除';
-              return (
-                <div
-                  key={index}
-                  className="rounded-lg border p-2 text-xs dark:border-white/10"
-                >
-                  <div className="mb-1 flex items-center gap-2 text-gray-500">
-                    <span>分块 {index}</span>
-                    <span className="rounded border px-1 py-0.5 dark:border-white/10">
-                      {change}
-                    </span>
-                  </div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div>
-                      <div className="mb-1 text-gray-400">旧版本</div>
-                      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-red-50/60 p-2 dark:bg-red-500/5">
-                        {previous?.content ?? '（该版本没有这个分块）'}
-                      </div>
+            {changes.map((row) => (
+              <div
+                key={row.chunkIndex}
+                className="rounded-lg border p-2 text-xs dark:border-white/10"
+              >
+                <div className="mb-1 flex items-center gap-2 text-gray-500">
+                  <span>分块 {row.chunkIndex}</span>
+                  <span className="rounded border px-1 py-0.5 dark:border-white/10">
+                    {changeLabels[row.change]}
+                  </span>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div>
+                    <div className="mb-1 text-gray-400">旧版本</div>
+                    <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-red-50/60 p-2 dark:bg-red-500/5">
+                      {row.previous?.content ?? '（该版本没有这个分块）'}
                     </div>
-                    <div>
-                      <div className="mb-1 text-gray-400">当前版本</div>
-                      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-emerald-50/60 p-2 dark:bg-emerald-500/5">
-                        {current?.content ?? '（该版本没有这个分块）'}
-                      </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-gray-400">当前版本</div>
+                    <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-emerald-50/60 p-2 dark:bg-emerald-500/5">
+                      {row.current?.content ?? '（该版本没有这个分块）'}
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </>
       )}

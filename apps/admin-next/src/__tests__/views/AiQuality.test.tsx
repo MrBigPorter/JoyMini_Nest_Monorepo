@@ -25,6 +25,7 @@ const mockStartRun = vi.hoisted(() => vi.fn());
 const mockCancelRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
+const mockGetChunksDiff = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
 const mockKbStatus = vi.hoisted(() => vi.fn());
 const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
@@ -59,6 +60,7 @@ vi.mock('@/api', () => ({
   },
   knowledgeApi: {
     qualityStats: (...args: unknown[]) => mockQualityStats(...args),
+    getChunksDiff: (...args: unknown[]) => mockGetChunksDiff(...args),
   },
 }));
 
@@ -1667,6 +1669,60 @@ describe('AiQualityPage', () => {
     ).toBe('/knowledge');
     expect(screen.queryByText(/原始检索结果/)).toBeNull();
     expect(screen.queryByText(/secret/)).toBeNull();
+  });
+
+  it('分块对比调用服务端 diff 并展示新增/删除/修改', async () => {
+    const diff = {
+      currentVersion: 2,
+      previousVersion: 1,
+      summary: { added: 1, removed: 1, modified: 1, unchanged: 0 },
+      changes: [
+        {
+          chunkIndex: 0,
+          change: 'modified',
+          previous: { content: '改前' },
+          current: { content: '改后' },
+        },
+        {
+          chunkIndex: 1,
+          change: 'added',
+          previous: null,
+          current: { content: '新增内容' },
+        },
+        {
+          chunkIndex: 2,
+          change: 'removed',
+          previous: { content: '已删内容' },
+          current: null,
+        },
+      ],
+    };
+    mockGetChunksDiff.mockResolvedValue(diff);
+    mockUseRequest.mockImplementation((service: unknown) => {
+      if (typeof service === 'function') {
+        const before = mockGetChunksDiff.mock.calls.length;
+        void (service as () => unknown)();
+        if (mockGetChunksDiff.mock.calls.length > before) {
+          return makeUseRequest(diff);
+        }
+      }
+      return makeUseRequest(stats);
+    });
+    render(<AiQualityPage />);
+    openTab('知识质量');
+
+    fireEvent.click(screen.getByRole('button', { name: '新旧分块' }));
+
+    await waitFor(() =>
+      expect(mockGetChunksDiff).toHaveBeenCalledWith('doc-1'),
+    );
+    expect(screen.getByText(/新增 1/)).toBeTruthy();
+    expect(screen.getByText(/删除 1/)).toBeTruthy();
+    expect(screen.getByText(/修改 1/)).toBeTruthy();
+    expect(screen.getByText('改前')).toBeTruthy();
+    expect(screen.getByText('改后')).toBeTruthy();
+    expect(screen.getByText('新增内容')).toBeTruthy();
+    expect(screen.getByText('已删内容')).toBeTruthy();
   });
 
   it('shows a RAG stats error banner instead of an empty card set', () => {
