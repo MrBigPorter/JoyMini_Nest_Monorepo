@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -13,6 +14,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { EVAL_CASE_LIMITS } from './eval-input.validators';
 
 export const ANSWER_VERDICTS = ['correct', 'incorrect', 'judge_error'] as const;
 export const GROUNDING_KINDS = [
@@ -93,6 +95,7 @@ export class CreateExternalRunDto {
   datasetFingerprint!: string;
 
   @IsArray()
+  @ArrayMaxSize(EVAL_CASE_LIMITS.resultBatch)
   @ValidateNested({ each: true })
   @Type(() => ExternalEvalCaseSnapshotDto)
   cases!: ExternalEvalCaseSnapshotDto[];
@@ -205,6 +208,7 @@ export class ExternalEvalResultDto {
 
 export class IngestExternalResultsDto {
   @IsArray()
+  @ArrayMaxSize(EVAL_CASE_LIMITS.resultBatch)
   @ValidateNested({ each: true })
   @Type(() => ExternalEvalResultDto)
   cases!: ExternalEvalResultDto[];

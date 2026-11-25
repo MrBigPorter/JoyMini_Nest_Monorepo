@@ -8,10 +8,10 @@
 
 ## 2. 输入与判分条件
 
-- [ ] 2.1 DTO 限长（题干 2000/答案 8000/标签 20×32/必含关键词 20×500/判分条件 8KB）与端点分档批上限；`expected` 用自定义校验而非 `@MaxLength`；验证：jest 各边界值、`>50` 与超长返回 400 [Req: 评测用例输入必须限长且查重]
-- [ ] 2.2 题干规范化查重（同数据集）；验证：jest 空白/全半角/大小写差异判为重复，结果含 skipped 原因 [Req: 评测用例输入必须限长且查重]
-- [ ] 2.3 `expect` 为唯一判分字段；`updateCase` 字段级合并保留 `confirmAction/forbidExecution/intent`；`expected` 只读回填；验证：jest 编辑后条件仍在、判分结果与编辑一致 [Req: 判分条件必须唯一且编辑无损]
-- [ ] 2.4 前端编辑 UI 默认展示 `expect`、`maxLength` 限制、条件字段可见；验证：vitest 与 tsc 通过 [Req: 判分条件必须唯一且编辑无损]
+- [x] 2.1 DTO 限长（题干 2000/答案 8000/标签 20×32/必含关键词 20×500/判分条件 8KB）与端点分档批上限；`expected` 用自定义校验而非 `@MaxLength`；验证：jest 各边界值、`>50` 与超长返回 400 [Req: 评测用例输入必须限长且查重]
+- [x] 2.2 题干规范化查重（同数据集）；验证：jest 空白/全半角/大小写差异判为重复，结果含 skipped 原因 [Req: 评测用例输入必须限长且查重]
+- [x] 2.3 `expect` 为唯一判分字段；`updateCase` 字段级合并保留 `confirmAction/forbidExecution/intent`；`expected` 只读回填；验证：jest 编辑后条件仍在、判分结果与编辑一致 [Req: 判分条件必须唯一且编辑无损]
+- [x] 2.4 前端编辑 UI 默认展示 `expect`、`maxLength` 限制、条件字段可见；验证：vitest 与 tsc 通过 [Req: 判分条件必须唯一且编辑无损]
 
 ## 3. 读取
 

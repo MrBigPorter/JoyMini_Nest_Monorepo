@@ -73,6 +73,7 @@ function makeService() {
     },
     aiEvalCase: {
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       createMany: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -832,6 +833,76 @@ describe('AiEvalDatasetService', () => {
     });
   });
 
+  it('updateCase 对 expect 做字段级合并，保留动作与意图条件', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalCase.findUnique.mockResolvedValue({
+      id: 'case-1',
+      datasetId: 'ds-1',
+      expect: {
+        mustMention: ['旧要点'],
+        confirmAction: 'refund.create',
+        forbidExecution: true,
+        intent: 'refund',
+      },
+    });
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [],
+      runs: [],
+    });
+
+    await service.updateCase('ds-1', 'case-1', {
+      expect: { mustMention: ['新要点'] },
+    });
+
+    expect(prisma.aiEvalCase.update).toHaveBeenCalledWith({
+      where: { id: 'case-1' },
+      data: expect.objectContaining({
+        expect: {
+          mustMention: ['新要点'],
+          confirmAction: 'refund.create',
+          forbidExecution: true,
+          intent: 'refund',
+        },
+      }),
+    });
+  });
+
+  it('updateCase 未传 expect 时不动判分条件', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalCase.findUnique.mockResolvedValue({
+      id: 'case-1',
+      datasetId: 'ds-1',
+      expect: { mustMention: ['旧要点'] },
+    });
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [],
+      runs: [],
+    });
+
+    await service.updateCase('ds-1', 'case-1', { answer: '新答案' });
+
+    const data = prisma.aiEvalCase.update.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty('expect');
+  });
+
+  it('判分以 expect 为准，expected 只在 expect 为空时回填', () => {
+    const { service } = makeService();
+    const resolve = (item: any) =>
+      (service as any).resolveExpectation(item);
+
+    expect(
+      resolve({
+        expect: { mustMention: ['新要点'] },
+        expected: '旧期望',
+      }),
+    ).toEqual({ mustMention: ['新要点'] });
+    expect(resolve({ expect: {}, expected: '旧期望' })).toEqual({
+      mustMention: ['旧期望'],
+    });
+  });
+
   it('deleteCase 校验归属后删除', async () => {
     const { service, prisma } = makeService();
     prisma.aiEvalCase.findUnique.mockResolvedValue({
@@ -908,6 +979,95 @@ describe('AiEvalDatasetService', () => {
       BadRequestException,
     );
     expect(prisma.aiEvalCase.delete).not.toHaveBeenCalled();
+  });
+
+  describe('addCases 题干规范化查重', () => {
+    function wireDataset(prisma: any, existingQuestions: string[]) {
+      prisma.aiEvalDataset.findUnique.mockImplementation((args: any) =>
+        Promise.resolve(
+          args?.select?.name
+            ? { id: 'ds-1', name: 'qa' }
+            : {
+                id: 'ds-1',
+                name: 'qa',
+                cases: [],
+                runs: [],
+                _count: { runs: 0, cases: existingQuestions.length },
+              },
+        ),
+      );
+      prisma.aiEvalCase.findMany.mockResolvedValue(
+        existingQuestions.map((question) => ({ question })),
+      );
+    }
+
+    it('空白差异判为同数据集重复', async () => {
+      const { service, prisma } = makeService();
+      wireDataset(prisma, ['我的订单到哪了']);
+
+      const result = await service.addCases('ds-1', {
+        cases: [{ question: '  我的订单到哪了  ', answer: 'a' }],
+      });
+
+      expect(prisma.aiEvalCase.createMany).not.toHaveBeenCalled();
+      expect(result.created).toBe(0);
+      expect(result.skipped).toEqual([
+        { question: '  我的订单到哪了  ', reason: 'DUPLICATE_IN_DATASET' },
+      ]);
+    });
+
+    it('全半角差异判为重复', async () => {
+      const { service, prisma } = makeService();
+      wireDataset(prisma, ['我的订单到哪了？']);
+
+      const result = await service.addCases('ds-1', {
+        cases: [{ question: '我的订单到哪了?', answer: 'a' }],
+      });
+
+      expect(prisma.aiEvalCase.createMany).not.toHaveBeenCalled();
+      expect(result.skipped[0].reason).toBe('DUPLICATE_IN_DATASET');
+    });
+
+    it('大小写差异判为重复', async () => {
+      const { service, prisma } = makeService();
+      wireDataset(prisma, ['Refund Policy']);
+
+      const result = await service.addCases('ds-1', {
+        cases: [{ question: 'REFUND   policy', answer: 'a' }],
+      });
+
+      expect(prisma.aiEvalCase.createMany).not.toHaveBeenCalled();
+      expect(result.skipped[0].reason).toBe('DUPLICATE_IN_DATASET');
+    });
+
+    it('同批次内部重复：只写一条，其余标记批内重复', async () => {
+      const { service, prisma } = makeService();
+      wireDataset(prisma, []);
+
+      const result = await service.addCases('ds-1', {
+        cases: [
+          { question: '怎么退款', answer: 'a' },
+          { question: ' 怎么退款 ', answer: 'b' },
+          { question: '怎么开发票', answer: 'c' },
+        ],
+      });
+
+      expect(prisma.aiEvalCase.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ question: '怎么退款' }),
+            expect.objectContaining({ question: '怎么开发票' }),
+          ]),
+        }),
+      );
+      expect(
+        prisma.aiEvalCase.createMany.mock.calls[0][0].data,
+      ).toHaveLength(2);
+      expect(result.created).toBe(2);
+      expect(result.skipped).toEqual([
+        { question: ' 怎么退款 ', reason: 'DUPLICATE_IN_BATCH' },
+      ]);
+    });
   });
 
   it('addCases 守卫同样拦截空白前缀', async () => {

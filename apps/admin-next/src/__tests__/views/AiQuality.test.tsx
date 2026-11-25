@@ -20,6 +20,7 @@ const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockUpdateFeedback = vi.hoisted(() => vi.fn());
 const mockListDatasets = vi.hoisted(() => vi.fn());
 const mockAddCases = vi.hoisted(() => vi.fn());
+const mockUpdateCase = vi.hoisted(() => vi.fn());
 const mockStartRun = vi.hoisted(() => vi.fn());
 const mockCancelRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
@@ -49,6 +50,7 @@ vi.mock('@/api', () => ({
     getDataset: vi.fn(),
     createDataset: vi.fn(),
     addCases: (...args: unknown[]) => mockAddCases(...args),
+    updateCase: (...args: unknown[]) => mockUpdateCase(...args),
     startRun: (...args: unknown[]) => mockStartRun(...args),
     getRun: vi.fn(),
     cancelRun: (...args: unknown[]) => mockCancelRun(...args),
@@ -1034,6 +1036,145 @@ describe('AiQualityPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '高级模式' }));
 
     expect(screen.getByLabelText('评测用例 JSON')).toBeTruthy();
+  });
+
+  it('用例编辑以 expect 为准，expected 只做只读展示', () => {
+    const detail = {
+      ...evalDatasetDetail,
+      cases: [
+        {
+          id: 'case-expect',
+          datasetId: 'ds-1',
+          question: '退款多久到账',
+          answer: '客服回答',
+          expect: {
+            mustMention: ['3 个工作日', '原路退回'],
+            confirmAction: 'order.refund',
+            forbidExecution: true,
+            intent: 'refund',
+          },
+          expected: '旧的期望答案',
+          tags: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+    const enterEval = wireEvalTab(detail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    expect(
+      screen.getByText(/判分条件（expect）：3 个工作日；原路退回/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('确认动作：order.refund · 禁止执行：是 · 意图：refund'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('兼容字段 expected（只读）：旧的期望答案'),
+    ).toBeTruthy();
+  });
+
+  it('行内编辑器按行展示 mustMention，并带 DTO 同口径 maxLength', () => {
+    const detail = {
+      ...evalDatasetDetail,
+      cases: [
+        {
+          ...evalDatasetDetail.cases[0],
+          id: 'case-edit',
+          expect: { mustMention: ['3 个工作日', '原路退回'] },
+        },
+      ],
+    };
+    const enterEval = wireEvalTab(detail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑期望' }));
+
+    const textarea = screen.getByLabelText('必含关键词');
+    expect((textarea as HTMLTextAreaElement).value).toBe(
+      '3 个工作日\n原路退回',
+    );
+    expect((textarea as HTMLTextAreaElement).maxLength).toBe(20 * 501);
+  });
+
+  it('保存判分条件只提交 expect，并保留非文本条件', async () => {
+    mockUpdateCase.mockResolvedValue({});
+    const detail = {
+      ...evalDatasetDetail,
+      cases: [
+        {
+          ...evalDatasetDetail.cases[0],
+          id: 'case-save',
+          expect: {
+            mustMention: ['3 个工作日'],
+            confirmAction: 'order.refund',
+            intent: 'refund',
+          },
+          expected: '旧回答',
+        },
+      ],
+    };
+    const enterEval = wireEvalTab(detail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑期望' }));
+    fireEvent.change(screen.getByLabelText('必含关键词'), {
+      target: { value: '3 个工作日\n新的要点' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存判分条件' }));
+
+    await waitFor(() => expect(mockUpdateCase).toHaveBeenCalled());
+    const payload = mockUpdateCase.mock.calls[0][2];
+    expect(mockUpdateCase.mock.calls[0].slice(0, 2)).toEqual([
+      'ds-1',
+      'case-save',
+    ]);
+    expect(payload).toEqual({
+      expect: {
+        mustMention: ['3 个工作日', '新的要点'],
+        confirmAction: 'order.refund',
+        intent: 'refund',
+      },
+    });
+    expect('expected' in payload).toBe(false);
+  });
+
+  it('超过 20 条必含关键词时在本地拦截，不打接口', () => {
+    const enterEval = wireEvalTab({
+      ...evalDatasetDetail,
+      cases: [{ ...evalDatasetDetail.cases[0], id: 'case-too-many' }],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑期望' }));
+    fireEvent.change(screen.getByLabelText('必含关键词'), {
+      target: {
+        value: Array.from({ length: 21 }, (_, i) => `要点${i}`).join('\n'),
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存判分条件' }));
+
+    expect(screen.getByText('最多 20 条必含关键词')).toBeTruthy();
+    expect(mockUpdateCase).not.toHaveBeenCalled();
   });
 
   it('shows accuracy instead of pass rate for an EXTERNAL run', () => {

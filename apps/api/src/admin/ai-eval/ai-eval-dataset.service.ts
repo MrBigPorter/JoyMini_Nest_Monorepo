@@ -112,6 +112,18 @@ export function snapshotHashOfCaseIds(ids: string[]): string {
     .digest('hex');
 }
 
+/**
+ * 题干查重键：NFKC 抹平全半角，压缩空白并统一小写。
+ * 只用于查重，不改写入值——审核者仍看到原始题干。
+ */
+export function normalizeEvalQuestion(question: string): string {
+  return question
+    .normalize('NFKC')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 /** 运行代码版本：与 /health 同口径（APP_VERSION > GIT_SHA > unknown）。 */
 export function resolveEvalCodeVersion(
   env: Record<string, string | undefined> = process.env,
@@ -328,20 +340,50 @@ export class AiEvalDatasetService {
     if (!dataset) throw new NotFoundException('Eval dataset not found');
     this.assertDatasetWritable(dataset.name, 'add cases');
 
-    await this.prisma.aiEvalCase.createMany({
-      data: dto.cases.map((item) => ({
-        datasetId,
-        question: item.question,
-        answer: item.answer,
-        expect: (item.expect ?? {}) as any,
-        expected: (item.expected ?? null) as any,
-        metadata: (item.metadata ?? null) as any,
-        sourceFeedbackId: item.sourceFeedbackId ?? null,
-        source: item.source ?? null,
-        tags: (item.tags ?? []) as any,
-      })),
+    const existing = await this.prisma.aiEvalCase.findMany({
+      where: { datasetId },
+      select: { question: true },
     });
-    return this.getDataset(datasetId);
+    const datasetKeys = new Set(
+      existing.map((row) => normalizeEvalQuestion(row.question)),
+    );
+    const batchKeys = new Set<string>();
+    const skipped: Array<{
+      question: string;
+      reason: 'DUPLICATE_IN_DATASET' | 'DUPLICATE_IN_BATCH';
+    }> = [];
+    const toCreate: typeof dto.cases = [];
+    for (const item of dto.cases) {
+      const key = normalizeEvalQuestion(item.question);
+      if (datasetKeys.has(key)) {
+        skipped.push({ question: item.question, reason: 'DUPLICATE_IN_DATASET' });
+        continue;
+      }
+      if (batchKeys.has(key)) {
+        skipped.push({ question: item.question, reason: 'DUPLICATE_IN_BATCH' });
+        continue;
+      }
+      batchKeys.add(key);
+      toCreate.push(item);
+    }
+
+    if (toCreate.length > 0) {
+      await this.prisma.aiEvalCase.createMany({
+        data: toCreate.map((item) => ({
+          datasetId,
+          question: item.question,
+          answer: item.answer,
+          expect: (item.expect ?? {}) as any,
+          expected: (item.expected ?? null) as any,
+          metadata: (item.metadata ?? null) as any,
+          sourceFeedbackId: item.sourceFeedbackId ?? null,
+          source: item.source ?? null,
+          tags: (item.tags ?? []) as any,
+        })),
+      });
+    }
+    const result = await this.getDataset(datasetId);
+    return { ...result, created: toCreate.length, skipped };
   }
 
   async updateCase(
@@ -358,7 +400,7 @@ export class AiEvalDatasetService {
   ) {
     const existing = await this.prisma.aiEvalCase.findUnique({
       where: { id: caseId },
-      select: { id: true, datasetId: true },
+      select: { id: true, datasetId: true, expect: true },
     });
     if (!existing || existing.datasetId !== datasetId) {
       throw new NotFoundException('Eval case not found');
@@ -368,12 +410,21 @@ export class AiEvalDatasetService {
       select: { name: true },
     });
     this.assertDatasetWritable(dataset?.name, 'edit cases');
+    // expect 是唯一判分来源；编辑只覆盖提交的文本字段，
+    // confirmAction/forbidExecution/intent 等非文本条件必须保留。
+    const mergedExpect =
+      dto.expect !== undefined
+        ? {
+            ...((existing.expect as Record<string, any> | null) ?? {}),
+            ...dto.expect,
+          }
+        : undefined;
     await this.prisma.aiEvalCase.update({
       where: { id: caseId },
       data: {
         ...(dto.question !== undefined ? { question: dto.question } : {}),
         ...(dto.answer !== undefined ? { answer: dto.answer } : {}),
-        ...(dto.expect !== undefined ? { expect: dto.expect as any } : {}),
+        ...(mergedExpect !== undefined ? { expect: mergedExpect as any } : {}),
         ...(dto.expected !== undefined
           ? { expected: dto.expected as any }
           : {}),

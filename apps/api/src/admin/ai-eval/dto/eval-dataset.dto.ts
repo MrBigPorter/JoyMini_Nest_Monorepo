@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsIn,
   IsOptional,
@@ -7,6 +8,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { EVAL_CASE_LIMITS, IsEvalExpectation } from './eval-input.validators';
 
 export class CreateEvalDatasetDto {
   @IsString()
@@ -21,16 +23,20 @@ export class CreateEvalDatasetDto {
 
 export class EvalCaseDto {
   @IsString()
+  @MaxLength(EVAL_CASE_LIMITS.question)
   question!: string;
 
   @IsString()
+  @MaxLength(EVAL_CASE_LIMITS.answer)
   answer!: string;
 
   @IsOptional()
+  @IsEvalExpectation()
   expect?: Record<string, any>;
 
   /** 期望答案/要点；与 expect 二选一，至少有一个非空。 */
   @IsOptional()
+  @IsEvalExpectation()
   expected?: string | Record<string, any>;
 
   @IsOptional()
@@ -50,23 +56,29 @@ export class EvalCaseDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(EVAL_CASE_LIMITS.tags)
   @IsString({ each: true })
+  @MaxLength(EVAL_CASE_LIMITS.tagLength, { each: true })
   tags?: string[];
 }
 
 export class UpdateEvalCaseDto {
   @IsOptional()
   @IsString()
+  @MaxLength(EVAL_CASE_LIMITS.question)
   question?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(EVAL_CASE_LIMITS.answer)
   answer?: string;
 
   @IsOptional()
+  @IsEvalExpectation()
   expect?: Record<string, any>;
 
   @IsOptional()
+  @IsEvalExpectation()
   expected?: string | Record<string, any>;
 
   @IsOptional()
@@ -74,12 +86,15 @@ export class UpdateEvalCaseDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(EVAL_CASE_LIMITS.tags)
   @IsString({ each: true })
+  @MaxLength(EVAL_CASE_LIMITS.tagLength, { each: true })
   tags?: string[];
 }
 
 export class AddEvalCasesDto {
   @IsArray()
+  @ArrayMaxSize(EVAL_CASE_LIMITS.caseBatch)
   @ValidateNested({ each: true })
   @Type(() => EvalCaseDto)
   cases!: EvalCaseDto[];

@@ -200,6 +200,50 @@ function labelOf(map: Record<string, string>, raw?: string | null): string {
   return map[raw] ?? raw;
 }
 
+/** 与后端 DTO 同口径的输入上限；前端先挡一次，避免白跑请求。 */
+const EVAL_INPUT_LIMITS = {
+  mustMention: 20,
+  mustMentionLength: 500,
+} as const;
+
+/** 判分以 expect 为准；expected 只在 expect 为空时作为只读兼容回填。 */
+function caseExpectation(item: {
+  expected?: unknown;
+  expect?: Record<string, any> | null;
+}): Record<string, any> {
+  if (item.expect && Object.keys(item.expect).length > 0) return item.expect;
+  if (typeof item.expected === 'string' && item.expected.trim()) {
+    return { mustMention: [item.expected.trim()] };
+  }
+  if (item.expected && typeof item.expected === 'object') {
+    return item.expected as Record<string, any>;
+  }
+  return {};
+}
+
+function expectationText(item: {
+  expected?: unknown;
+  expect?: Record<string, any> | null;
+}): string {
+  const mustMention = caseExpectation(item).mustMention;
+  return Array.isArray(mustMention) ? mustMention.join('；') : '';
+}
+
+/** 非文本判分条件：编辑时只读展示，保存时原样保留。 */
+function expectationConditions(item: {
+  expected?: unknown;
+  expect?: Record<string, any> | null;
+}): string[] {
+  const expect = caseExpectation(item);
+  const parts: string[] = [];
+  if (expect.confirmAction) parts.push(`确认动作：${expect.confirmAction}`);
+  if (expect.forbidExecution !== undefined) {
+    parts.push(`禁止执行：${expect.forbidExecution ? '是' : '否'}`);
+  }
+  if (expect.intent) parts.push(`意图：${expect.intent}`);
+  return parts;
+}
+
 function expectedText(item: {
   expected?: unknown;
   expect?: Record<string, any> | null;
@@ -212,8 +256,7 @@ function expectedText(item: {
       return '';
     }
   }
-  const mustMention = item.expect?.mustMention;
-  return Array.isArray(mustMention) ? mustMention.join('；') : '';
+  return expectationText(item);
 }
 
 const formatPassRate = evalPassRateText;
@@ -1761,6 +1804,10 @@ function EvalPanel() {
   const [name, setName] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [casesJson, setCasesJson] = useState('[]');
+  const [expectEdit, setExpectEdit] = useState<{
+    caseId: string;
+    text: string;
+  } | null>(null);
   const [runId, setRunId] = useState('');
   const [mode, setMode] = useState<'STORED' | 'LIVE'>('STORED');
   const [baselineRunId, setBaselineRunId] = useState('');
@@ -1840,21 +1887,41 @@ function EvalPanel() {
     }
   };
 
-  const editCase = async (item: any) => {
-    if (!selectedId) return;
-    const next = window.prompt('期望答案 / 必须提到的要点', expectedText(item));
-    if (next == null) return;
-    const expected = next.trim();
-    if (!expected) {
-      setMessage('期望答案不能为空');
+  const openExpectEditor = (item: any) => {
+    const mustMention = caseExpectation(item).mustMention;
+    setExpectEdit({
+      caseId: item.id,
+      text: Array.isArray(mustMention) ? mustMention.join('\n') : '',
+    });
+  };
+
+  const saveExpect = async (item: any) => {
+    if (!selectedId || !expectEdit) return;
+    const lines = expectEdit.text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0) {
+      setMessage('判分条件不能为空：至少填写一条必含关键词');
+      return;
+    }
+    if (lines.length > EVAL_INPUT_LIMITS.mustMention) {
+      setMessage(`最多 ${EVAL_INPUT_LIMITS.mustMention} 条必含关键词`);
+      return;
+    }
+    if (lines.some((line) => line.length > EVAL_INPUT_LIMITS.mustMentionLength)) {
+      setMessage(
+        `每条必含关键词最多 ${EVAL_INPUT_LIMITS.mustMentionLength} 字符`,
+      );
       return;
     }
     try {
+      // 只提交 expect；非文本条件由后端字段级合并保留，expected 只读不改写。
       await aiQualityApi.updateCase(selectedId, item.id, {
-        expected,
-        expect: { mustMention: [expected] },
+        expect: { ...caseExpectation(item), mustMention: lines },
       });
       await refreshDataset();
+      setExpectEdit(null);
       setMessage('用例已更新');
     } catch (err: any) {
       setMessage(err?.message ?? '更新失败');
@@ -2148,15 +2215,61 @@ function EvalPanel() {
                   <div className="font-medium">{c.question}</div>
                   <div className="text-gray-500">{c.answer}</div>
                   <div className="mt-1 text-gray-500">
-                    期望：{expectedText(c) || '未填写'}
+                    判分条件（expect）：
+                    {expectationText(c) || '未填写'}
                     {c.source === 'feedback' ? ' · 来源：反馈' : ''}
                   </div>
+                  {expectationConditions(c).length > 0 ? (
+                    <div className="mt-1 text-gray-500">
+                      {expectationConditions(c).join(' · ')}
+                    </div>
+                  ) : null}
+                  {c.expected != null ? (
+                    <div className="mt-1 text-gray-400">
+                      兼容字段 expected（只读）：{expectedText(c)}
+                    </div>
+                  ) : null}
+                  {expectEdit && expectEdit.caseId === c.id ? (
+                    <div className="mt-2 space-y-1">
+                      <textarea
+                        aria-label="必含关键词"
+                        className="h-24 w-full rounded-lg border p-2 text-xs dark:border-white/10 dark:bg-gray-800"
+                        maxLength={
+                          EVAL_INPUT_LIMITS.mustMention *
+                          (EVAL_INPUT_LIMITS.mustMentionLength + 1)
+                        }
+                        value={expectEdit.text}
+                        onChange={(e) =>
+                          setExpectEdit({
+                            caseId: c.id,
+                            text: e.target.value,
+                          })
+                        }
+                      />
+                      <div className="text-gray-500">
+                        每行一条，最多 {EVAL_INPUT_LIMITS.mustMention} 条、每条{' '}
+                        {EVAL_INPUT_LIMITS.mustMentionLength} 字符
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => void saveExpect(c)}>
+                          保存判分条件
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setExpectEdit(null)}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                   {canStartRun && !harnessDataset ? (
                     <div className="mt-1 flex gap-2">
                       <button
                         type="button"
                         className="text-primary-600 hover:underline"
-                        onClick={() => void editCase(c)}
+                        onClick={() => openExpectEditor(c)}
                       >
                         编辑期望
                       </button>
