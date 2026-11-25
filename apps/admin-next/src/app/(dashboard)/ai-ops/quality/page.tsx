@@ -10,6 +10,10 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { useAuthStore } from '@/store/useAuthStore';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
+import {
+  formatKnownCount,
+  resolveRenderState,
+} from '@/lib/ai-ops-render-state';
 import { diagnoseFeedbackRow } from '@/lib/ai-ops-feedback-diagnosis';
 import {
   evalAccuracyText,
@@ -611,6 +615,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   );
 
   const summary = summaryData as AiFeedbackSummary | undefined;
+  // 汇总与列表用同一套渲染状态推导，失败/加载/未知不靠各区块自行猜测。
+  const summaryState = resolveRenderState({
+    loading: summaryLoading,
+    error: summaryError,
+  });
   const reviewStatusCount = (value: ReviewStatus) =>
     summary ? countByValue(summary.byReviewStatus, 'status', value) : undefined;
   const resolutionCount = (value: string) =>
@@ -622,6 +631,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const rawTotal = (data as any)?.total;
   const total: number | undefined =
     typeof rawTotal === 'number' ? rawTotal : undefined;
+  const listState = resolveRenderState({
+    loading,
+    error,
+    isEmpty: list.length === 0,
+  });
   const kpis: Array<{ label: string; value?: number; href: string }> = [
     {
       label: '待处理',
@@ -1017,7 +1031,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
           >
             <div className="text-xs text-gray-500">{label}</div>
             <div className="text-lg font-semibold">
-              {value != null ? value : summaryLoading ? '加载中…' : '—'}
+              {formatKnownCount(value, summaryState)}
             </div>
           </Link>
         ))}
@@ -1201,7 +1215,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             开始质检
           </Button>
         ) : null}
-        <span className="text-xs text-gray-500">共 {total ?? '未知'} 条</span>
+        <span className="text-xs text-gray-500">
+          共 {formatKnownCount(total, listState)} 条
+        </span>
         {!canTriage ? (
           <span className="rounded-lg border px-2 py-0.5 text-xs text-gray-500 dark:border-white/10">
             只读
@@ -1457,7 +1473,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {listState.kind === 'loading' ? (
               <tr>
                 <td
                   colSpan={11}
@@ -1466,7 +1482,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   加载中…
                 </td>
               </tr>
-            ) : error ? null : list.length === 0 ? (
+            ) : listState.kind === 'error' ? null : listState.kind ===
+              'empty' ? (
               <tr>
                 <td
                   colSpan={11}

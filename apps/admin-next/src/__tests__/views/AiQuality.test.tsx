@@ -296,7 +296,9 @@ function wireFeedback(
     }
     if (slot === 1) {
       return {
-        ...makeUseRequest(options.summaryData ?? summary),
+        ...makeUseRequest(
+          options.summaryData !== undefined ? options.summaryData : summary,
+        ),
         ...(options.summaryError ? { error: options.summaryError } : {}),
         refresh,
         refreshAsync: refresh,
@@ -1089,6 +1091,15 @@ describe('AiQualityPage', () => {
     render(<AiQualityPage />);
 
     expect(screen.getByText('反馈汇总加载失败，请重试')).toBeTruthy();
+  });
+
+  it('汇总请求失败时 KPI 显示未知，不用破折号或 0 冒充', () => {
+    wireFeedback({ summaryData: null, summaryError: new Error('summary down') });
+    render(<AiQualityPage />);
+
+    const pending = screen.getByRole('link', { name: '待处理，查看对应反馈' });
+    expect(within(pending).getByText('未知')).toBeTruthy();
+    expect(within(pending).queryByText('—')).toBeNull();
   });
 
   it('shows the empty state only when the request has no error', () => {
