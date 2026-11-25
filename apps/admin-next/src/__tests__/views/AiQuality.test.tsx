@@ -2136,6 +2136,24 @@ describe('AiQualityPage', () => {
 
     expect(screen.getByText('知识质量统计加载失败，请重试')).toBeTruthy();
     expect(screen.queryByText('暂无知识库文档质量数据。')).toBeNull();
+    // 请求失败不能被读成「确实没有记录」。
+    expect(screen.queryByText('暂无更新记录')).toBeNull();
+    expect(screen.queryByText('暂无标记文档')).toBeNull();
+  });
+
+  it('知识统计字段缺失时显示未知，不用破折号冒充', () => {
+    mockQualityStats.mockResolvedValue({ total: 10 });
+    mockUseRequest.mockImplementation((service: unknown) => {
+      if (service === mockKbStatus) return makeUseRequest(kbRegressionStatus);
+      if (typeof service === 'function') void (service as () => unknown)();
+      return makeUseRequest({ total: 10 });
+    });
+    render(<AiQualityPage />);
+    openTab('知识质量');
+
+    const excellent = screen.getByText('优秀').parentElement;
+    expect(within(excellent as HTMLElement).getByText('未知')).toBeTruthy();
+    expect(within(excellent as HTMLElement).queryByText('—')).toBeNull();
   });
 
   describe('知识质量分区分解析质量与有效性', () => {

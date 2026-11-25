@@ -3182,14 +3182,14 @@ function RagPanel() {
           >
             <div className="text-xs text-gray-500">{label}</div>
             <div className="text-lg font-semibold">
-              {value != null ? value : statsLoading ? '加载中…' : '—'}
+              {value != null ? value : statsLoading ? '加载中…' : '未知'}
             </div>
           </div>
         ))}
         <div className="rounded-xl border p-3 dark:border-white/10">
           <div className="text-xs text-gray-500">有效性</div>
           <div className="text-lg font-semibold">
-            {stats ? '未采集' : statsLoading ? '加载中…' : '—'}
+            {stats ? '未采集' : statsLoading ? '加载中…' : '未知'}
           </div>
         </div>
       </div>
@@ -3206,7 +3206,7 @@ function RagPanel() {
           >
             <div className="text-xs text-gray-500">{label}</div>
             <div className="text-lg font-semibold">
-              {value != null ? value : statsLoading ? '加载中…' : '—'}
+              {value != null ? value : statsLoading ? '加载中…' : '未知'}
             </div>
           </div>
         ))}
@@ -3249,6 +3249,15 @@ function RagPanel() {
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     加载中…
+                  </td>
+                </tr>
+              ) : statsError ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-red-500"
+                  >
+                    加载失败
                   </td>
                 </tr>
               ) : recentUpdated.length === 0 ? (
@@ -3356,6 +3365,15 @@ function RagPanel() {
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     加载中…
+                  </td>
+                </tr>
+              ) : statsError ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-3 py-6 text-center text-red-500"
+                  >
+                    加载失败
                   </td>
                 </tr>
               ) : recentFlags.length === 0 ? (
