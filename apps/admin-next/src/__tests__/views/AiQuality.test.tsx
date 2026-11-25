@@ -908,6 +908,66 @@ describe('AiQualityPage', () => {
     );
   });
 
+  it('falls back to the last page when the current page is emptied', async () => {
+    let totalCount = 41;
+    const rowsFor = (page: number) => {
+      const start = (page - 1) * 20;
+      const count = Math.min(20, Math.max(0, totalCount - start));
+      return Array.from({ length: count }, (_, i) => ({
+        ...feedback,
+        id: `fb-${start + i + 1}`,
+        input: `问题${start + i + 1}`,
+      }));
+    };
+    const refresh = vi.fn();
+    mockUseRequest.mockImplementation((service: unknown) => {
+      if (service === mockGetFeatures) {
+        return makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true });
+      }
+      const before = {
+        list: mockGetFeedbackList.mock.calls.length,
+        summary: mockGetFeedbackSummary.mock.calls.length,
+        datasets: mockListDatasets.mock.calls.length,
+      };
+      if (typeof service === 'function') void (service as () => unknown)();
+      if (mockGetFeedbackList.mock.calls.length > before.list) {
+        const calls = mockGetFeedbackList.mock.calls;
+        const page = calls[calls.length - 1][0].page;
+        return {
+          ...makeUseRequest({ list: rowsFor(page), total: totalCount }),
+          refresh,
+          refreshAsync: async () => {
+            // 处理掉这一页最后一条：总数缩水，当前页变成越界页。
+            totalCount = 40;
+            refresh();
+          },
+        };
+      }
+      if (mockGetFeedbackSummary.mock.calls.length > before.summary) {
+        return { ...makeUseRequest(summary), refresh, refreshAsync: refresh };
+      }
+      return { ...makeUseRequest(datasets), refresh, refreshAsync: refresh };
+    });
+
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(screen.getByText('问题41')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '排除' }));
+
+    // 第 3 页只剩 1 条，处理完总数为 40：必须回退到第 2 页并重取，而不是停在空页。
+    await waitFor(() => expect(screen.getByText('问题21')).toBeTruthy());
+    expect(screen.queryByText('暂无反馈')).toBeNull();
+    const calls = mockGetFeedbackList.mock.calls;
+    expect(calls[calls.length - 1][0].page).toBe(2);
+    expect(
+      (screen.getByRole('button', { name: '下一页' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
   it('shows the specific outcome for REVIEWED rows instead of a generic confirmed label', () => {
     wireFeedback({
       listData: {

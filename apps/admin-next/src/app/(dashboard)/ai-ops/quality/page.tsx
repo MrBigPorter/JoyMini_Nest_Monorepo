@@ -115,6 +115,9 @@ const DIFF_CLASS_LABELS: Record<string, string> = {
   stillFailing: '仍失败',
 };
 
+/** 质量待办列表分页大小；请求与页码回退必须用同一口径。 */
+const FEEDBACK_PAGE_SIZE = 20;
+
 /** 解析质量四项检查的中文名，与后端 checks 的 key 一一对应。 */
 const PARSE_CHECK_LABELS: Record<string, string> = {
   truncation: '截断',
@@ -605,7 +608,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     () =>
       chatApi.getFeedbackList({
         page,
-        pageSize: 20,
+        pageSize: FEEDBACK_PAGE_SIZE,
         ...(reviewStatus ? { reviewStatus } : {}),
         ...(failureKindFilter ? { failureKind: failureKindFilter } : {}),
         ...(resolutionFilter ? { resolution: resolutionFilter } : {}),
@@ -648,6 +651,15 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const rawTotal = (data as any)?.total;
   const total: number | undefined =
     typeof rawTotal === 'number' ? rawTotal : undefined;
+  // 处理掉当前页最后一条后，总数缩水会让页码越界。回退到最后一页重取一次，
+  // 不能把「这一页空了」显示成「整个队列空了」。
+  const lastPage =
+    total != null
+      ? Math.max(1, Math.ceil(total / FEEDBACK_PAGE_SIZE))
+      : undefined;
+  useEffect(() => {
+    if (lastPage != null && page > lastPage) setPage(lastPage);
+  }, [page, lastPage]);
   const listState = resolveRenderState({
     loading,
     error,
@@ -1754,7 +1766,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         <Button
           size="sm"
           variant="outline"
-          disabled={typeof total === 'number' && page * 20 >= total}
+          disabled={
+            typeof total === 'number' &&
+            page * FEEDBACK_PAGE_SIZE >= total
+          }
           onClick={() => setPage((p) => p + 1)}
         >
           下一页
