@@ -1853,6 +1853,28 @@ export const aiQualityApi = {
     },
   ) => http.patch(`/v1/admin/ai-feedback/${id}`, data),
 
+  /**
+   * 把一条反馈沉淀为回归用例：服务端在同一事务里建用例、回写 linkedEvalCaseId，
+   * 幂等（已存在则 created=false）。前端不再按题干反查用例。
+   */
+  createRegressionCase: (
+    feedbackId: string,
+    data: { datasetId: string; expected: string; expectedVersion?: number },
+  ) =>
+    http.post<{
+      created: boolean;
+      linkedEvalCaseId: string;
+      datasetId: string;
+      feedbackId: string;
+    }>(`/v1/admin/ai-feedback/${feedbackId}/regression-case`, data),
+
+  /** 批量排除：服务端逐条校验，返回成功 ids 与跳过原因，不再并发 PATCH。 */
+  batchExcludeFeedback: (ids: string[]) =>
+    http.patch<{
+      succeeded: string[];
+      skipped: Array<{ id: string; reason: string }>;
+    }>('/v1/admin/ai-feedback/batch-exclude', { ids }),
+
   listDatasets: () =>
     http.get<import('@/type/types').EvalDataset[]>(
       '/v1/admin/ai-eval/datasets',
@@ -1894,7 +1916,6 @@ export const aiQualityApi = {
     http.post<{
       created?: number;
       skipped?: Array<{ question: string; reason: string }>;
-      createdCases?: Array<{ id: string; question: string }>;
     }>(`/v1/admin/ai-eval/datasets/${id}/cases`, data),
   updateCase: (
     id: string,

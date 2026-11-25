@@ -19,6 +19,8 @@ const mockGetFeatures = vi.hoisted(() => vi.fn());
 const mockGetFeedbackList = vi.hoisted(() => vi.fn());
 const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockUpdateFeedback = vi.hoisted(() => vi.fn());
+const mockCreateRegressionCase = vi.hoisted(() => vi.fn());
+const mockBatchExcludeFeedback = vi.hoisted(() => vi.fn());
 const mockListDatasets = vi.hoisted(() => vi.fn());
 const mockAddCases = vi.hoisted(() => vi.fn());
 const mockUpdateCase = vi.hoisted(() => vi.fn());
@@ -51,6 +53,10 @@ vi.mock('@/api', () => ({
   },
   aiQualityApi: {
     updateFeedback: (...args: unknown[]) => mockUpdateFeedback(...args),
+    createRegressionCase: (...args: unknown[]) =>
+      mockCreateRegressionCase(...args),
+    batchExcludeFeedback: (...args: unknown[]) =>
+      mockBatchExcludeFeedback(...args),
     listDatasets: (...args: unknown[]) => mockListDatasets(...args),
     getDataset: (...args: unknown[]) => mockGetDataset(...args),
     createDataset: vi.fn(),
@@ -446,6 +452,16 @@ describe('AiQualityPage', () => {
       evalEnabled: true,
     });
     mockUpdateFeedback.mockResolvedValue({});
+    mockCreateRegressionCase.mockResolvedValue({
+      created: true,
+      linkedEvalCaseId: 'case-new',
+      datasetId: 'ds-1',
+      feedbackId: 'fb-1',
+    });
+    mockBatchExcludeFeedback.mockResolvedValue({
+      succeeded: [],
+      skipped: [],
+    });
     mockGetFeedbackList.mockResolvedValue({ list: [feedback], total: 1 });
     mockGetFeedbackSummary.mockResolvedValue(summary);
     mockListDatasets.mockResolvedValue(datasets);
@@ -1072,6 +1088,10 @@ describe('AiQualityPage', () => {
   });
 
   it('batch-excludes only current-page service errors after showing the count', async () => {
+    mockBatchExcludeFeedback.mockResolvedValue({
+      succeeded: ['fb-svc-1', 'fb-svc-2'],
+      skipped: [],
+    });
     wireFeedback({
       listData: {
         list: [
@@ -1089,27 +1109,43 @@ describe('AiQualityPage', () => {
     expect(button.textContent).toContain('2');
     fireEvent.click(button);
 
-    await waitFor(() => expect(mockUpdateFeedback).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(mockBatchExcludeFeedback).toHaveBeenCalledWith([
+        'fb-svc-1',
+        'fb-svc-2',
+      ]),
+    );
     expect(confirmSpy).toHaveBeenCalledWith(
       expect.stringContaining('2 条服务故障'),
     );
-    expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-svc-1', {
-      reviewStatus: 'IGNORED',
-      resolution: 'EXCLUDED',
-      failureKind: 'SERVICE_ERROR',
-      expectedVersion: 3,
-    });
-    expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-svc-2', {
-      reviewStatus: 'IGNORED',
-      resolution: 'EXCLUDED',
-      failureKind: 'SERVICE_ERROR',
-      expectedVersion: 3,
-    });
-    expect(mockUpdateFeedback).not.toHaveBeenCalledWith(
-      'fb-model',
-      expect.anything(),
-    );
+    // 逐条语义收口到服务端：前端不再并发发 PATCH，模型答错不会进数组。
+    expect(mockUpdateFeedback).not.toHaveBeenCalled();
     expect(screen.getByText('已批量排除 2 条服务故障')).toBeTruthy();
+  });
+
+  it('batch exclude surfaces per-item skipped reasons', async () => {
+    mockBatchExcludeFeedback.mockResolvedValue({
+      succeeded: ['fb-svc-1'],
+      skipped: [{ id: 'fb-svc-2', reason: 'VERSION_CONFLICT' }],
+    });
+    wireFeedback({
+      listData: {
+        list: [
+          { ...feedback, id: 'fb-svc-1', failureKind: 'SERVICE_ERROR' },
+          { ...feedback, id: 'fb-svc-2', failureKind: 'SERVICE_ERROR' },
+        ],
+        total: 2,
+      },
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /批量排除服务故障/ }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/1 条跳过/)).toBeTruthy(),
+    );
+    expect(screen.getByText(/已被他人更新/)).toBeTruthy();
   });
 
   it('does not offer batch exclusion when the page only has model errors', () => {
@@ -1148,29 +1184,6 @@ describe('AiQualityPage', () => {
 
   it('creates a regression case and links it back to the feedback', async () => {
     const refresh = wireFeedback();
-    mockAddCases.mockResolvedValue({
-      id: 'ds-1',
-      cases: [
-        {
-          id: 'case-old',
-          datasetId: 'ds-1',
-          question: feedback.input,
-          answer: '旧用例',
-          expect: {},
-          tags: [],
-          createdAt: '2026-01-01T00:00:00.000Z',
-        },
-        {
-          id: 'case-new',
-          datasetId: 'ds-1',
-          question: feedback.input,
-          answer: feedback.answer,
-          expect: {},
-          tags: ['from-feedback', 'UNEXPECTED_TRANSFER'],
-          createdAt: '2026-01-02T00:00:00.000Z',
-        },
-      ],
-    });
     render(<AiQualityPage />);
 
     fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
@@ -1179,29 +1192,35 @@ describe('AiQualityPage', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '确认加入回归' }));
 
+    // 专用接口：服务端在同一事务里建用例并回链，前端不再按题干反查。
     await waitFor(() =>
-      expect(mockAddCases).toHaveBeenCalledWith('ds-1', {
-        cases: [
-          {
-            question: feedback.input,
-            answer: feedback.answer,
-            expect: { mustMention: ['已确认是模型答非所问'] },
-            expected: '已确认是模型答非所问',
-            sourceFeedbackId: 'fb-1',
-            source: 'feedback',
-            tags: ['from-feedback', 'UNEXPECTED_TRANSFER'],
-          },
-        ],
-      }),
-    );
-    await waitFor(() =>
-      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
-        linkedEvalCaseId: 'case-new',
-        resolution: 'ADDED_TO_EVAL',
+      expect(mockCreateRegressionCase).toHaveBeenCalledWith('fb-1', {
+        datasetId: 'ds-1',
+        expected: '已确认是模型答非所问',
         expectedVersion: 3,
       }),
     );
+    expect(mockAddCases).not.toHaveBeenCalled();
+    expect(mockUpdateFeedback).not.toHaveBeenCalled();
+    expect(screen.getByText('已加入回归评测集')).toBeTruthy();
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it('加入回归幂等返回已有用例时说明已在评测集中', async () => {
+    mockCreateRegressionCase.mockResolvedValue({
+      created: false,
+      linkedEvalCaseId: 'case-1',
+      datasetId: 'ds-1',
+      feedbackId: 'fb-1',
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认加入回归' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('这条反馈已在回归评测集中')).toBeTruthy(),
+    );
   });
 
   it('refuses to create a regression case without an expectation', async () => {
@@ -1219,7 +1238,7 @@ describe('AiQualityPage', () => {
         screen.getByText('回归用例必须填写期望答案，否则无法证明修复有效'),
       ).toBeTruthy(),
     );
-    expect(mockAddCases).not.toHaveBeenCalled();
+    expect(mockCreateRegressionCase).not.toHaveBeenCalled();
   });
 
   it('does not offer harness read-only datasets when adding to regression', () => {
@@ -1393,32 +1412,6 @@ describe('AiQualityPage', () => {
 
     expect(screen.getByText('用例（120）')).toBeTruthy();
     expect(screen.getAllByText('120').length).toBeGreaterThan(0);
-  });
-
-  it('分页后加入回归用 createdCases 关联，不依赖当前页', async () => {
-    mockAddCases.mockResolvedValue({
-      id: 'ds-1',
-      cases: [evalDatasetDetail.cases[0]],
-      created: 1,
-      skipped: [],
-      createdCases: [{ id: 'case-new', question: feedback.input }],
-    });
-    mockUpdateFeedback.mockResolvedValue({});
-    wireFeedback();
-    render(<AiQualityPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
-    fireEvent.change(screen.getByLabelText('选择回归评测集'), {
-      target: { value: 'ds-1' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: '确认加入回归' }));
-
-    await waitFor(() =>
-      expect(mockUpdateFeedback).toHaveBeenCalledWith(
-        'fb-1',
-        expect.objectContaining({ linkedEvalCaseId: 'case-new' }),
-      ),
-    );
   });
 
   it('导入用例按 created 与 skipped 报数', async () => {

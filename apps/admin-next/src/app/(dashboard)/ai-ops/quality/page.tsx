@@ -37,7 +37,6 @@ import type {
   AiFeedbackSummary,
   DocumentChunkDiff,
   DocumentChunkDiffEntry,
-  EvalCase,
   EvalCaseHistory,
   EvalDataset,
   EvalRun,
@@ -117,6 +116,16 @@ const DIFF_CLASS_LABELS: Record<string, string> = {
 
 /** 质量待办列表分页大小；请求与页码回退必须用同一口径。 */
 const FEEDBACK_PAGE_SIZE = 20;
+
+/** 批量排除逐条跳过的原因码 → 中文说明，与后端 batchExclude 保持一致。 */
+const BATCH_EXCLUDE_SKIP_REASON: Record<string, string> = {
+  NOT_FOUND: '记录不存在',
+  MODEL_ERROR: '模型答错不在批量范围',
+  NOT_SERVICE_ERROR: '不是服务故障',
+  ALREADY_EXCLUDED: '已排除',
+  VERSION_CONFLICT: '已被他人更新',
+  UPDATE_FAILED: '写入失败',
+};
 
 /** 解析质量四项检查的中文名，与后端 checks 的 key 一一对应。 */
 const PARSE_CHECK_LABELS: Record<string, string> = {
@@ -845,28 +854,29 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     if (!ok) return;
     setActionError('');
     setActionInfo('');
-    const results = await Promise.allSettled(
-      batchExcludeTargets.map((item) =>
-        aiQualityApi.updateFeedback(item.id, {
-          reviewStatus: 'IGNORED',
-          resolution: 'EXCLUDED',
-          failureKind: 'SERVICE_ERROR',
-          ...(item.version != null ? { expectedVersion: item.version } : {}),
-        } as any),
-      ),
-    );
-    const failed = results.filter(
-      (result) => result.status === 'rejected',
-    ).length;
-    await refreshAfterAction();
-    const succeeded = batchExcludeTargets.length - failed;
-    setActionInfo(
-      `已批量排除 ${succeeded} 条服务故障${
-        failed ? `，${failed} 条失败请重试` : ''
-      }`,
-    );
-    if (failed) {
-      setActionError(`批量排除有 ${failed} 条失败，请重试剩余条目`);
+    try {
+      const result = await aiQualityApi.batchExcludeFeedback(
+        batchExcludeTargets.map((item) => item.id),
+      );
+      await refreshAfterAction();
+      const skipped = result?.skipped ?? [];
+      setActionInfo(
+        `已批量排除 ${result?.succeeded.length ?? 0} 条服务故障${
+          skipped.length ? `，${skipped.length} 条跳过` : ''
+        }`,
+      );
+      if (skipped.length) {
+        setActionError(
+          `跳过原因：${skipped
+            .map(
+              (item) =>
+                `${item.id.slice(0, 8)} ${BATCH_EXCLUDE_SKIP_REASON[item.reason] ?? item.reason}`,
+            )
+            .join('；')}`,
+        );
+      }
+    } catch (err: any) {
+      setActionError(err?.message ?? '批量排除失败，请重试');
     }
   };
 
@@ -903,42 +913,17 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     setActionError('');
     setActionInfo('');
     try {
-      const result = (await aiQualityApi.addCases(addDatasetId, {
-        cases: [
-          {
-            question: target.input,
-            answer: target.answer ?? '',
-            expect: { mustMention: [expected] },
-            expected,
-            sourceFeedbackId: target.id,
-            source: 'feedback',
-            tags: ['from-feedback', target.failureKind ?? 'UNKNOWN'],
-          },
-        ],
-      })) as
-        | (EvalDataset & {
-            cases?: EvalCase[];
-            createdCases?: Array<{ id: string; question: string }>;
-          })
-        | undefined;
-      // cases 只是当前页；新建项必须用 createdCases 定位，否则超过一页就找不到。
-      const created =
-        result?.createdCases?.find(
-          (item) => item.question === (target.input ?? ''),
-        ) ??
-        [...(result?.cases ?? [])]
-          .reverse()
-          .find((item) => item.question === (target.input ?? ''));
-      if (!created) {
-        throw new Error('用例已提交，但未能定位新建用例，请刷新后手动关联');
-      }
-      await aiQualityApi.updateFeedback(target.id, {
-        linkedEvalCaseId: created.id,
-        resolution: 'ADDED_TO_EVAL',
+      const result = await aiQualityApi.createRegressionCase(target.id, {
+        datasetId: addDatasetId,
+        expected,
         ...(target.version != null ? { expectedVersion: target.version } : {}),
       });
       setAddTarget(null);
-      setActionInfo('已加入回归评测集');
+      setActionInfo(
+        result?.created === false
+          ? '这条反馈已在回归评测集中'
+          : '已加入回归评测集',
+      );
       await Promise.all([refresh(), refreshSummary(), refreshDatasets()]);
     } catch (err: any) {
       setActionError(err?.message ?? '加入回归失败，请重试');
