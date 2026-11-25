@@ -158,7 +158,7 @@ function DiagnosisBadges({ item }: { item: FeedbackRow }) {
               : 'whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
           }
         >
-          {flag.label}
+          {flag.label} · 推断
         </span>
       ))}
     </div>
@@ -224,11 +224,12 @@ function ResultPager({
   onChange,
 }: {
   page: number;
-  total: number;
+  total?: number;
   onChange: (page: number) => void;
 }) {
+  // 总数未知时不显示分页：宁可不翻页，也不凭空算出页数。
+  if (typeof total !== 'number' || total <= EVAL_PAGE_SIZE) return null;
   const totalPages = Math.max(1, Math.ceil(total / EVAL_PAGE_SIZE));
-  if (total <= EVAL_PAGE_SIZE) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
       <Button
@@ -377,8 +378,17 @@ function countByValue(
   rows: Array<Record<string, any>> | undefined,
   key: string,
   value: string,
-): number {
-  return (rows ?? []).find((row) => row[key] === value)?.count ?? 0;
+): number | undefined {
+  // 聚合已加载时缺行即 0（groupBy 不返回空组）；聚合本身缺失才算未知。
+  if (!Array.isArray(rows)) return undefined;
+  const row = rows.find((item) => item[key] === value);
+  return row ? row.count : 0;
+}
+
+/** 用例总数：后端没给就是未知，不用 0 冒充。 */
+function knownCasesTotal(ds: any): number | undefined {
+  const value = ds?.casesTotal ?? ds?._count?.cases ?? ds?.cases?.length;
+  return typeof value === 'number' ? value : undefined;
 }
 
 /**
@@ -572,7 +582,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const datasetList: EvalDataset[] = Array.isArray(datasetListData)
     ? (datasetListData as EvalDataset[])
     : [];
-  const total = (data as any)?.total ?? 0;
+  const rawTotal = (data as any)?.total;
+  const total: number | undefined =
+    typeof rawTotal === 'number' ? rawTotal : undefined;
   const kpis: Array<{ label: string; value?: number; href: string }> = [
     {
       label: '待处理',
@@ -581,7 +593,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     },
     {
       label: '系统信号',
-      value: summary?.signals ?? 0,
+      value: summary?.signals,
       href: withRange({ queue: 'SIGNAL' }),
     },
     {
@@ -1152,7 +1164,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             开始质检
           </Button>
         ) : null}
-        <span className="text-xs text-gray-500">共 {total} 条</span>
+        <span className="text-xs text-gray-500">共 {total ?? '未知'} 条</span>
         {!canTriage ? (
           <span className="rounded-lg border px-2 py-0.5 text-xs text-gray-500 dark:border-white/10">
             只读
@@ -1221,7 +1233,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 <option value="">选择评测集</option>
                 {datasetList.map((dataset) => (
                   <option key={dataset.id} value={dataset.id}>
-                    {dataset.name}（{dataset._count?.cases ?? 0} 条用例）
+                    {dataset.name}（{dataset._count?.cases ?? '未知'} 条用例）
                   </option>
                 ))}
               </select>
@@ -1592,7 +1604,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         <Button
           size="sm"
           variant="outline"
-          disabled={page * 20 >= total}
+          disabled={typeof total === 'number' && page * 20 >= total}
           onClick={() => setPage((p) => p + 1)}
         >
           下一页
@@ -1970,9 +1982,9 @@ function EvalPanel() {
       if (!Array.isArray(parsed)) throw new Error('JSON 必须是数组');
       const result = await aiQualityApi.addCases(selectedId, { cases: parsed });
       const created = result?.created ?? parsed.length;
-      const skipped = result?.skipped?.length ?? 0;
+      const skipped = result?.skipped?.length;
       setMessage(
-        skipped > 0
+        skipped
           ? `已添加 ${created} 条用例，跳过 ${skipped} 条重复`
           : `已添加 ${created} 条用例`,
       );
@@ -2129,7 +2141,7 @@ function EvalPanel() {
           <option value="">选择评测集</option>
           {list.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.name}（{d._count?.cases ?? 0} 条用例）
+              {d.name}（{d._count?.cases ?? '未知'} 条用例）
             </option>
           ))}
         </select>
@@ -2300,11 +2312,10 @@ function EvalPanel() {
       {selectedId && ds ? (
         <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
           <h3 className="mb-2 text-sm font-semibold">
-            用例（{ds.casesTotal ?? ds._count?.cases ?? ds.cases?.length ?? 0}）
+            用例（{knownCasesTotal(ds) ?? '未知'}）
           </h3>
           <div className="max-h-52 space-y-2 overflow-y-auto text-xs">
-            {(ds.casesTotal ?? ds._count?.cases ?? ds.cases?.length ?? 0) ===
-            0 ? (
+            {knownCasesTotal(ds) === 0 ? (
               <div className="text-gray-400">
                 暂无用例，可在高级模式中导入。
               </div>
@@ -2390,7 +2401,7 @@ function EvalPanel() {
           </div>
           <ResultPager
             page={casesPage}
-            total={ds.casesTotal ?? ds._count?.cases ?? ds.cases?.length ?? 0}
+            total={knownCasesTotal(ds)}
             onChange={setCasesPage}
           />
         </div>
@@ -2500,16 +2511,16 @@ function EvalPanel() {
               runData.mode === 'EXTERNAL' ? (
                 <span className="text-xs text-gray-500">
                   共 {runData.summary.total} 条 · 正确{' '}
-                  {runData.summary.correct ?? 0} · 错误{' '}
-                  {runData.summary.incorrect ?? 0} · 判官失败{' '}
-                  {runData.summary.judgeError ?? 0}
+                  {runData.summary.correct ?? '未记录'} · 错误{' '}
+                  {runData.summary.incorrect ?? '未记录'} · 判官失败{' '}
+                  {runData.summary.judgeError ?? '未记录'}
                 </span>
               ) : (
                 <span className="text-xs text-gray-500">
                   共 {runData.summary.total} 条 · 解决{' '}
-                  {runData.summary.solved ?? 0} · 部分{' '}
-                  {runData.summary.partial ?? 0} · 未解决{' '}
-                  {runData.summary.unsolved ?? 0}
+                  {runData.summary.solved ?? '未记录'} · 部分{' '}
+                  {runData.summary.partial ?? '未记录'} · 未解决{' '}
+                  {runData.summary.unsolved ?? '未记录'}
                 </span>
               )
             ) : null}
@@ -2520,16 +2531,16 @@ function EvalPanel() {
                   passRate: runData.summary.baselinePassRate,
                 })}{' '}
                 · 变化 {formatDelta(runData.summary.delta)} · 新增失败{' '}
-                {runData.summary.newFailures ?? 0} · 修复{' '}
-                {runData.summary.fixed ?? 0}
+                {runData.summary.newFailures ?? '未记录'} · 修复{' '}
+                {runData.summary.fixed ?? '未记录'}
               </span>
             ) : null}
             {typeof runData.summary?.baselineAccuracy === 'number' ? (
               <span className="text-xs text-gray-500">
                 基线准确率 {formatRate(runData.summary.baselineAccuracy)} · 变化{' '}
                 {formatDelta(runData.summary.delta)} · 新增错误{' '}
-                {runData.summary.newFailures ?? 0} · 修复{' '}
-                {runData.summary.fixed ?? 0}
+                {runData.summary.newFailures ?? '未记录'} · 修复{' '}
+                {runData.summary.fixed ?? '未记录'}
               </span>
             ) : null}
           </div>
@@ -2651,6 +2662,8 @@ function EvalPanel() {
                     ) : null}
                     {grounding ? (
                       <div className="text-gray-500">依据分型：{grounding}</div>
+                    ) : runData.mode === 'EXTERNAL' ? (
+                      <div className="text-gray-500">依据分型：未检查</div>
                     ) : null}
                     <div className="text-gray-500">{r.reason}</div>
                   </div>
@@ -2661,7 +2674,11 @@ function EvalPanel() {
           {runData.status !== 'RUNNING' ? (
             <ResultPager
               page={resultsPage}
-              total={runData.resultsTotal ?? runData.results?.length ?? 0}
+              total={
+                typeof runData.resultsTotal === 'number'
+                  ? runData.resultsTotal
+                  : runData.results?.length
+              }
               onChange={setResultsPage}
             />
           ) : null}

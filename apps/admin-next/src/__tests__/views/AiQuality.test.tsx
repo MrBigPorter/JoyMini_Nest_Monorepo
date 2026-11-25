@@ -1622,6 +1622,74 @@ describe('AiQualityPage', () => {
     expect(screen.getByText(/失败类别：judge_unavailable/)).toBeTruthy();
   });
 
+  it('汇总缺字段时显示未记录，不用 0 冒充未知', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-gap-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { total: 3 },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+
+    expect(
+      screen.getByText(/正确 未记录 · 错误 未记录 · 判官失败 未记录/),
+    ).toBeTruthy();
+  });
+
+  it('未采集依据分型的结果标未检查', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-gap-2',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { total: 1, correct: 1 },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [
+        {
+          id: 'r-ground-1',
+          answerVerdict: 'correct',
+          answerScore: 0.9,
+          grounding: null,
+          reason: 'ok',
+          latencyMs: 12,
+          case: evalDatasetDetail.cases[0],
+        },
+      ],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    expect(screen.getByText(/依据分型：未检查/)).toBeTruthy();
+  });
+
+  it('推断出的行诊断标注推断', () => {
+    render(<AiQualityPage />);
+
+    // 默认列表行没有 traceId，诊断是推断出来的，必须与已核实结论区分。
+    expect(screen.getByText(/无链路 · 推断/)).toBeTruthy();
+  });
+
   it('shows mode, baseline delta, new failures and fixed on the run card', () => {
     const enterEval = wireEvalTab(evalDatasetDetail, {
       id: 'run-1',
