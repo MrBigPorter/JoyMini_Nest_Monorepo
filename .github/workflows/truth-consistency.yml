@@ -51,17 +51,32 @@ jobs:
       - name: Self-test (no token needed)
         run: node --test tools/truth/*.test.mjs
 
-      - name: Ensure admin token is configured
+      - name: Resolve admin token
         env:
           TRUTH_ADMIN_TOKEN: ${{ secrets.TRUTH_ADMIN_TOKEN || secrets.E2E_ADMIN_TOKEN }}
+          TEST_USERNAME: ${{ secrets.E2E_ADMIN_TEST_USERNAME }}
+          TEST_CODE: ${{ secrets.E2E_ADMIN_TEST_CODE }}
+          BASE_URL: ${{ inputs.base_url || 'https://api.joyminis.com/api/v1' }}
         run: |
-          if [ -z "${TRUTH_ADMIN_TOKEN:-}" ]; then
-            echo "::error::缺少管理员令牌：请配置仓库密钥 TRUTH_ADMIN_TOKEN（或复用 E2E_ADMIN_TOKEN）。校验不允许静默跳过。"
+          # 令牌二选一：直接给 TRUTH_ADMIN_TOKEN / E2E_ADMIN_TOKEN，
+          # 或用测试账号现换（与 eval-regression.yml 同一套，避免长期令牌过期）。
+          set -euo pipefail
+          token="${TRUTH_ADMIN_TOKEN:-}"
+          if [ -z "$token" ] && [ -n "${TEST_USERNAME:-}" ] && [ -n "${TEST_CODE:-}" ]; then
+            root="${BASE_URL%/v1}"
+            body=$(curl -fsS -X POST "${root}/v1/auth/admin/test-login" \
+              -H 'content-type: application/json' \
+              --data "$(jq -cn --arg u "$TEST_USERNAME" --arg c "$TEST_CODE" '{test:$u, code:$c}')")
+            token=$(printf '%s' "$body" | jq -r '.data.tokens.accessToken // empty')
+          fi
+          if [ -z "$token" ]; then
+            echo "::error::缺少管理员令牌：配置 TRUTH_ADMIN_TOKEN / E2E_ADMIN_TOKEN，或有效的测试登录凭据。校验不允许静默跳过。"
             exit 1
           fi
+          echo "::add-mask::$token"
+          echo "TRUTH_ADMIN_TOKEN=$token" >> "$GITHUB_ENV"
 
       - name: Check documents against payment_channels
         env:
           TRUTH_BASE_URL: ${{ inputs.base_url || 'https://api.joyminis.com/api/v1' }}
-          TRUTH_ADMIN_TOKEN: ${{ secrets.TRUTH_ADMIN_TOKEN || secrets.E2E_ADMIN_TOKEN }}
         run: node tools/truth/check.mjs
