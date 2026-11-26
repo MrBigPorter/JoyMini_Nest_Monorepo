@@ -93,6 +93,8 @@ apps/frontend-blog/public/workbox-*.js.br
 __pycache__/
 tools/eval/reports/
 tools/eval/task/reports/
+# 判官结构化输出探针（apps/api/scripts/probe-judge-structured-output.ts）的本地输出
+/reports/
 
 # Synthetic AI traffic simulator runtime (accounts.json contains tokens)
 tools/simulator/.runtime/
