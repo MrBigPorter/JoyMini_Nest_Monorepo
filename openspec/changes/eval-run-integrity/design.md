@@ -36,7 +36,9 @@
 
 ### D6 基线按数据集、仅 EXTERNAL
 
-`promoteRun` 依次校验：`mode==='EXTERNAL'`、`scope==='full'`（null 不通过）、`datasetSnapshot.hash` 与当前基线同源、`knowledgeSnapshot.stable`、版本字段齐全、最低样本量（每意图 ≥12、总数 ≥150）、`judgeErrorRate<0.02`、`judgeAgreement>=0.95`。清空用 `updateMany({ isBaseline:true, datasetId })`。对比入口在 `baselineRunId=null` 时不得回退到 promoted 基线。
+`promoteRun` 依次校验：`mode==='EXTERNAL'`、`scope==='full'`（null 不通过）、`datasetSnapshot.hash` 与当前基线同源、`knowledgeSnapshot.stable`、版本字段齐全、最低样本量（总数 ≥150；知识类用例按 `kind`，即 knowledge/negative/multi/kb 每类 ≥12；规则类用例 action/read/boundary 每类 ≥6，只要求覆盖到，未知 `kind` 按知识类口径）、`judgeErrorRate<0.02`、`judgeAgreement>=0.95`。清空用 `updateMany({ isBaseline:true, datasetId })`。对比入口在 `baselineRunId=null` 时不得回退到 promoted 基线。
+
+> 2026-11-26 修正：原实现把快照的 `kind`（用例类型）当成「意图」套用每类 ≥12，导致结构上只有 7 条 action、6 条 boundary 的全量 harness 运行永远无法登记基线；且 `kind` 不是意图标签，判官打分的知识类才需要统计样本量。改为按「知识类 / 规则类」分口径后，sync 时以本条为准。
 
 ### D7 指标族贯穿
 
