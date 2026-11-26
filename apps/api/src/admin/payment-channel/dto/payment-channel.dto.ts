@@ -42,7 +42,9 @@ export class PaymentChannelDto {
   feeFixed!: string;
 
   @ApiProperty({ description: '费率 (0.02=2%)', example: 0.02 })
-  @DecimalToString()
+  // 列是 Decimal(5,4)：0.0080（0.8%）必须原样输出。
+  // 默认 2 位会把 0.0080 舍成 "0.01"，后台显示与真值校验都会读错费率。
+  @DecimalToString(4)
   feeRate!: string;
 
   @ApiProperty({ description: '排序', example: 1 })

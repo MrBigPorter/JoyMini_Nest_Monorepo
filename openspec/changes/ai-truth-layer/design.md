@@ -94,6 +94,38 @@
 
 理由：`₱15` 与 `0.8% + ₱5` 不能直接比较大小；若只比数值，比较器就得猜"哪个更大算对"。形式本身是可观察的错误（用户实际会被扣 ₱85 而非 ₱15），应当单独判失败。现有冲突里这条正好命中。
 
+实现时补一条窄例外：登记为 `rate_plus_fixed`、文档只写比例（如 `1%`）时，仅当真值的 `fee_fixed` 为 0 才通过；真值有固定费仍判形式不符。否则 `PH_BDO`（1% + ₱0）会被迫写成 `1% + ₱0`。
+
+### D9 — 文档按 docId 定位走列表翻页，而不是详情接口
+
+`GET /admin/rag/documents/:id` 的 `:id` 只接受数据库 UUID（`rag.service.ts:181` `findUnique({ where: { id } })`），而登记与文档表格用的是业务键 `docId`。校验器改为 `GET /admin/rag/documents?isActive=true&page=N&pageSize=100` 逐页匹配 `docId`，翻到 `total` 为止。
+
+理由：不改 api（提案已声明），且只发 GET；文档总数在百级，翻页成本可忽略。代价是依赖列表接口的 `total` 与实际页大小一致，结构不符时按失败处理。列表条目里同时带 `version` 与 `activeVersion`，D12 的版本绑定判定就建立在它们之上。
+
+### D10 — 管理端接口带 URI 版本前缀，写回走独立运维脚本
+
+`main.ts:61` 开了 `enableVersioning({ type: URI, defaultVersion: '1' })`，所以所有路由实际是 `/api/v1/...`：`GET /api/v1/admin/payment/channels/list`、`GET /api/v1/admin/rag/documents`。`--base-url` 一律给到 `/api/v1`，本地是 `http://127.0.0.1:3000/api/v1`。
+
+文档迁移的写回落在一个**独立的运维脚本** `tools/truth/apply-docs.mjs`，而不是校验器里：校验器保持只发 GET，「只读」这条性质才守得住。脚本做三件事——按 docId 取当前正文、与 `fixtures/docs/<docId>.md` 定稿逐字节比较、不同才 `PATCH /admin/rag/documents/:id/content`，然后轮询详情接口直到 `activeVersion` 切到新 `version`，超时即失败并提示索引未生效。
+
+理由：`updateContent()`（`rag.service.ts:791`）才是重新切片、重算哈希与质量分、排队向量化并触发 `KbVersionService` 切换的入口；直接改库会留下「正文是新的、索引还停在旧内容」的隐性不一致。定稿文件放仓库里是为了让改名、删渠道这类**内容决定**能在 PR 里被看见，而不只是留在某人本地。
+
+### D11 — 真值读取必须无损：费率精度是 4 位，不是 2 位
+
+`payment_channels.fee_rate` 是 `Decimal(5,4)`，`0.0080`（0.8%）是合法值。但 `PaymentChannelDto` 的 `@DecimalToString()` 默认只保留 **2** 位小数，接口把 `0.0080` 输出成 `"0.01"`：后台显示成 1%，校验器也读到 1%，于是文档写「1% + ₱5」会被**误判通过**——比文档写错更糟，因为校验器给了假绿。
+
+改动：该字段改为 `@DecimalToString(4)`（`payment-channel.dto.ts`），金额类字段（`minAmount` / `maxAmount` / `feeFixed`）保持 2 位。单测锁三档：`0.0080` → `"0.0080"`、`0.01` → `"0.0100"`、`0` → `"0.0000"`。
+
+这条超出「不改 api」的初版范围，但没有它，本变更的核心比对建立在被四舍五入过的读数上，Requirement 无法成立。
+
+### D12 — 校验绑定在「正在服务的那一版」，而不只是正文列
+
+`KbVersionService.switchTo()`（`kb-version.service.ts:145`）只翻分块与 Meili 的版本标记，**不还原** `knowledge_documents.content`。所以回滚之后：检索服务的是旧版分块，而列表接口返回的仍是当前（新版）正文。只比正文会得到假绿——校验器看不到「线上正在服务的那一份」。
+
+校验器因此要求 `activeVersion === version`，不等即失败，阻断信息写明两个版本号。这是「校验对象是线上正在服务的那一对」在版本维度上的落实。
+
+代价与取向：正文改完、向量化尚未完成时，校验为红。这是有意的失败方向——那段时间检索服务的确实是旧内容；`apply-docs.mjs` 会在写完后等到切换完成，所以正常迁移路径不会撞上。
+
 ## Risks / Trade-offs
 
 - **表格解析脆弱** → 解析失败按失败处理并打印原始行；登记里为每种表声明解析格式（本批只有一种：五列渠道表）。

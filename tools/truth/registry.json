@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "documents": ["deposit-guide", "withdrawal-guide"],
+  "facts": {
+    "PH_GCASH.available": {
+      "docId": "deposit-guide",
+      "row": "GCash",
+      "column": null,
+      "source": { "kind": "payment_channel", "code": "PH_GCASH", "type": 1, "fields": ["status"] },
+      "expectForm": "boolean",
+      "parser": "channel-row-v1"
+    },
+    "PH_GCASH.fee": {
+      "docId": "deposit-guide",
+      "row": "GCash",
+      "column": "Fee",
+      "source": { "kind": "payment_channel", "code": "PH_GCASH", "type": 1, "fields": ["fee_rate", "fee_fixed"] },
+      "expectForm": "flat",
+      "parser": "channel-row-v1"
+    },
+    "PH_GCASH.min": {
+      "docId": "deposit-guide",
+      "row": "GCash",
+      "column": "Min Amount",
+      "source": { "kind": "payment_channel", "code": "PH_GCASH", "type": 1, "fields": ["min_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1"
+    },
+    "PH_GCASH.max": {
+      "docId": "deposit-guide",
+      "row": "GCash",
+      "column": "Max Amount",
+      "source": { "kind": "payment_channel", "code": "PH_GCASH", "type": 1, "fields": ["max_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1"
+    },
+    "PH_PAYMAYA.available": {
+      "docId": "deposit-guide",
+      "row": "PayMaya / Maya",
+      "column": null,
+      "source": { "kind": "payment_channel", "code": "PH_PAYMAYA", "type": 1, "fields": ["status"] },
+      "expectForm": "boolean",
+      "parser": "channel-row-v1"
+    },
+    "PH_PAYMAYA.fee": {
+      "docId": "deposit-guide",
+      "row": "PayMaya / Maya",
+      "column": "Fee",
+      "source": { "kind": "payment_channel", "code": "PH_PAYMAYA", "type": 1, "fields": ["fee_rate", "fee_fixed"] },
+      "expectForm": "flat",
+      "parser": "channel-row-v1"
+    },
+    "PH_PAYMAYA.min": {
+      "docId": "deposit-guide",
+      "row": "PayMaya / Maya",
+      "column": "Min Amount",
+      "source": { "kind": "payment_channel", "code": "PH_PAYMAYA", "type": 1, "fields": ["min_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1"
+    },
+    "PH_PAYMAYA.max": {
+      "docId": "deposit-guide",
+      "row": "PayMaya / Maya",
+      "column": "Max Amount",
+      "source": { "kind": "payment_channel", "code": "PH_PAYMAYA", "type": 1, "fields": ["max_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1"
+    },
+    "PH_BDO.available": {
+      "docId": "deposit-guide",
+      "row": "BDO Online",
+      "column": null,
+      "source": { "kind": "payment_channel", "code": "PH_BDO", "type": 1, "fields": ["status"] },
+      "expectForm": "boolean",
+      "parser": "channel-row-v1",
+      "note": "配置里支持、deposit-guide 没有对应行；迁移时补行并加标记"
+    },
+    "PH_BDO.fee": {
+      "docId": "deposit-guide",
+      "row": "BDO Online",
+      "column": "Fee",
+      "source": { "kind": "payment_channel", "code": "PH_BDO", "type": 1, "fields": ["fee_rate", "fee_fixed"] },
+      "expectForm": "rate_plus_fixed",
+      "parser": "channel-row-v1",
+      "note": "配置 1%，文档缺行"
+    },
+    "PH_BDO.min": {
+      "docId": "deposit-guide",
+      "row": "BDO Online",
+      "column": "Min Amount",
+      "source": { "kind": "payment_channel", "code": "PH_BDO", "type": 1, "fields": ["min_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1",
+      "note": "配置最低 ₱100，文档缺行"
+    },
+    "PH_BDO.max": {
+      "docId": "deposit-guide",
+      "row": "BDO Online",
+      "column": "Max Amount",
+      "source": { "kind": "payment_channel", "code": "PH_BDO", "type": 1, "fields": ["max_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1",
+      "note": "配置最高 ₱80,000，文档缺行"
+    },
+    "PH_GCASH_WITHDRAW.available": {
+      "docId": "withdrawal-guide",
+      "row": "GCash",
+      "column": null,
+      "source": { "kind": "payment_channel", "code": "PH_GCASH_WITHDRAW", "type": 2, "fields": ["status"] },
+      "expectForm": "boolean",
+      "parser": "channel-row-v1"
+    },
+    "PH_GCASH_WITHDRAW.fee": {
+      "docId": "withdrawal-guide",
+      "row": "GCash",
+      "column": "Fee",
+      "source": { "kind": "payment_channel", "code": "PH_GCASH_WITHDRAW", "type": 2, "fields": ["fee_rate", "fee_fixed"] },
+      "expectForm": "rate_plus_fixed",
+      "parser": "channel-row-v1"
+    },
+    "PH_GCASH_WITHDRAW.min": {
+      "docId": "withdrawal-guide",
+      "row": "GCash",
+      "column": "Min Amount",
+      "source": { "kind": "payment_channel", "code": "PH_GCASH_WITHDRAW", "type": 2, "fields": ["min_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1"
+    },
+    "PH_GCASH_WITHDRAW.max": {
+      "docId": "withdrawal-guide",
+      "row": "GCash",
+      "column": "Max Amount",
+      "source": { "kind": "payment_channel", "code": "PH_GCASH_WITHDRAW", "type": 2, "fields": ["max_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1"
+    },
+    "PH_BANK_WITHDRAW.available": {
+      "docId": "withdrawal-guide",
+      "row": "Bank Transfer (InstaPay)",
+      "column": null,
+      "source": { "kind": "payment_channel", "code": "PH_BANK_WITHDRAW", "type": 2, "fields": ["status"] },
+      "expectForm": "boolean",
+      "parser": "channel-row-v1",
+      "note": "配置只有一个 Bank Transfer 渠道；文档拆成 InstaPay/PESONet 两行，本登记以 InstaPay 行为声明位"
+    },
+    "PH_BANK_WITHDRAW.fee": {
+      "docId": "withdrawal-guide",
+      "row": "Bank Transfer (InstaPay)",
+      "column": "Fee",
+      "source": { "kind": "payment_channel", "code": "PH_BANK_WITHDRAW", "type": 2, "fields": ["fee_rate", "fee_fixed"] },
+      "expectForm": "rate_plus_fixed",
+      "parser": "channel-row-v1",
+      "note": "配置 1% + ₱10，文档写固定 ₱15"
+    },
+    "PH_BANK_WITHDRAW.min": {
+      "docId": "withdrawal-guide",
+      "row": "Bank Transfer (InstaPay)",
+      "column": "Min Amount",
+      "source": { "kind": "payment_channel", "code": "PH_BANK_WITHDRAW", "type": 2, "fields": ["min_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1",
+      "note": "配置最低 ₱200，文档写 ₱100"
+    },
+    "PH_BANK_WITHDRAW.max": {
+      "docId": "withdrawal-guide",
+      "row": "Bank Transfer (InstaPay)",
+      "column": "Max Amount",
+      "source": { "kind": "payment_channel", "code": "PH_BANK_WITHDRAW", "type": 2, "fields": ["max_amount"] },
+      "expectForm": "amount",
+      "parser": "channel-row-v1",
+      "note": "配置最高 ₱100,000，文档写 ₱50,000"
+    }
+  },
+  "unsourced": [
+    {
+      "type": "processing_time",
+      "reason": "全库没有任何承载处理时长的字段（已核对 information_schema），payment_channels 也没有该列",
+      "documents": ["deposit-guide", "withdrawal-guide"],
+      "decision": "迁移时删除文档里的精确时长（Instant / 1-3 hours / 1-24 hours），改为定性表述「到账时间因渠道而异」；有了真值字段后再写回"
+    }
+  ]
+}
