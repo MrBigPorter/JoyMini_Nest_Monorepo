@@ -83,8 +83,10 @@ async function main() {
     process.stdout.write(`阻断：${blocker}\n`);
   }
 
+  const promptNote =
+    report.promptsScanned === 0 ? "（该环境未启用 DB 提示词，运行期使用代码默认配置）" : "";
   process.stdout.write(
-    `提示词扫描：${report.promptsScanned} 个生效版本，${report.promptViolations.length} 处字面量\n`,
+    `提示词扫描：${report.promptsScanned} 个生效版本${promptNote}，${report.promptViolations.length} 处字面量\n`,
   );
 
   const passed = report.results.filter((result) => result.verdict === "pass").length;

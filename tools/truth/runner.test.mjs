@@ -163,6 +163,22 @@ test("提示词读取失败：判失败并写明原因，不当作没有提示�
   assert.match(report.blockers.join("\n"), /500/);
 });
 
+// prod 从未 sync 代码提示词，运行期回退 TS 默认（PR 评审）。零条不是事实缺失，
+// 但要在报告里如实写 0，不能与「扫过且干净」混为一谈。
+test("该环境没有生效提示词：不阻断，报告记 0 个生效版本", async () => {
+  const report = await runCheck({
+    loadRegistryFn: registryStub,
+    source: sourceStub({
+      async listActivePrompts() {
+        return [];
+      },
+    }),
+  });
+  assert.equal(report.status, "pass");
+  assert.equal(report.promptsScanned, 0);
+  assert.deepEqual(report.blockers, []);
+});
+
 test("取文档失败：判失败并指明是哪篇", async () => {
   const report = await runCheck({
     loadRegistryFn: registryStub,

@@ -104,6 +104,18 @@ test("全绿：退出码 0，逐条输出声明与结论", async () => {
   });
 });
 
+test("该环境没有生效提示词：退出码 0，报告写明 0 个而不是装作扫过", async () => {
+  await withStub(
+    { "deposit-guide": depositDoc(), "withdrawal-guide": withdrawalDoc() },
+    async (baseUrl) => {
+      const { stdout } = await run(process.execPath, [CLI, "--base-url", baseUrl, "--token", "T"], { timeout: 15000 });
+      assert.match(stdout, /提示词扫描：0 个生效版本（该环境未启用 DB 提示词，运行期使用代码默认配置），0 处字面量/);
+      assert.doesNotMatch(stdout, /阻断：/);
+    },
+    [],
+  );
+});
+
 test("提示词写死费率：退出码 1，报告指出提示词与版本", async () => {
   const dirty = {
     name: "wallet",

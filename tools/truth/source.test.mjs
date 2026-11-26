@@ -255,17 +255,13 @@ test("提示词：生效版本缺 config 时失败，不把空配置当通过", 
   );
 });
 
-test("提示词：零条生效版本时失败，不当成「没有可扫的」放过", async () => {
+test("提示词：零条生效版本时返回空集合（该环境用代码默认配置，不是失败）", async () => {
   await withServer(
     (_request, response) =>
       respond(response, envelope({ page: 1, pageSize: 100, total: 0, items: [] })),
     async (baseUrl) => {
       const source = createHttpSource({ baseUrl, token: "TOKEN" });
-      await assert.rejects(source.listActivePrompts(), (error) => {
-        assert.ok(error instanceof SourceError);
-        assert.match(error.message, /零条/);
-        return true;
-      });
+      assert.deepEqual(await source.listActivePrompts(), []);
     },
   );
 });

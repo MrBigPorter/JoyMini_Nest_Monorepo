@@ -147,9 +147,8 @@ export function createHttpSource({ baseUrl, token, fetchImpl = globalThis.fetch,
       if (!done) {
         throw new SourceError(`读取提示词失败：超过 ${MAX_PAGES} 页上限，疑似分页异常`);
       }
-      if (carriers.length === 0) {
-        throw new SourceError("零条生效提示词：没有可扫描的生效版本，拒绝当作通过");
-      }
+      // 空集合是合法状态：该环境从未 sync 代码提示词，运行期回退 TS 默认（走 PR 评审）。
+      // 报 0 而不是判失败——否则未启用 DB 提示词的环境会永久红。
       return carriers;
     },
 
