@@ -188,3 +188,84 @@ test("文档：找不到 docId 时失败并报出 docId", async () => {
     },
   );
 });
+
+const PROMPT = {
+  name: "wallet",
+  status: "active",
+  activeVersion: 5,
+  versions: [{ version: 5, isActive: true, config: { role: "You are the wallet assistant." } }],
+};
+
+test("提示词：只取生效版本，跨页翻完 total", async () => {
+  await withServer(
+    (request, response) => {
+      const url = new URL(request.url, "http://stub");
+      if (url.searchParams.get("page") === "1") {
+        respond(response, envelope({ page: 1, pageSize: 100, total: 2, items: [PROMPT] }));
+      } else {
+        respond(
+          response,
+          envelope({
+            page: 2,
+            pageSize: 100,
+            total: 2,
+            items: [{ name: "draft", status: "active", activeVersion: 0, versions: [] }],
+          }),
+        );
+      }
+    },
+    async (baseUrl, requests) => {
+      const source = createHttpSource({ baseUrl, token: "TOKEN" });
+      const prompts = await source.listActivePrompts();
+      assert.equal(prompts.length, 1);
+      assert.deepEqual(prompts[0], {
+        name: "wallet",
+        activeVersion: 5,
+        config: { role: "You are the wallet assistant." },
+      });
+      assert.equal(requests.length, 2);
+      assert.match(requests[0].url, /\/admin\/ai-prompt\?/);
+      assert.match(requests[0].url, /status=active/);
+      assert.equal(requests[0].authorization, "Bearer TOKEN");
+    },
+  );
+});
+
+test("提示词：生效版本缺 config 时失败，不把空配置当通过", async () => {
+  await withServer(
+    (_request, response) =>
+      respond(
+        response,
+        envelope({
+          page: 1,
+          pageSize: 100,
+          total: 1,
+          items: [{ name: "wallet", status: "active", activeVersion: 5, versions: [{ version: 5, isActive: true }] }],
+        }),
+      ),
+    async (baseUrl) => {
+      const source = createHttpSource({ baseUrl, token: "TOKEN" });
+      await assert.rejects(source.listActivePrompts(), (error) => {
+        assert.ok(error instanceof SourceError);
+        assert.match(error.message, /结构/);
+        assert.match(error.message, /wallet/);
+        return true;
+      });
+    },
+  );
+});
+
+test("提示词：零条生效版本时失败，不当成「没有可扫的」放过", async () => {
+  await withServer(
+    (_request, response) =>
+      respond(response, envelope({ page: 1, pageSize: 100, total: 0, items: [] })),
+    async (baseUrl) => {
+      const source = createHttpSource({ baseUrl, token: "TOKEN" });
+      await assert.rejects(source.listActivePrompts(), (error) => {
+        assert.ok(error instanceof SourceError);
+        assert.match(error.message, /零条/);
+        return true;
+      });
+    },
+  );
+});

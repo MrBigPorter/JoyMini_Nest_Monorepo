@@ -55,7 +55,14 @@ function withdrawalDoc() {
   ].join("\n");
 }
 
-async function withStub(documents, runTest) {
+const CLEAN_PROMPT = {
+  name: "wallet",
+  status: "active",
+  activeVersion: 5,
+  versions: [{ version: 5, isActive: true, config: { role: "You are the wallet assistant." } }],
+};
+
+async function withStub(documents, runTest, prompts = [CLEAN_PROMPT]) {
   const server = createServer((request, response) => {
     const url = new URL(request.url, "http://stub");
     response.writeHead(200, { "content-type": "application/json" });
@@ -68,6 +75,10 @@ async function withStub(documents, runTest) {
     if (url.pathname === "/admin/rag/documents") {
       const list = Object.entries(documents).map(([docId, content]) => ({ docId, content, version: 1, activeVersion: 1, isActive: true }));
       response.end(envelope({ page: 1, pageSize: 100, total: list.length, list }));
+      return;
+    }
+    if (url.pathname === "/admin/ai-prompt") {
+      response.end(envelope({ page: 1, pageSize: 100, total: prompts.length, items: prompts }));
       return;
     }
     response.writeHead(404).end("{}");
@@ -88,8 +99,33 @@ test("全绿：退出码 0，逐条输出声明与结论", async () => {
     assert.match(stdout, /PH_GCASH\.fee/);
     assert.match(stdout, /通过/);
     assert.match(stdout, /共 20 条比对：20 通过，0 失败/);
+    assert.match(stdout, /提示词扫描：1 个生效版本，0 处字面量/);
     assert.doesNotMatch(stdout, /阻断：/);
   });
+});
+
+test("提示词写死费率：退出码 1，报告指出提示词与版本", async () => {
+  const dirty = {
+    name: "wallet",
+    status: "active",
+    activeVersion: 5,
+    versions: [{ version: 5, isActive: true, config: { role: "Withdrawal fee is 0.8%." } }],
+  };
+  await withStub(
+    { "deposit-guide": depositDoc(), "withdrawal-guide": withdrawalDoc() },
+    async (baseUrl) => {
+      await assert.rejects(
+        run(process.execPath, [CLI, "--base-url", baseUrl, "--token", "T"], { timeout: 15000 }),
+        (error) => {
+          assert.equal(error.code, 1);
+          assert.match(error.stdout, /提示词「wallet」v5/);
+          assert.match(error.stdout, /0\.8%/);
+          return true;
+        },
+      );
+    },
+    [dirty],
+  );
 });
 
 test("有失败：退出码 1，输出差异与失败条数", async () => {

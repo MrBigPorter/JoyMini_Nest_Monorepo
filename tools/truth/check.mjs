@@ -83,6 +83,10 @@ async function main() {
     process.stdout.write(`阻断：${blocker}\n`);
   }
 
+  process.stdout.write(
+    `提示词扫描：${report.promptsScanned} 个生效版本，${report.promptViolations.length} 处字面量\n`,
+  );
+
   const passed = report.results.filter((result) => result.verdict === "pass").length;
   const failed = report.results.length - passed;
   process.stdout.write(

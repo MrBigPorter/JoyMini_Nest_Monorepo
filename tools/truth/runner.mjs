@@ -1,7 +1,15 @@
 import { compare } from "./compare.mjs";
+import { scanPrompts } from "./prompts.mjs";
 import { loadRegistry } from "./registry.mjs";
 
-const EMPTY = Object.freeze({ results: [], errors: [], blockers: [], compared: 0 });
+const EMPTY = Object.freeze({
+  results: [],
+  errors: [],
+  blockers: [],
+  compared: 0,
+  promptsScanned: 0,
+  promptViolations: [],
+});
 
 /**
  * 跑一次完整校验，返回结构化结论（design D4：四种情况一律失败，不跳过）。
@@ -26,6 +34,27 @@ export async function runCheck({ loadRegistryFn = loadRegistry, source, docIds }
       return { ...EMPTY, status: "fail", blockers: [`文档「${unknown.join(", ")}」不在登记里`] };
     }
     registry = { ...registry, documents: docIds };
+  }
+
+  // 提示词是运行期可改的载体（管理端激活版本）：写死费率/金额会绕开文档一致性，
+  // 必须在比对前先扫。读不到提示词同样是失败，不是"没有可扫的"。
+  let promptReport;
+  try {
+    promptReport = scanPrompts(await source.listActivePrompts());
+  } catch (error) {
+    return { ...EMPTY, status: "fail", blockers: [`真值源不可达：读取生效提示词失败：${error.message}`] };
+  }
+  if (promptReport.violations.length > 0) {
+    return {
+      ...EMPTY,
+      status: "fail",
+      promptsScanned: promptReport.scanned,
+      promptViolations: promptReport.violations,
+      blockers: promptReport.violations.map(
+        (violation) =>
+          `提示词「${violation.name}」v${violation.version} 的 ${violation.path} 写死了事实数值「${violation.match}」——费用/金额只能来自工具结果或知识库登记`,
+      ),
+    };
   }
 
   let channels;
@@ -70,5 +99,7 @@ export async function runCheck({ loadRegistryFn = loadRegistry, source, docIds }
     errors: report.errors,
     blockers,
     compared: report.results.length,
+    promptsScanned: promptReport.scanned,
+    promptViolations: promptReport.violations,
   };
 }

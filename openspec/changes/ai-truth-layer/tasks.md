@@ -28,6 +28,11 @@
 - [ ] 5.1 [Req: 文档声明必须与真值源一致] 在 dev 环境把一个费率改掉、不动文档，触发校验。验证：校验变红并指出该条差异；费率改回后变绿
 - [x] 5.2 [Req: 校验不可静默跳过] 用错误的 base url 触发校验。验证：失败，报告写明不可达的来源与失败原因，且不出现「跳过」字样（实测：`http://127.0.0.1:59999` → exit 1，阻断写明 `GET /admin/payment/channels/list… fetch failed（ECONNREFUSED）`，输出无「跳过」）
 
+## 6. 运行期可改载体
+
+- [x] 6.1 [Req: 事实必须有唯一权威来源] 提示词字面量守卫：读 `status=active` 且带生效版本的提示词，递归扫 config 的全部字符串，出现百分比、货币金额或 `N pesos` 字面量即失败，并指出提示词、版本、字段路径与命中文本。验证：单测覆盖占位文本不误报、比例/金额/pesos 三种命中；runner 集成断言提示词有问题时整体失败且不继续比对（实测：`node --test tools/truth/*.test.mjs` 81/81 通过；runner 用例断言失败时 `results.length === 0`，blocker 带「提示词「wallet」v5」与「0.8%」）
+- [x] 6.2 [Req: 校验不可静默跳过] 提示词读取失败或零条生效版本时判失败，不当作「没有可扫的载体」。验证：source 单测覆盖结构不符与零条；runner 单测覆盖读取抛错；对 dev 跑 `check.mjs`，7 个生效版本、0 处字面量、exit 0（实测：container-test-login 取令牌后 `status: pass`，20/20 比对通过，`promptsScanned: 7`，`violations: 0`）
+
 ## Workflow follow-up
 
 - 全部任务完成并验收通过后，归档变更：`openspec archive ai-truth-layer`

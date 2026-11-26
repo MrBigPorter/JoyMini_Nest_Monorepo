@@ -89,6 +89,70 @@ export function createHttpSource({ baseUrl, token, fetchImpl = globalThis.fetch,
       return data.list;
     },
 
+    /**
+     * 读取运行期真正会用的提示词：status=active 且带生效版本。
+     *
+     * 没有生效版本行的提示词，运行期回退代码里的 TS 默认配置
+     * （PromptResolverService.mergeConfig），不是 DB 载体，跳过。
+     */
+    async listActivePrompts() {
+      const carriers = [];
+      let page = 1;
+      let seen = 0;
+      let done = false;
+
+      for (let attempt = 0; attempt < MAX_PAGES && !done; attempt += 1) {
+        const pathname = `/admin/ai-prompt?status=active&page=${page}&pageSize=${PAGE_SIZE}`;
+        const data = await getJson(pathname);
+        if (!data || !Array.isArray(data.items)) {
+          throw new SourceError(`来源结构不符：GET ${pathname} 的 data.items 不是数组`);
+        }
+        if (typeof data.total !== "number") {
+          throw new SourceError(`来源结构不符：GET ${pathname} 缺 total`);
+        }
+
+        for (const item of data.items) {
+          if (!item || typeof item !== "object") {
+            throw new SourceError(`来源结构不符：GET ${pathname} 的提示词条目不是对象`);
+          }
+          if (typeof item.name !== "string" || item.name === "") {
+            throw new SourceError(`来源结构不符：GET ${pathname} 的提示词条目缺 name`);
+          }
+          if (!Array.isArray(item.versions) || item.versions.length === 0) continue;
+
+          const active = item.versions[0];
+          if (!active || typeof active.version !== "number") {
+            throw new SourceError(`来源结构不符：提示词「${item.name}」的生效版本缺 version`);
+          }
+          if (!active.config || typeof active.config !== "object" || Array.isArray(active.config)) {
+            throw new SourceError(
+              `来源结构不符：提示词「${item.name}」生效版本 v${active.version} 缺 config`,
+            );
+          }
+          carriers.push({ name: item.name, activeVersion: active.version, config: active.config });
+        }
+
+        seen += data.items.length;
+        if (seen >= data.total) {
+          done = true;
+        } else if (data.items.length === 0) {
+          throw new SourceError(
+            `来源结构不符：GET /admin/ai-prompt 分页异常（已读 ${seen}/${data.total}，本页为空）`,
+          );
+        } else {
+          page += 1;
+        }
+      }
+
+      if (!done) {
+        throw new SourceError(`读取提示词失败：超过 ${MAX_PAGES} 页上限，疑似分页异常`);
+      }
+      if (carriers.length === 0) {
+        throw new SourceError("零条生效提示词：没有可扫描的生效版本，拒绝当作通过");
+      }
+      return carriers;
+    },
+
     /** 按业务键 docId 取线上正在服务的文档正文。 */
     async getDocument(docId) {
       let page = 1;

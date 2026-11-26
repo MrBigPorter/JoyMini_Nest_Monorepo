@@ -48,6 +48,9 @@ function sourceStub(overrides = {}) {
     async getDocument(docId) {
       return { docId, content: GOOD_DOC, version: 1, activeVersion: 1 };
     },
+    async listActivePrompts() {
+      return [{ name: "wallet", activeVersion: 5, config: { role: "You are the wallet assistant." } }];
+    },
     ...overrides,
   };
 }
@@ -118,7 +121,46 @@ test("全部一致：状态通过，compared 等于声明条数", async () => {
   const report = await runCheck({ loadRegistryFn: registryStub, source: sourceStub() });
   assert.equal(report.status, "pass");
   assert.equal(report.compared, 1);
+  assert.equal(report.promptsScanned, 1);
   assert.deepEqual(report.blockers, []);
+});
+
+// 提示词是运行期可改的载体（管理端激活版本），写死费率/金额会绕过知识库文档的一致性约束。
+test("提示词写死费率：判失败，指出提示词、版本与字面量，不继续比对", async () => {
+  const report = await runCheck({
+    loadRegistryFn: registryStub,
+    source: sourceStub({
+      async listActivePrompts() {
+        return [
+          {
+            name: "wallet",
+            activeVersion: 5,
+            config: { role: "You are the wallet assistant.", domainRules: "Withdrawal fee is 0.8% of the amount." },
+          },
+        ];
+      },
+    }),
+  });
+  assert.equal(report.status, "fail");
+  assert.equal(report.results.length, 0);
+  const text = report.blockers.join("\n");
+  assert.match(text, /提示词「wallet」v5/);
+  assert.match(text, /0\.8%/);
+});
+
+test("提示词读取失败：判失败并写明原因，不当作没有提示词", async () => {
+  const report = await runCheck({
+    loadRegistryFn: registryStub,
+    source: sourceStub({
+      async listActivePrompts() {
+        throw new SourceError("HTTP 500：GET /admin/ai-prompt?status=active");
+      },
+    }),
+  });
+  assert.equal(report.status, "fail");
+  assert.equal(report.results.length, 0);
+  assert.match(report.blockers.join("\n"), /提示词/);
+  assert.match(report.blockers.join("\n"), /500/);
 });
 
 test("取文档失败：判失败并指明是哪篇", async () => {
