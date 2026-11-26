@@ -32,7 +32,7 @@
 ## 4. 集成验证
 
 - [ ] 4.1 全量验证：`openspec validate "eval-run-integrity" --strict`、`yarn workspace @lucky/api tsc --noEmit --pretty`、`yarn workspace @lucky/admin-next tsc --noEmit`、api jest（ai-eval）、admin vitest、手动并发启动与 35 分钟长跑；验证：全部命令以 0 退出，并发一成功一 409，长跑保持 RUNNING [Req: 评测启动必须互斥且幂等]（已完成 2026-11-25：validate/两处 tsc 通过，api jest 143/143、admin vitest 391/391；本地 STORED 并发启动实测一个 201、一个 409 `This dataset already has a run in progress`。未完成：35 分钟长跑——本地数据集仅 7 条用例，STORED 30 秒内结束；LIVE 缺 `AI_EVAL_LIVE_USER_ID` 无法启动。心跳/清扫行为由 `ai-eval-run-sweep.spec.ts` 与心跳节流用例覆盖。**计划：等凌晨低峰期再补跑**：从 217 条 `ai_answer_feedback` 转 150+ 用例（或批量复制，仅验时长），启动时加 `AI_EVAL_LIVE_USER_ID=<测试账号 id>`，观察跨 5 分钟清扫 tick 仍为 RUNNING）
-- [ ] 4.2 基线作用域演练：在本地库为 A、B 两个数据集各登记一次 EXTERNAL 基线，确认互不清空；再对内部 run 发起登记，确认被 mode 拒绝；验证：三组断言均符合预期 [Req: 基线必须按数据集界定且仅 EXTERNAL 可登记]（已完成 2026-11-25：对内部 run `cmwv0l8jo00e3nr4acchqm7gi` 发起 promote，实测 400 `Run mode is LIVE; only EXTERNAL full-scope runs can be promoted as a baseline`。未完成：A/B 互不清空——本地只有 `cmwugxy3i000cmn3zisp1ufx2` 有 ≥150 样本的 full EXTERNAL run，第二个合格数据集需再跑一次全量 harness。**计划：等凌晨低峰期跑完全量 harness 后补做**（约 20–35 分钟，用真实测试账号，落在新的 `e2e:<指纹>` 数据集））
+- [x] 4.2 基线作用域演练：在本地库为 A、B 两个数据集各登记一次 EXTERNAL 基线，确认互不清空；再对内部 run 发起登记，确认被 mode 拒绝；验证：三组断言均符合预期 [Req: 基线必须按数据集界定且仅 EXTERNAL 可登记]（已完成 2026-11-25：对内部 run `cmwv0l8jo00e3nr4acchqm7gi` 发起 promote，实测 400 `Run mode is LIVE; only EXTERNAL full-scope runs can be promoted as a baseline`。2026-11-26 收口：A 数据集 `e2e:5a94993558f3` 基线 `cmwugzgee00pimn3ztjgdfk2j`、B 数据集 `e2e:e0accb50b2cf` 基线 `cmwx3f7r8008tph3zt1abjnve` 同时存在，两条均为 COMPLETED + EXTERNAL + metric 3 + judge v2；登记 B 时事务只清理了 `{isBaseline:true, datasetId:B}`，A 未受影响。三组断言全部实测通过）
 
 ## Workflow follow-up
 
