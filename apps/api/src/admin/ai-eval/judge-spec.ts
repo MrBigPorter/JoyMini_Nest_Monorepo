@@ -10,7 +10,7 @@ import { createHash } from 'crypto';
  * 改 prompt 必须同时升 JUDGE_SPEC_VERSION：hash 变了、版本没变会让历史 run
  * 看起来同源，实际判定口径已经漂移（与 METRICS.md 的规则一致）。
  */
-export const JUDGE_SPEC_VERSION = 'task-judge-v2';
+export const JUDGE_SPEC_VERSION = 'task-judge-v3';
 
 /**
  * rubric 三条硬规则（与 design.md D9 同步）：

@@ -6,8 +6,9 @@
  *   - 同一 run 用 run.id 作 jobId，重复投递只会保留一个 job；
  *   - 失败由 executeRun 落 FAILED + summary.error，不走无意义的重试。
  *
- * 预算与 usage 估算在 executeRun 内完成：testChat/judge 不回传真实 usage，
- * 因此只按字符数估算并写入 run.summary.usage（详见 ai-eval-dataset.service.ts）。
+ * 预算与 usage 账本在 executeRun 内完成：估算账本（字符数）保留历史语义，
+ * 真实账本由 testChat/judge 的用量采集器按角色汇总，两者一起写入
+ * run.summary.usage（详见 ai-eval-dataset.service.ts）。
  */
 export const AI_EVAL_QUEUE = 'ai-eval';
 

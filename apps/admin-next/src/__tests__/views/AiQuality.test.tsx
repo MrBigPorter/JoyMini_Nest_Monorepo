@@ -2076,6 +2076,102 @@ describe('AiQualityPage', () => {
     expect(screen.getByText(/无链路 · 推断/)).toBeTruthy();
   });
 
+  it('外部运行摘要行展示已判条数与覆盖率', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-ext-cov',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: {
+        total: 3,
+        correct: 2,
+        incorrect: 1,
+        judgeError: 0,
+        accuracy: 0.6667,
+        judgedCases: 3,
+        coverage: 1,
+        metricFamily: 'answer_accuracy-v3',
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    expect(screen.getByText(/已判 3 条 · 覆盖率 100\.0%/)).toBeTruthy();
+  });
+
+  it('外部运行缺覆盖率字段时显示未记录，不用 0 冒充', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-ext-old',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      // 改造前的运行：同一指标族，但没有覆盖率字段。
+      summary: { total: 3, correct: 2, incorrect: 1 },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    expect(screen.getByText(/覆盖率 未记录/)).toBeTruthy();
+  });
+
+  it('内部运行不展示覆盖率：那是另一种指标族的口径', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-live-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      baselineRunId: null,
+      createdBy: 'admin',
+      metricFamily: 'verdict3',
+      metricSpecVersion: 'verdict3-1',
+      summary: {
+        total: 4,
+        processed: 4,
+        judged: 4,
+        solved: 3,
+        partial: 0,
+        unsolved: 1,
+        judgeErrors: 0,
+        passRate: 0.75,
+        judgeErrorRate: 0,
+        metricFamily: 'verdict3',
+        metricSpecVersion: 'verdict3-1',
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    expect(screen.queryByText(/覆盖率/)).toBeNull();
+  });
+
   it('shows mode, baseline delta, new failures and fixed on the run card', () => {
     const enterEval = wireEvalTab(evalDatasetDetail, {
       id: 'run-1',
@@ -2687,6 +2783,75 @@ describe('AiQualityPage', () => {
       await waitFor(() =>
         expect(mockGetRunDiff).toHaveBeenCalledWith('run-diff-1', 'base-run-1'),
       );
+    });
+
+    it('差异卡展示翻转率、方向与样本量，低样本明确不下结论', async () => {
+      openWithBaselineRun(runWithBaseline, {
+        ...runDiff,
+        comparable: true,
+        incomparableReasons: [],
+        warnings: [],
+        drift: {
+          sample: 6,
+          flips: 2,
+          flipRate: 0.3333,
+          direction: { improved: 1, worsened: 1 },
+          rawVerdictChanges: [
+            { caseId: 'case-1', baselineVerdict: 'solved', currentVerdict: 'partial' },
+          ],
+          lowSample: true,
+          sameInput: true,
+          judgeNondeterminismLikely: true,
+        },
+      });
+
+      expect(await screen.findByText('与基线差异')).toBeTruthy();
+      const drift = screen.getByTestId('diff-drift');
+      expect(within(drift).getByText(/样本 6 条/)).toBeTruthy();
+      expect(within(drift).getByText(/翻转 2 条（翻转率 33.3%）/)).toBeTruthy();
+      expect(within(drift).getByText(/方向 改善 1 · 变差 1/)).toBeTruthy();
+      expect(within(drift).getByText(/原始档位变化 1 条/)).toBeTruthy();
+      expect(within(drift).getByText(/样本不足/)).toBeTruthy();
+      expect(within(drift).getByText(/同输入翻转/)).toBeTruthy();
+      // 抖动与既有四类差异并存：分类计数不因新增卡片消失。
+      expect(screen.getByText(/新增失败 2/)).toBeTruthy();
+    });
+
+    it('旧差异缺少抖动字段时显示未记录，不显示 0', async () => {
+      openWithBaselineRun(runWithBaseline);
+
+      expect(await screen.findByText('与基线差异')).toBeTruthy();
+      expect(screen.getByText(/翻转率 未记录/)).toBeTruthy();
+      expect(screen.queryByText(/翻转 0 条/)).toBeNull();
+      expect(screen.queryByTestId('diff-drift')).toBeNull();
+    });
+
+    it('不可比时只展示原因，不渲染任何差异数字', async () => {
+      openWithBaselineRun(runWithBaseline, {
+        runId: 'run-diff-1',
+        baselineRunId: 'base-run-1',
+        metricFamily: 'verdict3',
+        comparable: false,
+        incomparableReasons: [
+          'datasetSnapshot.hash mismatch',
+          'judgeSpecVersion mismatch',
+        ],
+        warnings: [],
+        comparability: { compared: 0, undecided: 0, missingBaseline: 0 },
+        drift: null,
+        counts: null,
+        classes: null,
+        note: '两次运行不可比，未计算差异；可比性原因见 incomparableReasons。',
+      });
+
+      expect(await screen.findByText('与基线差异')).toBeTruthy();
+      const block = screen.getByTestId('diff-incomparable');
+      expect(within(block).getByText(/数据集快照不一致/)).toBeTruthy();
+      expect(within(block).getByText(/判官版本不一致/)).toBeTruthy();
+      expect(screen.queryByTestId('diff-newFailure')).toBeNull();
+      expect(screen.queryByTestId('diff-drift')).toBeNull();
+      expect(screen.queryByText(/可比对/)).toBeNull();
+      expect(screen.queryByText(/翻转率/)).toBeNull();
     });
 
     it('没有基线的运行不请求也不展示差异', async () => {

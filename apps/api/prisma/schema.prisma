@@ -2563,10 +2563,45 @@ model AiEvalRun {
 
   dataset AiEvalDataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   results AiEvalResult[]
+  judgeAttempts AiEvalJudgeAttempt[]
 
   @@index([datasetId, startedAt])
   @@index([isBaseline])
   @@map("ai_eval_runs")
+}
+
+/**
+ * 判官尝试留痕（eval-ingestion-hardening D3）。
+ *
+ * 独立成表而不是给 ai_eval_results 加列：结果行会被 getRun() 无差别
+ * 返回给所有角色，且按保留期清理只能逐行置空。这里按时间批量删除。
+ */
+model AiEvalJudgeAttempt {
+  id             String   @id @default(cuid()) @db.VarChar(32)
+  runId          String   @map("run_id") @db.VarChar(32)
+  /// 快照用例 id；无法归到具体用例时为空（例如服务级失败）
+  caseId         String?  @map("case_id") @db.VarChar(64)
+  /// task | faithfulness | golden
+  source         String   @db.VarChar(16)
+  attemptIndex   Int      @map("attempt_index")
+  /// success | parse_failed | call_error
+  outcome        String   @db.VarChar(16)
+  verdict        String?  @db.VarChar(16)
+  score          Float?
+  errorKind      String?  @map("error_kind") @db.VarChar(32)
+  /// 截断后的原始输出；空输出为 null
+  rawOutput      String?  @map("raw_output") @db.Text
+  rawTruncated   Boolean  @default(false) @map("raw_truncated")
+  /// 判官版本（prompt / spec 的组合标识）
+  judgeVersion   String?  @map("judge_version") @db.VarChar(64)
+  judgeInputHash String?  @map("judge_input_hash") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  run AiEvalRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, caseId])
+  @@index([createdAt])
+  @@map("ai_eval_judge_attempts")
 }
 
 model AiEvalResult {

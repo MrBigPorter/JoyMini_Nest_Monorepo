@@ -116,6 +116,9 @@ function makeService() {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
     },
+    aiEvalJudgeAttempt: {
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     aiScore: { create: jest.fn() },
     $queryRawUnsafe: jest.fn().mockResolvedValue([{}]),
   };
@@ -373,6 +376,115 @@ describe('AiEvalDatasetService external runs', () => {
     expect(summary.judgeDisagreement).toBe(1);
   });
 
+  it('外部 ingest 把判官尝试与结果同批写入，来源为依据判定且原始输出脱敏', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeExternalRun());
+
+    await service.ingestExternalResults('run-ext-1', {
+      cases: [
+        {
+          caseId: 'q1',
+          answerVerdict: 'correct',
+          reason: 'ok',
+          judgeInputHash: 'hash-1',
+          judgeAttempts: [
+            {
+              attemptIndex: 0,
+              outcome: 'success',
+              verdict: 'faithful',
+              score: 1,
+              rawOutput: '{"faithful":true,"reason":"联系 13800000000"}',
+              judgeVersion: 'strict-v1',
+            },
+          ],
+        },
+        { caseId: 'q2', answerVerdict: 'incorrect', reason: 'no' },
+        {
+          caseId: 'q3',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'timeout',
+          reason: 'judge timeout',
+        },
+      ],
+    });
+
+    // 与结果行同一事务写入（成功路径只开一次事务）。
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    const attempts = prisma.aiEvalJudgeAttempt.createMany.mock.calls[0][0].data;
+    expect(attempts).toEqual([
+      {
+        runId: 'run-ext-1',
+        caseId: 'case-db-1',
+        source: 'faithfulness',
+        attemptIndex: 0,
+        outcome: 'success',
+        verdict: 'faithful',
+        score: 1,
+        errorKind: null,
+        rawOutput: '{"faithful":true,"reason":"联系 138****0000"}',
+        rawTruncated: false,
+        judgeVersion: 'strict-v1',
+        judgeInputHash: 'hash-1',
+      },
+    ]);
+  });
+
+  it('旧客户端不带判官尝试时照常收录，不写尝试记录', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeExternalRun());
+
+    await service.ingestExternalResults('run-ext-1', {
+      cases: [
+        { caseId: 'q1', answerVerdict: 'correct', reason: 'ok' },
+        { caseId: 'q2', answerVerdict: 'incorrect', reason: 'no' },
+        {
+          caseId: 'q3',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'timeout',
+          reason: 'judge timeout',
+        },
+      ],
+    });
+
+    expect(prisma.aiEvalJudgeAttempt.createMany).not.toHaveBeenCalled();
+    expect(prisma.aiEvalRun.update.mock.calls[0][0].data.status).toBe(
+      'COMPLETED',
+    );
+  });
+
+  it('尝试记录写入失败只告警，运行仍收尾为已完成', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeExternalRun());
+    prisma.aiEvalJudgeAttempt.createMany.mockRejectedValue(
+      new Error('relation "ai_eval_judge_attempts" does not exist'),
+    );
+
+    await service.ingestExternalResults('run-ext-1', {
+      cases: [
+        {
+          caseId: 'q1',
+          answerVerdict: 'correct',
+          reason: 'ok',
+          judgeAttempts: [{ outcome: 'success', verdict: 'faithful' }],
+        },
+        { caseId: 'q2', answerVerdict: 'incorrect', reason: 'no' },
+        {
+          caseId: 'q3',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'timeout',
+          reason: 'judge timeout',
+        },
+      ],
+    });
+
+    // 事务回滚后不带尝试重写一次；结果与运行状态照常落库。
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    const updateCalls = prisma.aiEvalRun.update.mock.calls;
+    const update = updateCalls[updateCalls.length - 1][0];
+    expect(update.data.status).toBe('COMPLETED');
+    expect(prisma.aiEvalResult.createMany).toHaveBeenCalledTimes(2);
+  });
+
   it('基线对比跳过未判定条目：判官失败不算回归，也不算修复', async () => {
     const { service, prisma } = makeService();
     const run = { ...makeExternalRun(), baselineRunId: 'run-base' };
@@ -495,6 +607,101 @@ describe('AiEvalDatasetService external runs', () => {
       { kind: 'output_format', count: 1 },
     ]);
     expect(summary.judgeErrorRate).toBe(0.6667);
+  });
+
+  it('不适用与 harness 类别不进判官失败率分子分母，也不出现在分类汇总', async () => {
+    const { service } = makeService();
+
+    const summary = await (service as any).buildExternalSummary(
+      {
+        id: 'run-ext-1',
+        baselineRunId: null,
+        datasetSnapshot: { hash: 'fp1234', cases: [] },
+        codeVersion: 'sha-abc',
+        gateMode: 'shadow',
+        judgeSpecVersion: 'v2',
+        metricSpecVersion: '2',
+      },
+      [
+        { caseId: 'q1', answerVerdict: 'correct', reason: 'ok' },
+        {
+          caseId: 'q2',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'not_applicable',
+          reason: 'not_applicable: no_golden_documents',
+        },
+        {
+          caseId: 'q3',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'harness',
+          reason: 'harness_skipped: quota',
+        },
+        {
+          caseId: 'q4',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'timeout',
+          reason: 'judge timeout',
+        },
+      ],
+    );
+
+    // 只有 q1（判定成功）与 q4（判官真实失败）进失败率口径：1/2。
+    expect(summary.judgeErrorRate).toBe(0.5);
+    expect(summary.judgeErrorKinds).toEqual([{ kind: 'timeout', count: 1 }]);
+    // 但条目计数仍按 verdict 如实统计，不能把这三条从总数里抹掉。
+    expect(summary.total).toBe(4);
+    expect(summary.judgeError).toBe(3);
+    expect(summary.accuracy).toBe(1);
+  });
+
+  it('外部汇总含已判条数与覆盖率（保留四位小数）', async () => {
+    const { service } = makeService();
+
+    const summary = await (service as any).buildExternalSummary(
+      {
+        id: 'run-ext-1',
+        baselineRunId: null,
+        datasetSnapshot: { hash: 'fp1234', cases: [] },
+        codeVersion: 'sha-abc',
+        gateMode: 'shadow',
+        judgeSpecVersion: 'v2',
+        metricSpecVersion: '3',
+      },
+      [
+        { caseId: 'q1', answerVerdict: 'correct', reason: 'ok' },
+        { caseId: 'q2', answerVerdict: 'incorrect', reason: 'no' },
+        {
+          caseId: 'q3',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'harness',
+          reason: 'harness_skipped: quota',
+        },
+      ],
+    );
+
+    // 分母是本次入库条数（含跳过）：2 / 3 = 0.6667。
+    expect(summary.judgedCases).toBe(2);
+    expect(summary.coverage).toBe(0.6667);
+  });
+
+  it('空运行覆盖率为 null，而不是 0', async () => {
+    const { service } = makeService();
+
+    const summary = await (service as any).buildExternalSummary(
+      {
+        id: 'run-ext-1',
+        baselineRunId: null,
+        datasetSnapshot: { hash: 'fp1234', cases: [] },
+        codeVersion: 'sha-abc',
+        gateMode: 'shadow',
+        judgeSpecVersion: 'v2',
+        metricSpecVersion: '3',
+      },
+      [],
+    );
+
+    expect(summary.judgedCases).toBe(0);
+    expect(summary.coverage).toBeNull();
   });
 
   it('judge_error 缺少错误类型时拒绝', async () => {
@@ -679,11 +886,64 @@ describe('AiEvalDatasetService promote baseline', () => {
     );
   });
 
-  it('单个意图样本不足 12 时拒绝登记基线', async () => {
+  it('知识类用例单类不足 12 时拒绝登记基线', async () => {
     const { service, prisma } = makeService();
     const cases = Array.from({ length: 150 }, (_, i) => ({
       caseId: `q${i}`,
-      // 149 条 kb + 1 条 action：总够但 action 意图只有 1 条。
+      // 139 条 kb + 11 条 knowledge：总够但 knowledge 这一类只有 11 条。
+      kind: i < 139 ? 'kb' : 'knowledge',
+    }));
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({ datasetSnapshot: { hash: 'fp1234', cases } }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
+      /kind "knowledge" has 11 cases.*at least 12 per knowledge kind/i,
+    );
+  });
+
+  it('未知类别按知识类口径从严，不当作规则类放行', async () => {
+    const { service, prisma } = makeService();
+    const cases = Array.from({ length: 150 }, (_, i) => ({
+      caseId: `q${i}`,
+      kind: i < 147 ? 'kb' : 'mystery',
+    }));
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({ datasetSnapshot: { hash: 'fp1234', cases } }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
+      /kind "mystery" has 3 cases.*at least 12 per knowledge kind/i,
+    );
+  });
+
+  it('规则类用例只要求覆盖（每条至少 6 条），样本量按类型而非知识类门槛', async () => {
+    const { service, prisma } = makeService();
+    const cases = [
+      ...Array.from({ length: 125 }, (_, i) => ({ caseId: `kb${i}`, kind: 'kb' })),
+      ...Array.from({ length: 7 }, (_, i) => ({ caseId: `a${i}`, kind: 'action' })),
+      ...Array.from({ length: 6 }, (_, i) => ({ caseId: `b${i}`, kind: 'boundary' })),
+      ...Array.from({ length: 12 }, (_, i) => ({ caseId: `r${i}`, kind: 'read' })),
+    ];
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({ datasetSnapshot: { hash: 'fp1234', cases } }),
+    );
+
+    await service.promoteRun('run-ext-1');
+
+    expect(prisma.aiEvalRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'run-ext-1' },
+        data: { isBaseline: true },
+      }),
+    );
+  });
+
+  it('规则类用例少于 6 条时拒绝，并说明是覆盖下限而非统计量', async () => {
+    const { service, prisma } = makeService();
+    const cases = Array.from({ length: 150 }, (_, i) => ({
+      caseId: `q${i}`,
+      // 149 条 kb + 1 条 action：action 这类规则用例没有覆盖到。
       kind: i === 0 ? 'action' : 'kb',
     }));
     prisma.aiEvalRun.findUnique.mockResolvedValue(
@@ -691,7 +951,7 @@ describe('AiEvalDatasetService promote baseline', () => {
     );
 
     await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
-      /kind "action" has 1 cases.*at least 12/i,
+      /kind "action" has 1 cases.*at least 6 per rule kind/i,
     );
   });
 

@@ -18,7 +18,9 @@ import { AdminJwtAuthGuard } from '../auth/admin-jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AiEvalJudgeService } from './ai-eval-judge.service';
+import { AiEvalJudgeAttemptService } from './ai-eval-judge-attempt.service';
 import { JudgeTaskDto } from './dto/judge-task.dto';
+import { JudgeAttemptQueryDto } from './dto/judge-attempt.dto';
 import { AiEvalDatasetService } from './ai-eval-dataset.service';
 import {
   AddEvalCasesDto,
@@ -48,6 +50,7 @@ export class AiEvalController {
   constructor(
     private readonly judgeService: AiEvalJudgeService,
     private readonly datasetService: AiEvalDatasetService,
+    private readonly attemptService: AiEvalJudgeAttemptService,
   ) {}
 
   /**
@@ -256,6 +259,18 @@ export class AiEvalController {
       'disagreements.judgeReason',
       'disagreements.humanComment',
     ]);
+  }
+
+  /** 判官尝试留痕：原始输出已脱敏，但仍可能含用户原文，不对 VIEWER 开放。 */
+  @Get('runs/:id/judge-attempts')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '判官尝试留痕（含脱敏后的原始输出）' })
+  async getJudgeAttempts(
+    @Param('id') id: string,
+    @Query() query: JudgeAttemptQueryDto,
+  ) {
+    this.assertEnabled();
+    return this.attemptService.list(id, query);
   }
 
   @Get('runs/:id')

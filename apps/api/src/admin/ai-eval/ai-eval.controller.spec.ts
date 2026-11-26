@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method -- 测试里把原型方法当值传给 Reflect.getMetadata，不存在 this 绑定风险 */
+import { ForbiddenException } from '@nestjs/common';
 import { Role } from '@lucky/shared';
 import { ROLES_KEY } from '../auth/roles.decorator';
 import { AiEvalController } from './ai-eval.controller';
@@ -137,12 +138,23 @@ function createController() {
       .mockResolvedValue({ id: 'run-ext-1', isBaseline: true }),
   };
   const judgeService = { judge: jest.fn() };
+  const attemptService = {
+    list: jest.fn().mockResolvedValue({
+      runId: 'run-1',
+      page: 1,
+      pageSize: 50,
+      total: 0,
+      items: [],
+    }),
+  };
 
   return {
     datasetService,
+    attemptService,
     controller: new AiEvalController(
       judgeService as any,
       datasetService as any,
+      attemptService as any,
     ),
   };
 }
@@ -475,6 +487,60 @@ describe('AiEvalController 回归用例可解释', () => {
       Role.ADMIN,
     );
     expect(admin.classes.fixed[0].question).toBe('qa_eval_question_secret');
+  });
+});
+
+describe('AiEvalController 判官尝试留痕', () => {
+  const originalEvalFlag = process.env.AI_EVAL_ENABLED;
+
+  beforeAll(() => {
+    process.env.AI_EVAL_ENABLED = 'true';
+  });
+
+  afterAll(() => {
+    if (originalEvalFlag === undefined) delete process.env.AI_EVAL_ENABLED;
+    else process.env.AI_EVAL_ENABLED = originalEvalFlag;
+  });
+
+  it('原始输出只对 SUPER_ADMIN / ADMIN 开放（VIEWER 403）', () => {
+    const roles = Reflect.getMetadata(
+      ROLES_KEY,
+      AiEvalController.prototype.getJudgeAttempts,
+    ) as Role[];
+
+    expect(roles).toEqual(
+      expect.arrayContaining([Role.SUPER_ADMIN, Role.ADMIN]),
+    );
+    expect(roles).not.toContain(Role.VIEWER);
+    expect(roles).not.toContain(Role.EDITOR);
+  });
+
+  it('评测开关关闭时拒绝读取，而不是照常返回留痕', async () => {
+    const { controller } = createController();
+    process.env.AI_EVAL_ENABLED = 'false';
+    try {
+      await expect(
+        controller.getJudgeAttempts('run-1', {}),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    } finally {
+      process.env.AI_EVAL_ENABLED = 'true';
+    }
+  });
+
+  it('分页与用例过滤参数原样转发', async () => {
+    const { controller, attemptService } = createController();
+
+    await controller.getJudgeAttempts('run-1', {
+      page: 2,
+      pageSize: 20,
+      caseId: 'case-1',
+    });
+
+    expect(attemptService.list).toHaveBeenCalledWith('run-1', {
+      page: 2,
+      pageSize: 20,
+      caseId: 'case-1',
+    });
   });
 });
 

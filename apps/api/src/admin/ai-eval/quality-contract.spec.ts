@@ -1,4 +1,5 @@
 import { AiEvalDatasetService } from './ai-eval-dataset.service';
+import { emptyUsageSnapshot } from '@api/common/ai/usage-collector';
 import {
   AUTHORITY_RULES,
   ENUM_VALUES,
@@ -60,6 +61,19 @@ function internalSummary(
       completionTokens: 40,
       budget: 10_000,
       exceeded: false,
+      // 真实账本与估算账本并存（5.2）：判官拿到真实用量，聊天没有。
+      real: {
+        chat: emptyUsageSnapshot('chat'),
+        judge: {
+          role: 'judge',
+          calls: 1,
+          measuredCalls: 1,
+          unavailableCalls: 0,
+          promptTokens: 60,
+          completionTokens: 40,
+          totalTokens: 100,
+        },
+      },
     },
     failureCategory: undefined,
     ...overrides,

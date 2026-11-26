@@ -2488,17 +2488,59 @@ export interface EvalDiffItem {
   currentVerdict: string | null;
 }
 
+/** 差异接口回传的运行元数据快照；缺失字段为 null，不是空字符串。 */
+export interface EvalRunDiffMeta {
+  id: string;
+  mode: string | null;
+  status: string | null;
+  scope: string | null;
+  metricFamily: string;
+  metricSpecVersion: string | null;
+  judgeSpecVersion: string | null;
+  datasetHash: string | null;
+  startedAt: string | null;
+}
+
+/**
+ * 跨运行抖动：只在两次都拿到布尔结论的用例上统计。
+ * `flipRate` 为 0..1 小数；样本为 0 时为 null，页面显示「未记录」而非 0。
+ */
+export interface EvalRunDrift {
+  sample: number;
+  flips: number;
+  flipRate: number | null;
+  direction: { improved: number; worsened: number };
+  rawVerdictChanges: Array<{
+    caseId: string;
+    baselineVerdict: string | null;
+    currentVerdict: string | null;
+  }>;
+  lowSample: boolean;
+  sameInput: boolean;
+  judgeNondeterminismLikely: boolean;
+}
+
 export interface EvalRunDiff {
   runId: string;
   baselineRunId: string;
   metricFamily: string;
+  /** 旧后端没有该字段；新后端总是带两端元数据。 */
+  runs?: { current: EvalRunDiffMeta; baseline: EvalRunDiffMeta };
+  /** 旧后端缺少该字段时按可比处理（当时没有不可比判定）。 */
+  comparable?: boolean;
+  incomparableReasons?: string[];
+  /** 溯源字段缺失只提示，不阻断比较。 */
+  warnings?: string[];
   comparability: {
     compared: number;
     undecided: number;
     missingBaseline: number;
   };
-  counts: Record<EvalDiffClass, number>;
-  classes: Record<EvalDiffClass, EvalDiffItem[]>;
+  /** 旧后端或不可比时为 null。 */
+  drift?: EvalRunDrift | null;
+  /** 不可比时两者都是 null——页面不得渲染差异数字。 */
+  counts: Record<EvalDiffClass, number> | null;
+  classes: Record<EvalDiffClass, EvalDiffItem[]> | null;
   note: string;
 }
 

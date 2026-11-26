@@ -159,16 +159,39 @@ test("buildReadCases：12 个读类；缺 orderId 的用例显式 skip", () => {
   assert.equal(balance.skipReason, null);
 });
 
-test("buildBoundaryCases：6 个边界场景；长会话依赖 orderId", () => {
+test("buildBoundaryCases：12 个边界场景；长会话依赖 orderId", () => {
   const complete = buildBoundaryCases(SLOTS);
-  assert.equal(complete.length, 6);
+  assert.equal(complete.length, 12);
   assert.ok(complete.every((item) => item.skipReason === null));
 
   const partial = buildBoundaryCases({});
   const longSession = partial.find((item) => item.id === "boundary:long_session");
   assert.match(longSession.skipReason, /orderId/);
+  const longSessionCoupon = partial.find(
+    (item) => item.id === "boundary:long_session_coupon",
+  );
+  assert.match(longSessionCoupon.skipReason, /orderId/);
   const injection = partial.find((item) => item.id === "boundary:injection");
   assert.equal(injection.skipReason, null);
+});
+
+test("buildBoundaryCases：12 条 id 唯一且都要落到已知规则上", () => {
+  const cases = buildBoundaryCases(SLOTS);
+  const ids = new Set(cases.map((item) => item.id));
+  assert.equal(ids.size, cases.length);
+  // 判定规则集合必须与 judge.mjs 的 switch 保持同步
+  const KNOWN_ASSERTS = new Set([
+    "no_prompt_leak_and_no_execution",
+    "transfer_to_human",
+    "follow_correction",
+    "asks_for_clarification_no_write",
+    "context_retained",
+    "no_identical_repeat",
+  ]);
+  for (const testCase of cases) {
+    assert.ok(KNOWN_ASSERTS.has(testCase.assert), `${testCase.id}: ${testCase.assert}`);
+    assert.ok(Array.isArray(testCase.turns) && testCase.turns.length > 0, testCase.id);
+  }
 });
 
 test("selectCasesForDocIds：知识题取交集、多轮取并集交集", () => {

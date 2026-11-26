@@ -121,6 +121,29 @@ const DIFF_CLASS_LABELS: Record<string, string> = {
   stillFailing: '仍失败',
 };
 
+/** 不可比原因码 → 运营可读说明；未知 code 原样展示，不隐藏信息。 */
+const DIFF_REASON_LABELS: Record<string, string> = {
+  'metricSpecVersion mismatch': '指标口径版本不一致',
+  'judgeSpecVersion mismatch': '判官版本不一致',
+  'datasetSnapshot.hash mismatch': '数据集快照不一致',
+  'scope mismatch': '运行范围不一致（全量/子集）',
+  'mode mismatch': '运行模式不一致（存储/实时）',
+};
+
+function diffReasonLabel(reason: string): string {
+  if (reason.startsWith('cross-family comparison:')) {
+    return `指标族不一致（${reason.slice('cross-family comparison:'.length).trim()}），跨族不能相减`;
+  }
+  const statusMatch = reason.match(
+    /^(current|baseline) run status (\S+) is not COMPLETED$/,
+  );
+  if (statusMatch) {
+    const side = statusMatch[1] === 'current' ? '当前' : '基线';
+    return `${side}运行状态为 ${statusMatch[2]}，不是已完成`;
+  }
+  return DIFF_REASON_LABELS[reason] ?? reason;
+}
+
 /** 质量待办列表分页大小；请求与页码回退必须用同一口径。 */
 const FEEDBACK_PAGE_SIZE = 20;
 
@@ -2829,6 +2852,18 @@ function EvalPanel() {
                 已判定 {runData.summary.judged ?? '未记录'}
               </span>
             ) : null}
+            {/* 覆盖率只属于外部运行（answer_accuracy 族）；旧运行没这个字段时
+                显示「未记录」，不用 0 或推算值冒充。 */}
+            {runData.mode === 'EXTERNAL' ? (
+              <span className="text-xs text-gray-500">
+                {typeof runData.summary?.coverage === 'number' &&
+                typeof runData.summary?.judgedCases === 'number'
+                  ? `已判 ${runData.summary.judgedCases} 条 · 覆盖率 ${formatRate(
+                      runData.summary.coverage,
+                    )}`
+                  : '覆盖率 未记录'}
+              </span>
+            ) : null}
             {typeof runData.summary?.judgeErrorRate === 'number' ? (
               <span className="text-xs text-gray-500">
                 判官失败率 {formatRate(runData.summary.judgeErrorRate)}
@@ -2949,21 +2984,83 @@ function EvalPanel() {
                   · 指标族 {runDiff.metricFamily}
                 </span>
               </div>
-              <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                {(
-                  ['newFailure', 'fixed', 'regressed', 'stillFailing'] as const
-                ).map((klass) => (
-                  <span key={klass} data-testid={`diff-${klass}`}>
-                    {DIFF_CLASS_LABELS[klass]} {runDiff.counts[klass]}
-                  </span>
-                ))}
-              </div>
-              <div className="mt-1 text-xs text-gray-500">
-                可比对 {runDiff.comparability.compared} 条 · 判官未判定{' '}
-                {runDiff.comparability.undecided} 条 · 基线缺少{' '}
-                {runDiff.comparability.missingBaseline} 条
-              </div>
-              <div className="mt-1 text-xs text-gray-400">{runDiff.note}</div>
+              {runDiff.comparable === false ? (
+                // 不可比：只给原因，不给任何差异数字——假 delta 比没有更糟。
+                <div
+                  data-testid="diff-incomparable"
+                  className="mt-2 text-xs text-gray-400"
+                >
+                  <div>两次运行不可比，未计算差异数字</div>
+                  <ul className="mt-1 list-disc pl-5">
+                    {(runDiff.incomparableReasons ?? []).map((reason) => (
+                      <li key={reason}>{diffReasonLabel(reason)}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                    {(
+                      [
+                        'newFailure',
+                        'fixed',
+                        'regressed',
+                        'stillFailing',
+                      ] as const
+                    ).map((klass) => (
+                      <span key={klass} data-testid={`diff-${klass}`}>
+                        {DIFF_CLASS_LABELS[klass]}{' '}
+                        {runDiff.counts ? runDiff.counts[klass] : '未知'}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {runDiff.drift ? (
+                      <div
+                        data-testid="diff-drift"
+                        className="flex flex-wrap gap-3"
+                      >
+                        <span>样本 {runDiff.drift.sample} 条</span>
+                        <span>
+                          翻转 {runDiff.drift.flips} 条
+                          {runDiff.drift.flipRate === null
+                            ? ''
+                            : `（翻转率 ${formatRate(runDiff.drift.flipRate)}）`}
+                        </span>
+                        <span>
+                          方向 改善 {runDiff.drift.direction.improved} · 变差{' '}
+                          {runDiff.drift.direction.worsened}
+                        </span>
+                        <span>
+                          原始档位变化 {runDiff.drift.rawVerdictChanges.length}{' '}
+                          条
+                        </span>
+                        {runDiff.drift.lowSample ? (
+                          <span className="rounded border border-amber-300 px-2 py-0.5 text-amber-700 dark:border-amber-500/30 dark:text-amber-300">
+                            样本不足（需 ≥20 条），不下结论
+                          </span>
+                        ) : null}
+                        {runDiff.drift.judgeNondeterminismLikely ? (
+                          <span className="rounded border border-amber-300 px-2 py-0.5 text-amber-700 dark:border-amber-500/30 dark:text-amber-300">
+                            同输入翻转，疑判官不确定性
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      // 旧运行没记录抖动：显示「未记录」，不显示 0。
+                      <span>翻转率 未记录</span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    可比对 {runDiff.comparability.compared} 条 · 判官未判定{' '}
+                    {runDiff.comparability.undecided} 条 · 基线缺少{' '}
+                    {runDiff.comparability.missingBaseline} 条
+                  </div>
+                  <div className="mt-1 text-xs text-gray-400">
+                    {runDiff.note}
+                  </div>
+                </>
+              )}
             </div>
           ) : null}
           {calibrationCard ? (

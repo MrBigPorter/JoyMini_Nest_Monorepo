@@ -4,6 +4,11 @@ import {
   FEEDBACK_FAILURE_KINDS,
   type FeedbackResolution,
 } from '@api/common/ai/feedback-triage';
+import {
+  comparabilityIssues as traceabilityComparabilityIssues,
+  runTraceabilityIssues as traceabilityIssues,
+  type RunTrace,
+} from './run-comparability';
 
 /**
  * AI 质量闭环契约注册表（唯一落点）。
@@ -53,6 +58,8 @@ export const SUMMARY_KEYS = {
     'incorrect',
     'judgeError',
     'accuracy',
+    'judgedCases',
+    'coverage',
     'judgeErrorRate',
     'judgeErrorKinds',
     'judgeAgreement',
@@ -376,32 +383,16 @@ export function summaryContractViolations(
   return violations;
 }
 
-/** run 级溯源：展示的分数必须能链回这些字段（spec 对外数字必须可溯源）。 */
-export interface RunTrace {
-  id?: string | null;
-  metricFamily?: string | null;
-  metricSpecVersion?: string | null;
-  judgeSpecVersion?: string | null;
-  datasetSnapshot?: { hash?: string | null } | null;
-  scope?: string | null;
-}
+/**
+ * run 级溯源与可比性：实现已搬到生产模块 run-comparability（6.1），
+ * 注册表只注入「指标族已登记」这一契约专属校验。
+ */
+export type { RunTrace };
 
 export function runTraceabilityIssues(run: RunTrace): string[] {
-  const issues: string[] = [];
-  if (!run.id?.trim()) issues.push('run id');
-  if (!run.metricFamily?.trim()) {
-    issues.push('metricFamily');
-  } else if (!registeredFamily(run.metricFamily)) {
-    issues.push(`metricFamily ${run.metricFamily} is not registered`);
-  }
-  if (!run.metricSpecVersion?.trim()) issues.push('metricSpecVersion');
-  if (!run.judgeSpecVersion?.trim()) issues.push('judgeSpecVersion');
-  const hash = run.datasetSnapshot?.hash;
-  if (typeof hash !== 'string' || hash.trim() === '') {
-    issues.push('datasetSnapshot.hash');
-  }
-  if (!run.scope?.trim()) issues.push('scope');
-  return issues;
+  return traceabilityIssues(run, {
+    isRegisteredFamily: (family) => Boolean(registeredFamily(family)),
+  });
 }
 
 /**
@@ -409,26 +400,7 @@ export function runTraceabilityIssues(run: RunTrace): string[] {
  * 跨族一票否决：accuracy 减 passRate 只会产出假 delta。
  */
 export function comparabilityIssues(a: RunTrace, b: RunTrace): string[] {
-  const issues = [
-    ...runTraceabilityIssues(a).map((item) => `a: ${item}`),
-    ...runTraceabilityIssues(b).map((item) => `b: ${item}`),
-  ];
-  if (issues.length > 0) return issues;
-  if (a.metricFamily !== b.metricFamily) {
-    return [
-      `cross-family comparison: ${String(a.metricFamily)} vs ` +
-        `${String(b.metricFamily)}`,
-    ];
-  }
-  if (a.metricSpecVersion !== b.metricSpecVersion) {
-    issues.push('metricSpecVersion mismatch');
-  }
-  if (a.judgeSpecVersion !== b.judgeSpecVersion) {
-    issues.push('judgeSpecVersion mismatch');
-  }
-  if (a.datasetSnapshot?.hash !== b.datasetSnapshot?.hash) {
-    issues.push('datasetSnapshot.hash mismatch');
-  }
-  if (a.scope !== b.scope) issues.push('scope mismatch');
-  return issues;
+  return traceabilityComparabilityIssues(a, b, {
+    isRegisteredFamily: (family) => Boolean(registeredFamily(family)),
+  });
 }

@@ -413,7 +413,7 @@ export function buildReadCases(slots = {}) {
   });
 }
 
-/** 6 个边界/安全场景。`assert` 声明报告里的断言口径。 */
+/** 12 个边界/安全场景（6 条原有 + 6 条扩容，判定规则复用）。`assert` 声明报告里的断言口径。 */
 export function buildBoundaryCases(slots = {}) {
   const definitions = [
     {
@@ -444,6 +444,37 @@ export function buildBoundaryCases(slots = {}) {
     {
       id: "boundary:repeated",
       scenarioId: "special_repeated",
+      assert: "no_identical_repeat",
+    },
+    // 扩容的 6 条：判定规则与上面完全相同，只是换问法与上下文。
+    {
+      id: "boundary:injection_pii",
+      scenarioId: "special_injection_pii",
+      assert: "no_prompt_leak_and_no_execution",
+    },
+    {
+      id: "boundary:transfer_dispute",
+      scenarioId: "special_transfer_dispute",
+      assert: "transfer_to_human",
+    },
+    {
+      id: "boundary:correction_wallet",
+      scenarioId: "special_correction_wallet",
+      assert: "follow_correction",
+    },
+    {
+      id: "boundary:ambiguous_action",
+      scenarioId: "special_ambiguous_action",
+      assert: "asks_for_clarification_no_write",
+    },
+    {
+      id: "boundary:long_session_coupon",
+      scenarioId: "special_long_session_coupon",
+      assert: "context_retained",
+    },
+    {
+      id: "boundary:repeated_wallet",
+      scenarioId: "special_repeated_wallet",
       assert: "no_identical_repeat",
     },
   ];

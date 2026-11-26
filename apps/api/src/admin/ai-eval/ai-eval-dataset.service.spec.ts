@@ -40,6 +40,9 @@ function makeRun(
     status: 'RUNNING',
     mode,
     baselineRunId,
+    judgeSpecVersion: 'task-judge-v2',
+    // run 行在启动时快照判官模型，成本按它取价。
+    judgeModel: 'llama-3.3-70b-versatile',
     dataset: { cases },
   };
 }
@@ -87,7 +90,13 @@ function makeService() {
     aiEvalAnnotation: {
       findMany: jest.fn().mockResolvedValue([]),
     },
+    aiEvalJudgeAttempt: {
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    // 交互式事务：测试里直接以同一个 mock 作为 tx，断言与单写路径一致。
+    $transaction: jest.fn(),
   };
+  prisma.$transaction.mockImplementation((cb: (tx: any) => unknown) => cb(prisma));
   const judge = {
     judge: jest.fn(),
     spec: jest.fn().mockReturnValue({
@@ -171,6 +180,115 @@ describe('AiEvalDatasetService', () => {
     });
   });
 
+  it('内部执行在事务内留痕判官尝试，原始输出落库前脱敏', async () => {
+    const { service, prisma, judge } = makeService();
+    const cases = [makeCase('c1', '怎么退款', '历史回答')];
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeRun('STORED', cases));
+    judge.judge.mockResolvedValue({
+      ...verdictOf('solved'),
+      rawOutput:
+        '{"verdict":"solved","reason":"联系 13800000000 或 alice@example.com"}',
+      rawTruncated: false,
+    });
+
+    await (service as any).executeRun('run-1');
+
+    // 结果行与尝试行同一事务：要么一起可见，要么一起回滚。
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    const attempts = prisma.aiEvalJudgeAttempt.createMany.mock.calls[0][0].data;
+    expect(attempts).toEqual([
+      {
+        runId: 'run-1',
+        caseId: 'c1',
+        source: 'task',
+        attemptIndex: 0,
+        outcome: 'success',
+        verdict: 'solved',
+        score: 0.9,
+        errorKind: null,
+        rawOutput:
+          '{"verdict":"solved","reason":"联系 138****0000 或 a***@example.com"}',
+        rawTruncated: false,
+        judgeVersion: 'task-judge-v2',
+        judgeInputHash: null,
+      },
+    ]);
+  });
+
+  it('判官解析失败留痕原始输出，结果行仍按判官失败记账', async () => {
+    const { service, prisma, judge } = makeService();
+    const cases = [makeCase('c1', '怎么退款', '历史回答')];
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeRun('STORED', cases));
+    judge.judge.mockRejectedValue(
+      new JudgeFailureError(
+        'output_format',
+        'AI eval judge output is not valid JSON',
+        '这不是 JSON 13800000000',
+        true,
+      ),
+    );
+
+    await (service as any).executeRun('run-1');
+
+    const attempts = prisma.aiEvalJudgeAttempt.createMany.mock.calls[0][0].data;
+    expect(attempts[0]).toMatchObject({
+      caseId: 'c1',
+      outcome: 'parse_failed',
+      errorKind: 'output_format',
+      verdict: null,
+      score: null,
+      rawOutput: '这不是 JSON 138****0000',
+      rawTruncated: true,
+    });
+    const result = prisma.aiEvalResult.create.mock.calls[0][0].data;
+    expect(result.judgeErrorKind).toBe('output_format');
+  });
+
+  it('判官调用失败留痕为调用失败，且没有原始输出', async () => {
+    const { service, prisma, judge } = makeService();
+    const cases = [makeCase('c1', '怎么退款', '历史回答')];
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeRun('STORED', cases));
+    judge.judge.mockRejectedValue(new Error('Request timed out after 30s'));
+
+    await (service as any).executeRun('run-1');
+
+    const attempts = prisma.aiEvalJudgeAttempt.createMany.mock.calls[0][0].data;
+    expect(attempts[0]).toMatchObject({
+      caseId: 'c1',
+      outcome: 'call_error',
+      errorKind: 'timeout',
+      rawOutput: null,
+      rawTruncated: false,
+    });
+  });
+
+  it('尝试留痕写入失败只告警，判分与运行状态不变', async () => {
+    const { service, prisma, judge } = makeService();
+    const cases = [makeCase('c1', '怎么退款', '历史回答')];
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeRun('STORED', cases));
+    judge.judge.mockResolvedValue({
+      ...verdictOf('solved'),
+      rawOutput: '{"verdict":"solved"}',
+      rawTruncated: false,
+    });
+    prisma.aiEvalJudgeAttempt.createMany.mockRejectedValue(
+      new Error('relation "ai_eval_judge_attempts" does not exist'),
+    );
+
+    await (service as any).executeRun('run-1');
+
+    // 第一次事务整体回滚，回退为只写结果；结论与终态不受影响。
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    const createCalls = prisma.aiEvalResult.create.mock.calls;
+    const result = createCalls[createCalls.length - 1][0].data;
+    expect(result.verdict).toBe('solved');
+    expect(summaryOf(prisma)).toMatchObject({
+      mode: 'STORED',
+      total: 1,
+      solved: 1,
+    });
+  });
+
   it('LIVE 调用真实 AI 并以实际回答判分', async () => {
     const { service, prisma, judge, aiCustomer } = makeService();
     const cases = [makeCase('c1', '怎么退款', '旧的历史回答')];
@@ -188,6 +306,8 @@ describe('AiEvalDatasetService', () => {
       expect.any(String),
       false,
       expect.stringContaining('eval-run-1-c1'),
+      // 用量采集器随调用传入（task 5.1 / 5.2）。
+      { usageCollector: expect.objectContaining({ role: 'chat' }) },
     );
     expect(judge.judge).toHaveBeenCalledWith({
       question: '怎么退款',
@@ -701,7 +821,30 @@ describe('AiEvalDatasetService', () => {
             usage: {
               estimatedTokens: oneCase,
               budget: 200,
+              budgetBasis: 'estimated-v1',
               exceeded: true,
+              source: 'estimated',
+              unavailableCalls: 0,
+              byRole: {
+                chat: {
+                  role: 'chat',
+                  calls: 0,
+                  measuredCalls: 0,
+                  unavailableCalls: 0,
+                  promptTokens: 0,
+                  completionTokens: 0,
+                  totalTokens: 0,
+                },
+                judge: {
+                  role: 'judge',
+                  calls: 0,
+                  measuredCalls: 0,
+                  unavailableCalls: 0,
+                  promptTokens: 0,
+                  completionTokens: 0,
+                  totalTokens: 0,
+                },
+              },
               estimatedCostUsd: 0,
               costConfigured: false,
             },
@@ -1545,6 +1688,8 @@ describe('AiEvalDatasetService', () => {
           where: {
             datasetId: 'ds-1',
             results: { some: { caseId: 'case-1' } },
+            // 运行中/失败的过程快照不参与时间线（6.3）。
+            status: { notIn: ['RUNNING', 'FAILED'] },
           },
           orderBy: [{ startedAt: 'asc' }, { id: 'asc' }],
         }),
@@ -1657,25 +1802,25 @@ describe('AiEvalDatasetService', () => {
 
       expect(diff.baselineRunId).toBe('run-2');
       expect(diff.metricFamily).toBe('answer_accuracy-v3');
-      expect(diff.counts).toEqual({
+      expect(diff.counts!).toEqual({
         newFailure: 1,
         fixed: 1,
         regressed: 1,
         stillFailing: 1,
       });
-      expect(diff.classes.newFailure.map((item) => item.caseId)).toEqual([
+      expect(diff.classes!.newFailure.map((item) => item.caseId)).toEqual([
         'c-new',
       ]);
-      expect(diff.classes.fixed.map((item) => item.caseId)).toEqual([
+      expect(diff.classes!.fixed.map((item) => item.caseId)).toEqual([
         'c-fixed',
       ]);
-      expect(diff.classes.regressed.map((item) => item.caseId)).toEqual([
+      expect(diff.classes!.regressed.map((item) => item.caseId)).toEqual([
         'c-regressed',
       ]);
-      expect(diff.classes.stillFailing.map((item) => item.caseId)).toEqual([
+      expect(diff.classes!.stillFailing.map((item) => item.caseId)).toEqual([
         'c-still',
       ]);
-      expect(diff.classes.newFailure[0].question).toBe('问题-c-new');
+      expect(diff.classes!.newFailure[0].question).toBe('问题-c-new');
       expect(diff.comparability).toEqual({
         compared: 4,
         undecided: 1,
@@ -1999,5 +2144,645 @@ describe('AiEvalDatasetService advancePendingVerification', () => {
 
     expect(result).toEqual({ closed: 0, regressed: 0 });
     expect((prisma as any).aiAnswerFeedback.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 运行摘要的用量来源（eval-ingestion-hardening 5.2）
+ *
+ * 估算账本必须原样保留；真实账本按角色分账，来源用 real / mixed / estimated 三档，
+ * 不可得调用单独计数——「没数据」不能被写成 0 token。
+ */
+describe('AiEvalDatasetService · 用量来源', () => {
+  const judgeUsage = (
+    overrides: Partial<Record<string, unknown>> = {},
+  ) => ({
+    role: 'judge',
+    calls: 1,
+    measuredCalls: 1,
+    unavailableCalls: 0,
+    promptTokens: 100,
+    completionTokens: 20,
+    totalTokens: 120,
+    ...overrides,
+  });
+
+  afterEach(() => {
+    delete process.env.AI_EVAL_RUN_TOKEN_BUDGET;
+  });
+
+  it('真实：判官调用拿到 provider 用量 → source=real，按角色分账', async () => {
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [makeCase('c1', 'q1', 'a1')]),
+    );
+    judge.judge.mockResolvedValue({
+      ...verdictOf('solved'),
+      usage: judgeUsage(),
+    });
+
+    await (service as any).executeRun('run-1');
+
+    const usage = summaryOf(prisma).usage;
+    expect(usage).toMatchObject({
+      source: 'real',
+      unavailableCalls: 0,
+      // 已有真实样本，预算口径随之切到真实移动平均（5.4）。
+      budgetBasis: 'real-ewma-v1',
+      // 既有估算字段保持不变
+      estimatedTokens: estimateEvalCaseTokens('q1', 'a1').totalTokens,
+    });
+    expect(usage.byRole.judge).toMatchObject({
+      calls: 1,
+      measuredCalls: 1,
+      totalTokens: 120,
+    });
+    expect(usage.byRole.chat).toMatchObject({ calls: 0, totalTokens: 0 });
+  });
+
+  it('混合：判官有真实用量、聊天不可得 → source=mixed', async () => {
+    const { service, prisma, judge, aiCustomer } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('LIVE', [makeCase('c1', 'q1', 'a1')]),
+    );
+    aiCustomer.testChat.mockImplementation(
+      async (_q: string, _u: string, _d: boolean, _s: string, options: any) => {
+        // provider 没回传 usage：调用照记，token 不可得。
+        options?.usageCollector?.handleLLMEnd({
+          generations: [[{ text: 'no usage' }]],
+        });
+        return { agentOutput: '实时回答' };
+      },
+    );
+    judge.judge.mockResolvedValue({
+      ...verdictOf('solved'),
+      usage: judgeUsage(),
+    });
+
+    await (service as any).executeRun('run-1');
+
+    const usage = summaryOf(prisma).usage;
+    expect(usage.source).toBe('mixed');
+    expect(usage.unavailableCalls).toBe(1);
+    expect(usage.byRole.chat).toMatchObject({
+      calls: 1,
+      measuredCalls: 0,
+      unavailableCalls: 1,
+      totalTokens: 0,
+    });
+    expect(usage.byRole.judge.totalTokens).toBe(120);
+  });
+
+  it('不可得：所有调用都没有 usage → source=estimated，token 不补 0', async () => {
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [makeCase('c1', 'q1', 'a1')]),
+    );
+    judge.judge.mockResolvedValue({
+      ...verdictOf('solved'),
+      usage: judgeUsage({
+        measuredCalls: 0,
+        unavailableCalls: 1,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      }),
+    });
+
+    await (service as any).executeRun('run-1');
+
+    const usage = summaryOf(prisma).usage;
+    expect(usage.source).toBe('estimated');
+    expect(usage.unavailableCalls).toBe(1);
+    expect(usage.byRole.judge).toMatchObject({
+      calls: 1,
+      measuredCalls: 0,
+      unavailableCalls: 1,
+      totalTokens: 0,
+    });
+  });
+
+  it('取消：取消快照里也带真实用量账本', async () => {
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique
+      .mockResolvedValueOnce(
+        makeRun('STORED', [makeCase('c1', 'q1', 'a1'), makeCase('c2', 'q2', 'a2')]),
+      )
+      .mockResolvedValueOnce({ status: 'RUNNING' })
+      .mockResolvedValueOnce({ status: 'CANCELLED' });
+    judge.judge.mockResolvedValue({
+      ...verdictOf('solved'),
+      usage: judgeUsage({ totalTokens: 42, promptTokens: 30, completionTokens: 12 }),
+    });
+
+    await (service as any).executeRun('run-1');
+
+    const usage = summaryOf(prisma).usage;
+    expect(summaryOf(prisma).cancelled).toBe(true);
+    expect(usage).toMatchObject({ source: 'real', budgetBasis: 'real-ewma-v1' });
+    expect(usage.byRole.judge.totalTokens).toBe(42);
+  });
+});
+
+/**
+ * 摘要成本改走价目表（eval-ingestion-hardening 5.3）
+ *
+ * 真实用量按角色各自的模型取价；模型缺价且无全局回退时显式未配置。
+ */
+describe('AiEvalDatasetService · 成本按模型计价', () => {
+  const judgeUsageOf = (promptTokens: number, completionTokens: number) => ({
+    role: 'judge',
+    calls: 1,
+    measuredCalls: 1,
+    unavailableCalls: 0,
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+  });
+
+  beforeEach(() => {
+    process.env.AI_EVAL_LIVE_USER_ID = 'eval-test-user';
+    process.env.AI_LLM_TYPE = 'online';
+    delete process.env.OLLAMA_MODEL;
+    delete process.env.AI_EVAL_MODEL_PRICES;
+    delete process.env.AI_PRICE_FX_JSON;
+  });
+
+  afterEach(() => {
+    delete process.env.AI_LLM_TYPE;
+    delete process.env.AI_PRICE_INPUT_PER_1M;
+    delete process.env.AI_PRICE_OUTPUT_PER_1M;
+  });
+
+  it('判官真实用量按判官模型单价计价，优先于全局单价', async () => {
+    process.env.AI_PRICE_INPUT_PER_1M = '3';
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [makeCase('c1', 'q1', 'a1')]),
+    );
+    judge.judge.mockResolvedValue({
+      ...verdictOf('solved'),
+      usage: judgeUsageOf(1_000_000, 0),
+    });
+
+    await service.executeRun('run-1');
+
+    // llama-3.3-70b-versatile 输入 $0.59/1M；全局价 $3 不应覆盖模型价。
+    expect(summaryOf(prisma).usage).toMatchObject({
+      costConfigured: true,
+      estimatedCostUsd: 0.59,
+    });
+  });
+
+  it('聊天真实用量按聊天模型计价（deepseek-chat 输入+输出）', async () => {
+    const { service, prisma, judge, aiCustomer } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('LIVE', [makeCase('c1', 'q1', 'a1')]),
+    );
+    aiCustomer.testChat.mockImplementation(
+      async (_q: string, _u: string, _d: boolean, _s: string, options: any) => {
+        options?.usageCollector?.handleLLMEnd({
+          generations: [
+            [
+              {
+                message: {
+                  usage_metadata: { input_tokens: 1_000_000, output_tokens: 1_000_000 },
+                },
+              },
+            ],
+          ],
+        });
+        return { agentOutput: '实时回答' };
+      },
+    );
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    await service.executeRun('run-1');
+
+    // deepseek-chat 输入 $0.27 + 输出 $1.10 = $1.37
+    expect(summaryOf(prisma).usage).toMatchObject({
+      costConfigured: true,
+      estimatedCostUsd: 1.37,
+    });
+  });
+
+  it('判官模型缺价且无全局价：显式未配置，不写 0 冒充已配置', async () => {
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue({
+      ...makeRun('STORED', [makeCase('c1', 'q1', 'a1')]),
+      judgeModel: 'unknown-judge-model',
+    });
+    judge.judge.mockResolvedValue({
+      ...verdictOf('solved'),
+      usage: judgeUsageOf(10, 5),
+    });
+
+    await service.executeRun('run-1');
+
+    expect(summaryOf(prisma).usage).toMatchObject({
+      costConfigured: false,
+      estimatedCostUsd: 0,
+    });
+  });
+});
+
+/**
+ * 预算口径 real-ewma-v1（eval-ingestion-hardening 5.4）
+ *
+ * 首条没有真实样本只能用估算；此后用最近真实用量做指数移动平均 × 安全系数，
+ * 与下一条估算取较大值。恰好等于阈值放行，阈值 <= 0 关闭护栏。
+ */
+describe('AiEvalDatasetService · 预算口径 real-ewma-v1', () => {
+  const verdictWithUsage = (totalTokens: number) => ({
+    ...verdictOf('solved'),
+    usage: {
+      role: 'judge',
+      calls: 1,
+      measuredCalls: 1,
+      unavailableCalls: 0,
+      promptTokens: totalTokens,
+      completionTokens: 0,
+      totalTokens,
+    },
+  });
+
+  beforeEach(() => {
+    process.env.AI_EVAL_LIVE_USER_ID = 'eval-test-user';
+  });
+
+  afterEach(() => {
+    delete process.env.AI_EVAL_RUN_TOKEN_BUDGET;
+  });
+
+  it('首条没有真实样本：按估算拦下，口径记为 estimated-v1', async () => {
+    const estimate = estimateEvalCaseTokens('q1', 'a1').totalTokens;
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = String(estimate - 1);
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [makeCase('c1', 'q1', 'a1')]),
+    );
+
+    await service.executeRun('run-1');
+
+    expect(judge.judge).not.toHaveBeenCalled();
+    const summary = summaryOf(prisma);
+    expect(summary.failureCategory).toBe('budget');
+    expect(summary.usage).toMatchObject({
+      exceeded: true,
+      budgetBasis: 'estimated-v1',
+    });
+  });
+
+  it('第二条起用真实用量的移动平均预测，并切换到 real-ewma-v1', async () => {
+    // 估算 ~151；真实 3000；预测 = 3000 × 1.1 = 3300。
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = '3200';
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [
+        makeCase('c1', 'q1', 'a1'),
+        makeCase('c2', 'q2', 'a2'),
+      ]),
+    );
+    judge.judge.mockResolvedValue(verdictWithUsage(3000));
+
+    await service.executeRun('run-1');
+
+    expect(judge.judge).toHaveBeenCalledTimes(1);
+    const summary = summaryOf(prisma);
+    expect(summary.failureCategory).toBe('budget');
+    expect(summary.usage).toMatchObject({
+      exceeded: true,
+      budgetBasis: 'real-ewma-v1',
+    });
+    expect(summary.usage.byRole.judge.totalTokens).toBe(3000);
+  });
+
+  it('累计用量恰好等于阈值时放行', async () => {
+    const e1 = estimateEvalCaseTokens('q1', 'a1').totalTokens;
+    const e2 = estimateEvalCaseTokens('q2', 'a2').totalTokens;
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = String(e1 + e2);
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [
+        makeCase('c1', 'q1', 'a1'),
+        makeCase('c2', 'q2', 'a2'),
+      ]),
+    );
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    await service.executeRun('run-1');
+
+    expect(judge.judge).toHaveBeenCalledTimes(2);
+    expect(summaryOf(prisma)).toMatchObject({ failureCategory: null });
+    expect(summaryOf(prisma).usage).toMatchObject({ exceeded: false });
+  });
+
+  it('阈值 <= 0 关闭护栏：真实用量再大也不停', async () => {
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = '0';
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [
+        makeCase('c1', 'q1', 'a1'),
+        makeCase('c2', 'q2', 'a2'),
+      ]),
+    );
+    judge.judge.mockResolvedValue(verdictWithUsage(900_000));
+
+    await service.executeRun('run-1');
+
+    expect(judge.judge).toHaveBeenCalledTimes(2);
+    expect(summaryOf(prisma).usage).toMatchObject({
+      budget: 0,
+      exceeded: false,
+    });
+  });
+
+  it('没有真实样本时预测回退估算，口径保持 estimated-v1', async () => {
+    const e1 = estimateEvalCaseTokens('q1', 'a1').totalTokens;
+    const e2 = estimateEvalCaseTokens('q2', 'a2').totalTokens;
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = String(e1 + e2 - 1);
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [
+        makeCase('c1', 'q1', 'a1'),
+        makeCase('c2', 'q2', 'a2'),
+      ]),
+    );
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    await service.executeRun('run-1');
+
+    expect(judge.judge).toHaveBeenCalledTimes(1);
+    expect(summaryOf(prisma).usage).toMatchObject({
+      exceeded: true,
+      budgetBasis: 'estimated-v1',
+    });
+  });
+});
+
+/**
+ * 差异接口的可比性与抖动（eval-ingestion-hardening 6.2）
+ *
+ * 元数据不一致 → 只给原因不给数字；缺失只降级为警告。
+ * 翻转率只在两次都拿到布尔结论的用例上计算，低样本显式标注。
+ */
+describe('AiEvalDatasetService · getRunDiff 可比性与抖动', () => {
+  const extResult = (caseId: string, answerVerdict: string) => ({
+    caseId,
+    answerVerdict,
+    verdict: null,
+    judgeErrorKind: answerVerdict === 'judge_error' ? 'output_format' : null,
+    actualAnswer: `答-${caseId}`,
+    judgeInputHash: `hash-${caseId}`,
+    case: { question: `问题-${caseId}` },
+  });
+
+  const runRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 'run-3',
+    datasetId: 'ds-1',
+    baselineRunId: 'run-2',
+    mode: 'EXTERNAL',
+    status: 'COMPLETED',
+    scope: 'full',
+    judgeSpecVersion: 'task-judge-v2',
+    datasetSnapshot: { hash: 'fp-1' },
+    startedAt: new Date('2026-11-03T00:00:00Z'),
+    summary: { metricFamily: 'answer_accuracy-v3', metricSpecVersion: '3' },
+    results: [],
+    ...overrides,
+  });
+
+  function stubRuns(
+    prisma: ReturnType<typeof makeService>['prisma'],
+    current: Record<string, unknown>,
+    baseline: Record<string, unknown>,
+  ) {
+    prisma.aiEvalRun.findUnique
+      .mockResolvedValueOnce(runRow(current))
+      .mockResolvedValueOnce(runRow({ id: 'run-2', baselineRunId: null, ...baseline }));
+    prisma.aiEvalRun.findMany.mockResolvedValueOnce([]);
+  }
+
+  it('两端元数据齐全且一致时可比，并返回两端元数据与抖动块', async () => {
+    const { service, prisma } = makeService();
+    stubRuns(
+      prisma,
+      { results: [extResult('c1', 'incorrect')] },
+      { results: [extResult('c1', 'correct')] },
+    );
+
+    const diff = await service.getRunDiff('run-3');
+
+    expect(diff.comparable).toBe(true);
+    expect(diff.incomparableReasons).toEqual([]);
+    expect(diff.runs.current).toMatchObject({
+      id: 'run-3',
+      mode: 'EXTERNAL',
+      scope: 'full',
+      metricSpecVersion: '3',
+      judgeSpecVersion: 'task-judge-v2',
+      datasetHash: 'fp-1',
+    });
+    expect(diff.runs.baseline).toMatchObject({ id: 'run-2' });
+    expect(diff.drift).toMatchObject({
+      sample: 1,
+      flips: 1,
+      flipRate: 1,
+      direction: { improved: 0, worsened: 1 },
+      sameInput: true,
+      judgeNondeterminismLikely: true,
+      lowSample: true,
+    });
+  });
+
+  it.each([
+    ['metricSpecVersion', { summary: { metricFamily: 'answer_accuracy-v3', metricSpecVersion: '4' } }, 'metricSpecVersion mismatch'],
+    ['judgeSpecVersion', { judgeSpecVersion: 'task-judge-v3' }, 'judgeSpecVersion mismatch'],
+    ['datasetSnapshot', { datasetSnapshot: { hash: 'fp-2' } }, 'datasetSnapshot.hash mismatch'],
+    ['scope', { scope: 'subset' }, 'scope mismatch'],
+    ['mode', { mode: 'LIVE' }, 'mode mismatch'],
+  ])('%s 不一致时只给原因，不给差异数字', async (_label, baselineOverride, reason) => {
+    const { service, prisma } = makeService();
+    stubRuns(
+      prisma,
+      { results: [extResult('c1', 'incorrect')] },
+      { results: [extResult('c1', 'correct')], ...(baselineOverride as any) },
+    );
+
+    const diff = await service.getRunDiff('run-3');
+
+    expect(diff.comparable).toBe(false);
+    expect(diff.incomparableReasons).toContain(reason);
+    expect(diff.drift).toBeNull();
+    expect(diff.counts).toBeNull();
+    expect(diff.classes).toBeNull();
+  });
+
+  it('元数据缺失只降级为警告，仍给差异数字', async () => {
+    const { service, prisma } = makeService();
+    stubRuns(
+      prisma,
+      { results: [extResult('c1', 'incorrect')], judgeSpecVersion: null },
+      {
+        results: [extResult('c1', 'correct')],
+        datasetSnapshot: null,
+      },
+    );
+
+    const diff = await service.getRunDiff('run-3');
+
+    expect(diff.comparable).toBe(true);
+    expect(diff.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('judgeSpecVersion'),
+        expect.stringContaining('datasetSnapshot.hash'),
+      ]),
+    );
+    expect(diff.counts).toMatchObject({ newFailure: 1 });
+  });
+
+  it('空结果：样本为零，翻转率为 null 且标低样本', async () => {
+    const { service, prisma } = makeService();
+    stubRuns(prisma, { results: [] }, { results: [] });
+
+    const diff = await service.getRunDiff('run-3');
+
+    expect(diff.drift).toMatchObject({
+      sample: 0,
+      flips: 0,
+      flipRate: null,
+      direction: { improved: 0, worsened: 0 },
+      lowSample: true,
+    });
+  });
+
+  it('全未判定：样本为零，不计入翻转率', async () => {
+    const { service, prisma } = makeService();
+    stubRuns(
+      prisma,
+      { results: [extResult('c1', 'judge_error')] },
+      { results: [extResult('c1', 'correct')] },
+    );
+
+    const diff = await service.getRunDiff('run-3');
+
+    expect(diff.drift!.sample).toBe(0);
+    expect(diff.drift!.flipRate).toBeNull();
+    expect(diff.comparability).toMatchObject({ compared: 0, undecided: 1 });
+  });
+
+  it('基线缺该用例：计入 missingBaseline，不进入翻转样本', async () => {
+    const { service, prisma } = makeService();
+    stubRuns(
+      prisma,
+      { results: [extResult('c1', 'incorrect'), extResult('c2', 'correct')] },
+      { results: [extResult('c1', 'correct')] },
+    );
+
+    const diff = await service.getRunDiff('run-3');
+
+    expect(diff.comparability).toMatchObject({ missingBaseline: 1 });
+    expect(diff.drift!.sample).toBe(1);
+  });
+
+  it('判官输入不同时，翻转不再归因于判官非确定性', async () => {
+    const { service, prisma } = makeService();
+    stubRuns(
+      prisma,
+      { results: [{ ...extResult('c1', 'incorrect'), judgeInputHash: 'h-a' }] },
+      { results: [{ ...extResult('c1', 'correct'), judgeInputHash: 'h-b' }] },
+    );
+
+    const diff = await service.getRunDiff('run-3');
+
+    expect(diff.drift!.flips).toBe(1);
+    expect(diff.drift!.sameInput).toBe(false);
+    expect(diff.drift!.judgeNondeterminismLikely).toBe(false);
+  });
+});
+
+/**
+ * 用例历史的可比性标注（eval-ingestion-hardening 6.3）
+ *
+ * 每个时间点都要说清算不算同口径，否则不同快照的用例会被串成一条翻转线。
+ */
+describe('AiEvalDatasetService · getCaseHistory 可比性标注', () => {
+  const historyRun = (overrides: Record<string, unknown> = {}) => ({
+    id: 'run-1',
+    status: 'COMPLETED',
+    mode: 'STORED',
+    scope: 'full',
+    judgeSpecVersion: 'task-judge-v2',
+    datasetSnapshot: { hash: 'fp-1' },
+    summary: { metricFamily: 'verdict3', metricSpecVersion: 'verdict3-1' },
+    isBaseline: false,
+    results: [
+      {
+        verdict: 'solved',
+        answerVerdict: null,
+        judgeErrorKind: null,
+        score: 0.9,
+        answerScore: null,
+      },
+    ],
+    ...overrides,
+  });
+
+  function stubHistory(
+    prisma: ReturnType<typeof makeService>['prisma'],
+    reference: Record<string, unknown>,
+    points: Record<string, unknown>[],
+  ) {
+    prisma.aiEvalRun.findUnique.mockResolvedValueOnce({
+      id: 'run-3',
+      datasetId: 'ds-1',
+      mode: 'STORED',
+      status: 'COMPLETED',
+      scope: 'full',
+      judgeSpecVersion: 'task-judge-v2',
+      datasetSnapshot: { hash: 'fp-1' },
+      summary: { metricFamily: 'verdict3', metricSpecVersion: 'verdict3-1' },
+      ...reference,
+    });
+    prisma.aiEvalCase.findUnique.mockResolvedValueOnce({
+      id: 'case-1',
+      datasetId: 'ds-1',
+      question: '怎么退款',
+      tags: [],
+      sourceFeedbackId: null,
+    });
+    prisma.aiEvalRun.findMany.mockResolvedValueOnce(points);
+  }
+
+  it('逐点标注可比性：快照不同的点给出原因', async () => {
+    const { service, prisma } = makeService();
+    stubHistory(prisma, {}, [
+      historyRun({ id: 'run-1', datasetSnapshot: { hash: 'fp-2' } }),
+      historyRun({ id: 'run-2' }),
+    ]);
+
+    const history = await service.getCaseHistory('run-3', 'case-1');
+
+    expect(history.timeline[0].comparability).toEqual({
+      comparable: false,
+      reasons: ['datasetSnapshot.hash mismatch'],
+    });
+    expect(history.timeline[1].comparability).toEqual({
+      comparable: true,
+      reasons: [],
+    });
+  });
+
+  it('运行中与失败的运行不进入时间线', async () => {
+    const { service, prisma } = makeService();
+    stubHistory(prisma, {}, [
+      historyRun({ id: 'run-running', status: 'RUNNING' }),
+      historyRun({ id: 'run-failed', status: 'FAILED' }),
+      historyRun({ id: 'run-done' }),
+    ]);
+
+    const history = await service.getCaseHistory('run-3', 'case-1');
+
+    expect(history.timeline.map((point) => point.runId)).toEqual(['run-done']);
   });
 });

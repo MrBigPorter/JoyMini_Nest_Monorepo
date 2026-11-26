@@ -17,6 +17,8 @@ import {
 import { AI_EVAL_QUEUE } from './ai-eval.queue';
 import { AiEvalProcessor } from './ai-eval.processor';
 import { AiEvalRunSweepTask } from './ai-eval-run-sweep.task';
+import { AiEvalJudgeAttemptService } from './ai-eval-judge-attempt.service';
+import { AiEvalJudgeAttemptRetentionTask } from './ai-eval-judge-attempt-retention.task';
 
 @Module({
   // LIVE 模式直接复用真实客服 graph；AiCustomerModule 在 AppModule 中已是单例。
@@ -39,6 +41,8 @@ import { AiEvalRunSweepTask } from './ai-eval-run-sweep.task';
     AnnotationQueueService,
     AiEvalProcessor,
     AiEvalRunSweepTask,
+    AiEvalJudgeAttemptService,
+    AiEvalJudgeAttemptRetentionTask,
     {
       provide: AI_EVAL_LIVE_AI,
       useFactory: (aiCustomer: AiCustomerService) => aiCustomer,

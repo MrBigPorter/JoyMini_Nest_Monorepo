@@ -8,6 +8,16 @@ import {
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
 import { RagService } from './rag.service';
+import { captureJudgeRawOutput } from '@api/common/ai/judge-raw-output';
+import {
+  FAITHFULNESS_JUDGE_SCHEMA,
+  rawOutputText,
+  structuredOutputEnabled,
+} from '@api/common/ai/judge-structured-output';
+import {
+  LlmUsageCollector,
+  LlmUsageSnapshot,
+} from '@api/common/ai/usage-collector';
 import {
   buildJudgeInput,
   classifyJudgeError,
@@ -28,6 +38,10 @@ export interface FaithfulnessAttempt {
   unsupportedClaims?: string[];
   error?: string;
   errorKind?: JudgeErrorKind;
+  /** 截断后的原始输出（成功与解析失败都保留），供留痕复盘。 */
+  rawOutput?: string | null;
+  /** 原始输出是否被截断：长度本身不能证明完整性。 */
+  rawTruncated?: boolean;
 }
 
 export interface FaithfulnessResult {
@@ -49,6 +63,9 @@ export interface FaithfulnessResult {
   judgeRepeats?: number;
   /** 逐次判定明细，供审计与离线复盘。 */
   judgeAttempts?: FaithfulnessAttempt[];
+  /** 采用结论那次尝试的原始输出（截断后）；失败时取首个失败尝试的。 */
+  rawOutput?: string | null;
+  rawTruncated?: boolean;
   /** 成功判定的次数（返回了可解析的 faithful 布尔值）。 */
   judgeSuccessfulAttempts?: number;
   /** 多数阵营票数 / 成功次数；全部失败时为 0。 */
@@ -57,6 +74,8 @@ export interface FaithfulnessResult {
   judgeDisagreement?: boolean;
   /** 成功次数 < 2（N=1 也会标 true）：该用例不计入稳定性分母。 */
   judgeLowAttempts?: boolean;
+  /** 本用例全部判官尝试的真实用量（未调用判官时缺省）。 */
+  usage?: LlmUsageSnapshot;
 }
 
 export interface FaithfulnessJudgeParams {
@@ -84,8 +103,11 @@ const DEFAULT_JUDGE_REPEATS = 3;
  * 2026-11-24 人工抽检发现旧提示词只查「关键词是否出现」，会把错误归属
  * （把别的章节的路径/规则安到当前说法上）和自行补充的例子判成有据；
  * strict-v1 增加上下文、归属与例子三条硬约束。
+ *
+ * 2026-11-26 strict-v2：解码约束改为 jsonMode 结构化输出（提示词正文不变），
+ * 版本号必须随之上调，否则运行快照无法区分「同提示词、不同解码约束」。
  */
-export const JUDGE_PROMPT_VERSION = 'strict-v1';
+export const JUDGE_PROMPT_VERSION = 'strict-v2';
 
 const JUDGE_SYSTEM_PROMPT = `You are a strict RAG faithfulness judge.
 Given a question, an answer, and retrieved sources, decide whether every factual claim
@@ -105,13 +127,45 @@ Rules:
 - unsupportedClaims must be short quotes/phrases from the answer.
 - reason must name the source sentence, or its absence, for each unsupported claim.`;
 
-/** 解析 judge 输出；容忍 markdown code fence，非法输出返回 null。 */
-export function parseJudgeOutput(
-  raw: string,
-): Pick<
+type ParsedFaithfulness = Pick<
   FaithfulnessResult,
   'faithful' | 'score' | 'unsupportedClaims' | 'reason'
-> | null {
+>;
+
+/**
+ * 把「已解析成对象」的判官结果收敛到统一形状。
+ * 文本解析与结构化解析共用，避免两条路对分值/声明的处理漂移。
+ */
+export function normalizeFaithfulnessVerdict(
+  value: unknown,
+): ParsedFaithfulness | null {
+  if (!value || typeof value !== 'object') return null;
+  const parsed = value as Record<string, unknown>;
+  if (typeof parsed.faithful !== 'boolean') return null;
+
+  const rawScore = Number(parsed.score);
+  const score = Number.isFinite(rawScore)
+    ? Math.max(0, Math.min(1, rawScore))
+    : parsed.faithful
+      ? 1
+      : 0;
+
+  const unsupportedClaims = Array.isArray(parsed.unsupportedClaims)
+    ? parsed.unsupportedClaims
+        .filter((claim: unknown) => typeof claim === 'string')
+        .slice(0, 10)
+    : [];
+
+  return {
+    faithful: parsed.faithful,
+    score: Number(score.toFixed(2)),
+    unsupportedClaims,
+    reason: typeof parsed.reason === 'string' ? parsed.reason : '',
+  };
+}
+
+/** 解析 judge 输出；容忍 markdown code fence，非法输出返回 null。 */
+export function parseJudgeOutput(raw: string): ParsedFaithfulness | null {
   const stripped = String(raw ?? '')
     .replace(/```json/gi, '')
     .replace(/```/g, '')
@@ -121,37 +175,35 @@ export function parseJudgeOutput(
   if (start < 0 || end < start) return null;
 
   try {
-    const parsed = JSON.parse(stripped.slice(start, end + 1));
-    if (typeof parsed.faithful !== 'boolean') return null;
-
-    const rawScore = Number(parsed.score);
-    const score = Number.isFinite(rawScore)
-      ? Math.max(0, Math.min(1, rawScore))
-      : parsed.faithful
-        ? 1
-        : 0;
-
-    const unsupportedClaims = Array.isArray(parsed.unsupportedClaims)
-      ? parsed.unsupportedClaims
-          .filter((claim: unknown) => typeof claim === 'string')
-          .slice(0, 10)
-      : [];
-
-    return {
-      faithful: parsed.faithful,
-      score: Number(score.toFixed(2)),
-      unsupportedClaims,
-      reason: typeof parsed.reason === 'string' ? parsed.reason : '',
-    };
+    return normalizeFaithfulnessVerdict(
+      JSON.parse(stripped.slice(start, end + 1)),
+    );
   } catch {
     return null;
   }
 }
 
+/** judge 链调用可接收的回调配置（用量采集挂载点）。 */
+interface JudgeInvokeConfig {
+  callbacks?: unknown[];
+}
+
+type StructuredJudgeChain = {
+  invoke(
+    input: { input: string },
+    config?: JudgeInvokeConfig,
+  ): Promise<{
+    raw?: unknown;
+    parsed?: unknown;
+  }>;
+};
+
 @Injectable()
 export class RagFaithfulnessService {
   private readonly logger = new Logger(RagFaithfulnessService.name);
   private readonly chain;
+  private readonly structuredEnabled: boolean;
+  private readonly structuredChain?: StructuredJudgeChain;
 
   constructor(
     private readonly configService: ConfigService,
@@ -173,9 +225,22 @@ export class RagFaithfulnessService {
       new SystemMessage(JUDGE_SYSTEM_PROMPT),
       ['human', '{input}'],
     ]);
-    this.chain = prompt
-      .pipe(createLLM(llmConfig, { temperature: 0 }))
-      .pipe(new StringOutputParser());
+    const model = createLLM(llmConfig, { temperature: 0 });
+    this.chain = prompt.pipe(model).pipe(new StringOutputParser());
+
+    // 必须显式 jsonMode：@langchain/openai 对非 gpt 模型默认用 jsonSchema，
+    // 而 DeepSeek 实测对 jsonSchema 返回 400。
+    this.structuredEnabled = structuredOutputEnabled(
+      this.configService.get<string>('EVAL_JUDGE_STRUCTURED_OUTPUT'),
+    );
+    if (this.structuredEnabled) {
+      this.structuredChain = prompt.pipe(
+        model.withStructuredOutput(FAITHFULNESS_JUDGE_SCHEMA, {
+          method: 'jsonMode',
+          includeRaw: true,
+        }),
+      ) as unknown as StructuredJudgeChain;
+    }
   }
 
   async judge(params: FaithfulnessJudgeParams): Promise<FaithfulnessResult> {
@@ -206,10 +271,12 @@ export class RagFaithfulnessService {
     });
 
     const repeats = this.resolveJudgeRepeats(params.repeats);
+    // 一个 judge() 调用共享一个 collector：N 次尝试自然求和，失败尝试只计调用数。
+    const usage = new LlmUsageCollector('judge');
     // 并行发起同一输入的 N 次判定；聚合只在这里做一次，在线/离线共用。
     const attempts = await Promise.all(
       Array.from({ length: repeats }, () =>
-        this.runJudgeAttempt(judgeInput.input),
+        this.runJudgeAttempt(judgeInput.input, usage),
       ),
     );
 
@@ -218,6 +285,7 @@ export class RagFaithfulnessService {
       judgeInputHash: judgeInput.judgeInputHash,
       judgeSpecVersion: specVersion,
       sourceCount: judgeInput.sourceCount,
+      usage: usage.snapshot(),
     });
   }
 
@@ -248,11 +316,16 @@ export class RagFaithfulnessService {
   }
 
   /** 单次判定：把解析失败与调用异常都收敛为一次「失败尝试」，不中断其它并行判定。 */
-  private async runJudgeAttempt(input: string): Promise<FaithfulnessAttempt> {
+  private async runJudgeAttempt(
+    input: string,
+    usage: LlmUsageCollector,
+  ): Promise<FaithfulnessAttempt> {
     try {
-      const raw = await this.chain.invoke({ input });
-      const parsed = parseJudgeOutput(raw);
-      if (!parsed) {
+      const { raw, parsed } = await this.invokeJudge(input, usage);
+      const captured = captureJudgeRawOutput(raw);
+      // 结构化结果为空时，用同一次原始输出走既有文本解析（不再发一次请求）。
+      const verdict = parsed ?? parseJudgeOutput(raw);
+      if (!verdict) {
         this.logger.warn('[faithfulness] judge output is not valid JSON');
         return {
           faithful: null,
@@ -260,9 +333,10 @@ export class RagFaithfulnessService {
           reason: 'judge_parse_failed',
           error: String(raw).slice(0, 500),
           errorKind: 'output_format',
+          ...captured,
         };
       }
-      return parsed;
+      return { ...verdict, ...captured };
     } catch (err) {
       this.logger.warn(
         `[faithfulness] judge call failed: ${(err as Error)?.message ?? err}`,
@@ -275,6 +349,44 @@ export class RagFaithfulnessService {
         errorKind: classifyJudgeError(err),
       };
     }
+  }
+
+  /**
+   * 发起一次判官调用。
+   *
+   * 结构化优先；provider 拒绝结构化请求（4xx 等）或链本身异常时，
+   * 降级为原有文本链重发一次，不能因为解码约束把整条评测判失败。
+   */
+  private async invokeJudge(
+    input: string,
+    usage: LlmUsageCollector,
+  ): Promise<{ raw: string; parsed: ParsedFaithfulness | null }> {
+    const callbacks = [usage];
+    if (this.structuredEnabled && this.structuredChain) {
+      try {
+        const result = await this.structuredChain.invoke(
+          { input },
+          { callbacks },
+        );
+        const raw = rawOutputText(result?.raw);
+        const parsed = normalizeFaithfulnessVerdict(result?.parsed);
+        if (!parsed) {
+          this.logger.warn(
+            '[faithfulness] structured output rejected by schema, falling back to text parse',
+          );
+        }
+        return { raw, parsed };
+      } catch (err) {
+        this.logger.warn(
+          `[faithfulness] structured judge call failed, falling back to text: ${
+            (err as Error)?.message ?? err
+          }`,
+        );
+      }
+    }
+
+    const raw = await this.chain.invoke({ input }, { callbacks });
+    return { raw, parsed: null };
   }
 
   /**
@@ -292,6 +404,7 @@ export class RagFaithfulnessService {
       judgeInputHash: string;
       judgeSpecVersion: JudgeSpecVersion;
       sourceCount: number;
+      usage: LlmUsageSnapshot;
     },
   ): FaithfulnessResult {
     const successes = attempts.filter(
@@ -319,6 +432,7 @@ export class RagFaithfulnessService {
       judgeSuccessfulAttempts: successes.length,
       judgeAgreement,
       judgeLowAttempts: successes.length < 2,
+      usage: base.usage,
     };
 
     if (successes.length === 0) {
@@ -331,6 +445,8 @@ export class RagFaithfulnessService {
         reason: 'judge_error',
         error: first?.error,
         errorKind: first?.errorKind ?? 'output_format',
+        rawOutput: first?.rawOutput ?? null,
+        rawTruncated: first?.rawTruncated ?? false,
         judgeDisagreement: false,
       };
     }
@@ -344,6 +460,8 @@ export class RagFaithfulnessService {
         reason: 'judge_disagreement',
         error: failures[0]?.error,
         errorKind: failures[0]?.errorKind ?? 'output_format',
+        rawOutput: failures[0]?.rawOutput ?? null,
+        rawTruncated: failures[0]?.rawTruncated ?? false,
         judgeDisagreement: true,
       };
     }
@@ -357,6 +475,8 @@ export class RagFaithfulnessService {
         reason: 'judge_disagreement',
         error: failures[0]?.error,
         errorKind: failures[0]?.errorKind ?? 'output_format',
+        rawOutput: failures[0]?.rawOutput ?? null,
+        rawTruncated: failures[0]?.rawTruncated ?? false,
         judgeDisagreement: true,
       };
     }
@@ -368,6 +488,8 @@ export class RagFaithfulnessService {
       score: winner.score,
       unsupportedClaims: winner.unsupportedClaims ?? [],
       reason: winner.reason,
+      rawOutput: winner.rawOutput ?? null,
+      rawTruncated: winner.rawTruncated ?? false,
       judgeDisagreement: false,
     };
   }
