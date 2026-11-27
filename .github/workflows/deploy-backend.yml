@@ -150,12 +150,46 @@ jobs:
             echo "No eval run id provided and no Eval-Run trailer found."
           fi
 
+      - name: Resolve eval admin token
+        id: eval-token
+        env:
+          SECRET_TOKEN: ${{ secrets.EVAL_ADMIN_TOKEN }}
+          TEST_USERNAME: ${{ secrets.E2E_ADMIN_TEST_USERNAME }}
+          TEST_CODE: ${{ secrets.E2E_ADMIN_TEST_CODE }}
+          API_BASE_URL: ${{ vars.EVAL_EVIDENCE_API_URL || 'https://api.joyminis.com/api' }}
+          GATE_MODE: ${{ steps.eval-run.outputs.gate_mode }}
+        run: |
+          set -euo pipefail
+
+          token="${SECRET_TOKEN:-}"
+          if [ -z "$token" ] && [ -n "${TEST_USERNAME:-}" ] && [ -n "${TEST_CODE:-}" ]; then
+            if body=$(curl -fsS --max-time 20 -X POST "${API_BASE_URL%/}/v1/auth/admin/test-login" \
+              -H 'content-type: application/json' \
+              --data "$(jq -cn --arg u "$TEST_USERNAME" --arg c "$TEST_CODE" '{test:$u, code:$c}')"); then
+              token=$(printf '%s' "$body" | jq -r '.data.tokens.accessToken // empty')
+            else
+              echo "::warning::测试登录失败，未能取得管理员令牌。"
+            fi
+          fi
+
+          if [ -z "$token" ]; then
+            if [ "$GATE_MODE" = "enforce" ]; then
+              echo "::error::缺少管理员令牌：配置 EVAL_ADMIN_TOKEN，或提供有效的测试登录凭据。enforce 模式不允许跳过。"
+              exit 1
+            fi
+            echo "::warning::缺少管理员令牌，advisory 模式将跳过证据校验。"
+          else
+            echo "::add-mask::$token"
+          fi
+
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
       - name: Check release evidence
         env:
           RUN_ID: ${{ steps.eval-run.outputs.run_id }}
           GATE_MODE: ${{ steps.eval-run.outputs.gate_mode }}
           API_BASE_URL: ${{ vars.EVAL_EVIDENCE_API_URL || 'https://api.joyminis.com/api' }}
-          EVAL_ADMIN_TOKEN: ${{ secrets.EVAL_ADMIN_TOKEN }}
+          EVAL_ADMIN_TOKEN: ${{ steps.eval-token.outputs.token }}
         run: |
           set -euo pipefail
 
