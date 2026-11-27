@@ -9,8 +9,6 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { io } from "socket.io-client";
-
 import { E2EHttpError } from "./http.mjs";
 import { refreshAccountToken } from "../../simulator/provision.mjs";
 
@@ -201,7 +199,11 @@ export function createEventBus({
   };
 }
 
-function connectSocket({ socketUrl, token, timeoutMs = CONNECT_TIMEOUT_MS }) {
+async function connectSocket({ socketUrl, token, timeoutMs = CONNECT_TIMEOUT_MS }) {
+  // 动态导入：纯函数单测（tools/eval/e2e/*.test.mjs）会用 node --test 在无依赖
+  // 的 CI job 里跑，静态导入会把 socket.io-client 变成整个测试集的硬依赖。
+  const { io } = await import("socket.io-client");
+
   return new Promise((resolve, reject) => {
     let settled = false;
     let socket;

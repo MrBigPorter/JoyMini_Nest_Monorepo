@@ -1,0 +1,82 @@
+# ============================================================
+# 真值一致性 — 定时体检 + 手动 + 相关 PR
+# ============================================================
+# 校验「知识库文档宣称的渠道事实」是否等于「payment_channels 配置」。
+# 只发 GET，不写任何东西；退出码 1 = 不一致 / 来源不可达 / 登记不可解析。
+#
+# 文档在 DB 里改，PR 里看不到，所以这里是线上一致性的定时体检：
+# 在管理端改文档不会被任何 PR 拦住，最迟次日由 schedule 发现。
+# ============================================================
+name: Truth Consistency
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    # 每日 01:00 UTC（09:00 Asia/Shanghai）
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "API 基址（含版本前缀），例如 https://api.joyminis.com/api/v1"
+        required: false
+        type: string
+        default: "https://api.joyminis.com/api/v1"
+  pull_request:
+    # 只有这几处改动会让真值移动，而文档不会跟着变
+    paths:
+      - "apps/api/src/admin/payment-channel/**"
+      - "apps/api/prisma/migrations/**"
+      - "tools/truth/**"
+
+concurrency:
+  group: truth-consistency-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Self-test (no token needed)
+        run: node --test tools/truth/*.test.mjs
+
+      - name: Resolve admin token
+        env:
+          TRUTH_ADMIN_TOKEN: ${{ secrets.TRUTH_ADMIN_TOKEN || secrets.E2E_ADMIN_TOKEN }}
+          TEST_USERNAME: ${{ secrets.E2E_ADMIN_TEST_USERNAME }}
+          TEST_CODE: ${{ secrets.E2E_ADMIN_TEST_CODE }}
+          BASE_URL: ${{ inputs.base_url || 'https://api.joyminis.com/api/v1' }}
+        run: |
+          # 令牌二选一：直接给 TRUTH_ADMIN_TOKEN / E2E_ADMIN_TOKEN，
+          # 或用测试账号现换（与 eval-regression.yml 同一套，避免长期令牌过期）。
+          set -euo pipefail
+          token="${TRUTH_ADMIN_TOKEN:-}"
+          if [ -z "$token" ] && [ -n "${TEST_USERNAME:-}" ] && [ -n "${TEST_CODE:-}" ]; then
+            root="${BASE_URL%/v1}"
+            body=$(curl -fsS -X POST "${root}/v1/auth/admin/test-login" \
+              -H 'content-type: application/json' \
+              --data "$(jq -cn --arg u "$TEST_USERNAME" --arg c "$TEST_CODE" '{test:$u, code:$c}')")
+            token=$(printf '%s' "$body" | jq -r '.data.tokens.accessToken // empty')
+          fi
+          if [ -z "$token" ]; then
+            echo "::error::缺少管理员令牌：配置 TRUTH_ADMIN_TOKEN / E2E_ADMIN_TOKEN，或有效的测试登录凭据。校验不允许静默跳过。"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "TRUTH_ADMIN_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Check documents against payment_channels
+        env:
+          TRUTH_BASE_URL: ${{ inputs.base_url || 'https://api.joyminis.com/api/v1' }}
+        run: node tools/truth/check.mjs

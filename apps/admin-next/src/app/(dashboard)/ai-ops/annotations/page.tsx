@@ -20,26 +20,8 @@ const CORRECTNESS_OPTIONS = [
   { value: 'abstain', label: '🤔 看不懂' },
 ] as const;
 
-const HELPFULNESS_OPTIONS = [
-  { value: 5, label: '5 · 看完就能用' },
-  { value: 4, label: '4 · 基本能用' },
-  { value: 3, label: '3 · 还要再问一句' },
-  { value: 2, label: '2 · 几乎没用' },
-  { value: 1, label: '1 · 帮倒忙' },
-] as const;
-
-const TONE_OPTIONS = [
-  { value: 5, label: '5 · 正常' },
-  { value: 4, label: '4 · 有点啰嗦/生硬' },
-  { value: 3, label: '3 · 推诿/冷淡' },
-  { value: 2, label: '2 · 误导' },
-  { value: 1, label: '1 · 冒犯/不安全' },
-] as const;
-
 const EMPTY_LABELS: AiAnnotationLabels = {
   correctness: null,
-  helpfulness: null,
-  tone_safety: null,
   comment: '',
 };
 
@@ -95,7 +77,12 @@ export default function AiAnnotationsPage() {
     setSaving(true);
     setSaveError(null);
     try {
-      await aiOpsApi.saveAnnotation(selected.caseId, selected.turn, form);
+      await aiOpsApi.saveAnnotation(
+        selected.caseId,
+        selected.turn,
+        form,
+        worksheet || undefined,
+      );
       await refresh();
       selectNext();
     } catch (err: any) {
@@ -204,6 +191,11 @@ export default function AiAnnotationsPage() {
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] dark:bg-white/10">
                         {row.intent ?? 'unknown'}
                       </span>
+                      {row.labelSource === 'prelabel' ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                          预标注
+                        </span>
+                      ) : null}
                       <span
                         className={`ml-auto text-xs ${
                           row.status === 'done'
@@ -234,6 +226,9 @@ export default function AiAnnotationsPage() {
                   <h2 className="text-sm font-semibold">样本</h2>
                   <p className="mt-1 font-mono text-xs text-gray-500">
                     {selected.caseId}#{selected.turn} · {selected.intent}
+                    {selected.guidelineVersion
+                      ? ` · 指南 ${selected.guidelineVersion}`
+                      : ''}
                   </p>
                 </div>
 
@@ -251,83 +246,47 @@ export default function AiAnnotationsPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="text-sm sm:col-span-3">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                      这条回答解决用户问题了吗？
-                    </span>
-                    <select
-                      className="mt-1 w-full rounded-lg border px-2 py-2 dark:border-white/10 dark:bg-gray-800"
-                      value={form.correctness ?? ''}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          correctness:
-                            (event.target
-                              .value as AiAnnotationLabels['correctness']) ||
-                            null,
-                        })
-                      }
-                    >
-                      <option value="">请选择</option>
-                      {CORRECTNESS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                {selected.prelabel ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                    预标注建议：
+                    {CORRECTNESS_OPTIONS.find(
+                      (option) =>
+                        option.value === selected.prelabel?.correctness,
+                    )?.label ?? '未标注'}
+                    {selected.prelabel.confidence != null
+                      ? ` · 置信度 ${selected.prelabel.confidence.toFixed(2)}`
+                      : ' · 置信度未记录'}
+                    {selected.labelSource === 'human'
+                      ? ' · 你已改判，预标注原样保留可追溯'
+                      : ''}
+                  </div>
+                ) : null}
 
-                  <label className="text-sm">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                      对用户有多大帮助？
-                    </span>
-                    <select
-                      className="mt-1 w-full rounded-lg border px-2 py-2 dark:border-white/10 dark:bg-gray-800"
-                      value={form.helpfulness ?? ''}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          helpfulness: event.target.value
-                            ? Number(event.target.value)
-                            : null,
-                        })
-                      }
-                    >
-                      <option value="">请选择</option>
-                      {HELPFULNESS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="text-sm">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                      语气和安全有没有问题？
-                    </span>
-                    <select
-                      className="mt-1 w-full rounded-lg border px-2 py-2 dark:border-white/10 dark:bg-gray-800"
-                      value={form.tone_safety ?? ''}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          tone_safety: event.target.value
-                            ? Number(event.target.value)
-                            : null,
-                        })
-                      }
-                    >
-                      <option value="">请选择</option>
-                      {TONE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
+                <label className="block text-sm">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    这条回答解决用户问题了吗？
+                  </span>
+                  <select
+                    className="mt-1 w-full rounded-lg border px-2 py-2 dark:border-white/10 dark:bg-gray-800"
+                    value={form.correctness ?? ''}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        correctness:
+                          (event.target
+                            .value as AiAnnotationLabels['correctness']) ||
+                          null,
+                      })
+                    }
+                  >
+                    <option value="">请选择</option>
+                    {CORRECTNESS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
                 <label className="block text-sm">
                   <span className="text-xs text-gray-500">备注</span>

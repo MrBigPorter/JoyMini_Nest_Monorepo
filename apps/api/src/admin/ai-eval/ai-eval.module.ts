@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
 import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { CorpusFingerprintModule } from '@api/common/knowledge/corpus-fingerprint.module';
+import { RedisLockModule } from '@api/common/redis/redis-lock.module';
 import { AiEvalController } from './ai-eval.controller';
 import { EvalReportsController } from './eval-reports.controller';
 import { AnnotationQueueController } from './annotation-queue.controller';
@@ -15,12 +16,16 @@ import {
 } from './ai-eval-dataset.service';
 import { AI_EVAL_QUEUE } from './ai-eval.queue';
 import { AiEvalProcessor } from './ai-eval.processor';
+import { AiEvalRunSweepTask } from './ai-eval-run-sweep.task';
+import { AiEvalJudgeAttemptService } from './ai-eval-judge-attempt.service';
+import { AiEvalJudgeAttemptRetentionTask } from './ai-eval-judge-attempt-retention.task';
 
 @Module({
   // LIVE 模式直接复用真实客服 graph；AiCustomerModule 在 AppModule 中已是单例。
   imports: [
     AiCustomerModule,
     CorpusFingerprintModule,
+    RedisLockModule,
     BullModule.registerQueue({ name: AI_EVAL_QUEUE }),
   ],
   controllers: [
@@ -35,6 +40,9 @@ import { AiEvalProcessor } from './ai-eval.processor';
     EvalReportsService,
     AnnotationQueueService,
     AiEvalProcessor,
+    AiEvalRunSweepTask,
+    AiEvalJudgeAttemptService,
+    AiEvalJudgeAttemptRetentionTask,
     {
       provide: AI_EVAL_LIVE_AI,
       useFactory: (aiCustomer: AiCustomerService) => aiCustomer,

@@ -10,6 +10,11 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { useAuthStore } from '@/store/useAuthStore';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
+import { defaultTabForRole } from '@/lib/ai-ops-role-view';
+import {
+  formatKnownCount,
+  resolveRenderState,
+} from '@/lib/ai-ops-render-state';
 import { diagnoseFeedbackRow } from '@/lib/ai-ops-feedback-diagnosis';
 import {
   evalAccuracyText,
@@ -24,13 +29,22 @@ import {
   buildQualityHref,
   hasFeedbackFilters,
   parseFeedbackFilters,
+  toLocalDayRangeIso,
   type FeedbackFilters,
 } from '@/lib/ai-ops-quality-filters';
+import {
+  pickTraceForMessage,
+  selectFailedSpans,
+  suggestAttribution,
+  type TraceMatch,
+} from '@/lib/ai-ops-evidence';
 import type {
   AiFeedbackItem,
   AiFeedbackSummary,
-  DocumentChunk,
-  EvalCase,
+  AiTraceDetail,
+  DocumentChunkDiff,
+  DocumentChunkDiffEntry,
+  EvalCaseHistory,
   EvalDataset,
   EvalRun,
   KbRegressionStatus,
@@ -90,6 +104,65 @@ const RESOLUTION_LABELS: Record<string, string> = {
   FIXED_PENDING_VERIFY: '已修复待验证',
   CLOSED: '已关闭',
   NO_ISSUE: '无问题',
+};
+
+/** 单用例时间线的判定归一；未判定（判官无结论）既不算通过也不算失败。 */
+const CASE_OUTCOME_LABELS: Record<string, string> = {
+  pass: '通过',
+  fail: '失败',
+  undecided: '未判定',
+};
+
+/** 两次运行的描述性差异分类；顺序即展示顺序。 */
+const DIFF_CLASS_LABELS: Record<string, string> = {
+  newFailure: '新增失败',
+  fixed: '修复',
+  regressed: '回退',
+  stillFailing: '仍失败',
+};
+
+/** 不可比原因码 → 运营可读说明；未知 code 原样展示，不隐藏信息。 */
+const DIFF_REASON_LABELS: Record<string, string> = {
+  'metricSpecVersion mismatch': '指标口径版本不一致',
+  'judgeSpecVersion mismatch': '判官版本不一致',
+  'datasetSnapshot.hash mismatch': '数据集快照不一致',
+  'scope mismatch': '运行范围不一致（全量/子集）',
+  'mode mismatch': '运行模式不一致（存储/实时）',
+};
+
+function diffReasonLabel(reason: string): string {
+  if (reason.startsWith('cross-family comparison:')) {
+    return `指标族不一致（${reason.slice('cross-family comparison:'.length).trim()}），跨族不能相减`;
+  }
+  const statusMatch = reason.match(
+    /^(current|baseline) run status (\S+) is not COMPLETED$/,
+  );
+  if (statusMatch) {
+    const side = statusMatch[1] === 'current' ? '当前' : '基线';
+    return `${side}运行状态为 ${statusMatch[2]}，不是已完成`;
+  }
+  return DIFF_REASON_LABELS[reason] ?? reason;
+}
+
+/** 质量待办列表分页大小；请求与页码回退必须用同一口径。 */
+const FEEDBACK_PAGE_SIZE = 20;
+
+/** 批量排除逐条跳过的原因码 → 中文说明，与后端 batchExclude 保持一致。 */
+const BATCH_EXCLUDE_SKIP_REASON: Record<string, string> = {
+  NOT_FOUND: '记录不存在',
+  MODEL_ERROR: '模型答错不在批量范围',
+  NOT_SERVICE_ERROR: '不是服务故障',
+  ALREADY_EXCLUDED: '已排除',
+  VERSION_CONFLICT: '已被他人更新',
+  UPDATE_FAILED: '写入失败',
+};
+
+/** 解析质量四项检查的中文名，与后端 checks 的 key 一一对应。 */
+const PARSE_CHECK_LABELS: Record<string, string> = {
+  truncation: '截断',
+  retentionRate: '保留率',
+  encoding: '编码',
+  emptyContent: '内容',
 };
 
 /** 转人工原因翻译成运营语言；未知值原样展示，避免隐藏信息。 */
@@ -156,7 +229,7 @@ function DiagnosisBadges({ item }: { item: FeedbackRow }) {
               : 'whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
           }
         >
-          {flag.label}
+          {flag.label} · 推断
         </span>
       ))}
     </div>
@@ -167,13 +240,167 @@ const RESOLUTION_OPTIONS = Object.entries(RESOLUTION_LABELS).map(
   ([value, label]) => ({ value, label }),
 );
 
+type EvidenceState =
+  | { status: 'loading' }
+  | { status: 'ready'; match: TraceMatch; trace: AiTraceDetail }
+  | { status: 'expired' }
+  | { status: 'error' };
+
+/**
+ * 质检卡片的证据面板：优先直接关联的 traceId，其次按 messageId 精确匹配，
+ * 只能回退会话最新时标「近似」，一条都没有就说明链路已过期。
+ * 任何情况下都不展示与当前记录无关的链路。
+ */
+function EvidencePanel({
+  conversationId,
+  messageId,
+  traceId,
+}: {
+  conversationId?: string | null;
+  messageId?: string | null;
+  traceId?: string | null;
+}) {
+  const [state, setState] = useState<EvidenceState>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setState({ status: 'loading' });
+      try {
+        if (traceId) {
+          const trace = await aiOpsApi.getTrace(traceId, { showError: false });
+          if (!cancelled) {
+            setState({ status: 'ready', match: 'exact', trace });
+          }
+          return;
+        }
+        if (!conversationId) {
+          if (!cancelled) setState({ status: 'expired' });
+          return;
+        }
+        const result = await aiOpsApi.getTraces(
+          { conversationId, pageSize: 20 },
+          { showError: false },
+        );
+        const pick = pickTraceForMessage(result?.list ?? [], messageId);
+        if (!pick.trace) {
+          if (!cancelled) setState({ status: 'expired' });
+          return;
+        }
+        const trace = await aiOpsApi.getTrace(pick.trace.id, {
+          showError: false,
+        });
+        if (!cancelled) {
+          setState({ status: 'ready', match: pick.match, trace });
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        // 链路被保留期清理后详情返回 404：按「证据已过期」对待，不当成加载失败。
+        setState(
+          err?.response?.status === 404
+            ? { status: 'expired' }
+            : { status: 'error' },
+        );
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, messageId, traceId]);
+
+  const failed =
+    state.status === 'ready'
+      ? selectFailedSpans(state.trace.spans ?? []).slice(0, 3)
+      : [];
+  const attribution = suggestAttribution(failed);
+
+  return (
+    <div
+      aria-label="证据面板"
+      className="mt-3 rounded-lg border bg-white p-3 text-sm dark:border-white/10 dark:bg-gray-900"
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span>这条回答的证据</span>
+        {state.status === 'ready' ? (
+          <span className="rounded-full border px-2 py-0.5 dark:border-white/10">
+            {state.match === 'exact' ? '证据 · 精确匹配' : '证据 · 近似'}
+          </span>
+        ) : null}
+      </div>
+
+      {state.status === 'loading' ? (
+        <div className="text-xs text-gray-500">正在加载关联链路…</div>
+      ) : null}
+
+      {state.status === 'error' ? (
+        <div className="text-xs text-red-600 dark:text-red-400">
+          证据读取失败，请稍后重试；未展示任何替代链路
+        </div>
+      ) : null}
+
+      {state.status === 'expired' ? (
+        <div className="text-xs text-amber-700 dark:text-amber-300">
+          证据已过期：关联链路已超过保留期被清理，不展示其他链路顶替
+        </div>
+      ) : null}
+
+      {state.status === 'ready' ? (
+        <div className="space-y-1 text-xs">
+          {state.match === 'approx' ? (
+            <div className="text-amber-700 dark:text-amber-300">
+              近似：回退到会话最新链路，可能与本条不对应，仅作参考
+            </div>
+          ) : null}
+          {failed.length > 0 ? (
+            failed.map((span) => (
+              <div key={span.id} className="text-gray-700 dark:text-gray-300">
+                失败步骤：{span.name}
+                {span.error
+                  ? `：${span.error.slice(0, 140)}`
+                  : `（${span.status ?? '未知状态'}）`}
+              </div>
+            ))
+          ) : (
+            <div className="text-gray-500">
+              未发现失败步骤（链路状态：{state.trace.status ?? '未知'}）
+            </div>
+          )}
+          {attribution ? (
+            <div className="flex flex-wrap items-center gap-1 text-gray-600 dark:text-gray-400">
+              建议归因：{attribution}
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                推断
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const RUN_STATUS_LABELS: Record<string, string> = {
-  QUEUED: '排队中',
   RUNNING: '运行中',
   COMPLETED: '已完成',
   FAILED: '失败',
   CANCELLED: '已取消',
 };
+
+/**
+ * 运行级执行失败类别（与 unsolved / judge_error 分账）。
+ * 只登记有产出路径的值：executeRun 收尾时写 live_call。
+ */
+const EXECUTION_ERROR_LABELS: Record<string, string> = {
+  live_call: '实时调用失败',
+};
+
+/** 终态：轮询停止，且数据集卡片与基线下拉需要刷新。 */
+function isTerminalRunStatus(status: string | null | undefined): boolean {
+  return (
+    status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED'
+  );
+}
 
 const RESULT_VERDICT_LABELS: Record<string, string> = {
   solved: '解决',
@@ -200,6 +427,96 @@ function labelOf(map: Record<string, string>, raw?: string | null): string {
   return map[raw] ?? raw;
 }
 
+/** 中文说明 + 原始码：既让人看懂，又能对着日志查；未登记的码原样显示。 */
+function labeledCode(map: Record<string, string>, raw: string): string {
+  const label = map[raw];
+  return label ? `${label}（${raw}）` : raw;
+}
+
+/** 与后端 DTO 同口径的输入上限；前端先挡一次，避免白跑请求。 */
+const EVAL_INPUT_LIMITS = {
+  mustMention: 20,
+  mustMentionLength: 500,
+} as const;
+
+/** 与服务端默认值一致；页面只做上一页/下一页，不提供任意页大小。 */
+const EVAL_PAGE_SIZE = 50;
+
+function ResultPager({
+  page,
+  total,
+  onChange,
+}: {
+  page: number;
+  total?: number;
+  onChange: (page: number) => void;
+}) {
+  // 总数未知时不显示分页：宁可不翻页，也不凭空算出页数。
+  if (typeof total !== 'number' || total <= EVAL_PAGE_SIZE) return null;
+  const totalPages = Math.max(1, Math.ceil(total / EVAL_PAGE_SIZE));
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+      >
+        上一页
+      </Button>
+      <span>
+        第 {page} / {totalPages} 页
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={page >= totalPages}
+        onClick={() => onChange(page + 1)}
+      >
+        下一页
+      </Button>
+    </div>
+  );
+}
+
+/** 判分以 expect 为准；expected 只在 expect 为空时作为只读兼容回填。 */
+function caseExpectation(item: {
+  expected?: unknown;
+  expect?: Record<string, any> | null;
+}): Record<string, any> {
+  if (item.expect && Object.keys(item.expect).length > 0) return item.expect;
+  if (typeof item.expected === 'string' && item.expected.trim()) {
+    return { mustMention: [item.expected.trim()] };
+  }
+  if (item.expected && typeof item.expected === 'object') {
+    return item.expected as Record<string, any>;
+  }
+  return {};
+}
+
+function expectationText(item: {
+  expected?: unknown;
+  expect?: Record<string, any> | null;
+}): string {
+  const mustMention = caseExpectation(item).mustMention;
+  return Array.isArray(mustMention) ? mustMention.join('；') : '';
+}
+
+/** 非文本判分条件：编辑时只读展示，保存时原样保留。 */
+function expectationConditions(item: {
+  expected?: unknown;
+  expect?: Record<string, any> | null;
+}): string[] {
+  const expect = caseExpectation(item);
+  const parts: string[] = [];
+  if (expect.confirmAction) parts.push(`确认动作：${expect.confirmAction}`);
+  if (expect.forbidExecution !== undefined) {
+    parts.push(`禁止执行：${expect.forbidExecution ? '是' : '否'}`);
+  }
+  if (expect.intent) parts.push(`意图：${expect.intent}`);
+  return parts;
+}
+
 function expectedText(item: {
   expected?: unknown;
   expect?: Record<string, any> | null;
@@ -212,13 +529,39 @@ function expectedText(item: {
       return '';
     }
   }
-  const mustMention = item.expect?.mustMention;
-  return Array.isArray(mustMention) ? mustMention.join('；') : '';
+  return expectationText(item);
 }
 
 const formatPassRate = evalPassRateText;
 const formatRate = evalPercentText;
 const formatDelta = evalDeltaText;
+
+/**
+ * 判官失败分布有两种存法：EXTERNAL 写数组 `[{kind,count}]`，
+ * 内部 run 写 `Record<kind, count>`。展示层统一成有序列表，避免
+ * 内部 run 的分布被 Array.isArray 静默吞掉。
+ */
+function judgeKindEntries(
+  raw: unknown,
+): Array<{ kind: string; count: number }> {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter(
+        (item): item is { kind: string; count: number } =>
+          !!item &&
+          typeof item === 'object' &&
+          typeof (item as { kind?: unknown }).kind === 'string' &&
+          typeof (item as { count?: unknown }).count === 'number',
+      )
+      .map((item) => ({ kind: item.kind, count: item.count }));
+  }
+  if (raw && typeof raw === 'object') {
+    return Object.entries(raw as Record<string, unknown>)
+      .filter(([, count]) => typeof count === 'number')
+      .map(([kind, count]) => ({ kind, count: count as number }));
+  }
+  return [];
+}
 
 /** harness 物化的数据集前缀；这类数据集在控制台只读。 */
 const HARNESS_DATASET_PREFIX = 'e2e:';
@@ -226,16 +569,59 @@ const isHarnessDataset = (ds?: { name?: string | null } | null): boolean =>
   typeof ds?.name === 'string' &&
   ds.name.trim().toLowerCase().startsWith(HARNESS_DATASET_PREFIX);
 
-function reviewStatusLabel(raw?: string | null): string {
-  return raw ? (REVIEW_STATUS_LABELS[raw as ReviewStatus] ?? raw) : '-';
+/**
+ * REVIEWED 只是“已处理”的大类，会吞掉无问题/进回归/待验证/已关闭。
+ * 列表统一展示具体处理结果，避免运营把不同结局都读成“已确认”。
+ *
+ * 认领只表示谁在处理，不代表处理完成；已认领但未处理的记录必须单独标出，
+ * 否则队列会把「有人跟进中」读成「还没人管」。
+ */
+function feedbackOutcomeLabel(item: {
+  reviewStatus?: string | null;
+  resolution?: string | null;
+  claimedBy?: string | null;
+  ownerAdminId?: string | null;
+}): string {
+  if (item.reviewStatus === 'IGNORED') return '已排除';
+  if (item.reviewStatus !== 'REVIEWED') {
+    return (item.claimedBy ?? item.ownerAdminId) ? '已认领' : '待处理';
+  }
+  switch (item.resolution) {
+    case 'NO_ISSUE':
+      return '已确认·无问题';
+    case 'CONFIRMED':
+      return '已确认·待修复';
+    case 'ADDED_TO_EVAL':
+      return '已进回归';
+    case 'FIXED_PENDING_VERIFY':
+      return '已修复待验证';
+    case 'CLOSED':
+      return '已关闭';
+    default:
+      return '已确认';
+  }
+}
+
+/** 下拉项带计数；汇总未加载时不显示数字，避免把未知当成 0。 */
+function withCount(label: string, count?: number): string {
+  return typeof count === 'number' ? `${label}（${count}）` : label;
 }
 
 function countByValue(
   rows: Array<Record<string, any>> | undefined,
   key: string,
   value: string,
-): number {
-  return (rows ?? []).find((row) => row[key] === value)?.count ?? 0;
+): number | undefined {
+  // 聚合已加载时缺行即 0（groupBy 不返回空组）；聚合本身缺失才算未知。
+  if (!Array.isArray(rows)) return undefined;
+  const row = rows.find((item) => item[key] === value);
+  return row ? row.count : 0;
+}
+
+/** 用例总数：后端没给就是未知，不用 0 冒充。 */
+function knownCasesTotal(ds: any): number | undefined {
+  const value = ds?.casesTotal ?? ds?._count?.cases ?? ds?.cases?.length;
+  return typeof value === 'number' ? value : undefined;
 }
 
 /**
@@ -264,7 +650,11 @@ function isModelProblem(item: FeedbackRow | null | undefined): boolean {
 }
 
 export default function AiQualityPage() {
-  const [tab, setTab] = useState<Tab>('feedback');
+  const role = useAiOpsRole();
+  // 默认落点跟随角色；用户一旦手动切换，本次会话不再被角色覆盖。
+  // 角色异步加载时 tab 仍为 null，会自动跟上真实角色。
+  const [tab, setTab] = useState<Tab | null>(null);
+  const activeTab = tab ?? defaultTabForRole(role);
 
   return (
     <div className="space-y-5 p-4">
@@ -285,7 +675,7 @@ export default function AiQualityPage() {
             type="button"
             onClick={() => setTab(key)}
             className={`rounded-lg px-3 py-1.5 text-sm ${
-              tab === key
+              activeTab === key
                 ? 'bg-blue-600 text-white'
                 : 'border dark:border-white/10'
             }`}
@@ -294,7 +684,7 @@ export default function AiQualityPage() {
           </button>
         ))}
       </div>
-      {tab === 'feedback' ? (
+      {activeTab === 'feedback' ? (
         <Suspense
           fallback={
             <div className="py-8 text-center text-sm text-gray-400">
@@ -305,8 +695,8 @@ export default function AiQualityPage() {
           <FeedbackPanel onGoToEval={() => setTab('eval')} />
         </Suspense>
       ) : null}
-      {tab === 'eval' ? <EvalPanel /> : null}
-      {tab === 'rag' ? <RagPanel /> : null}
+      {activeTab === 'eval' ? <EvalPanel /> : null}
+      {activeTab === 'rag' ? <RagPanel /> : null}
     </div>
   );
 }
@@ -337,11 +727,16 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [decision, setDecision] = useState<ReviewDecision | null>(null);
+  const [note, setNote] = useState('');
+  // 同步去重用的 Set：state 异步更新，双击/连按 Enter 之间必须靠它挡住第二次。
+  const submittingRef = useRef<Set<string>>(new Set());
+  const [submittingIds, setSubmittingIds] = useState<Set<string>>(new Set());
   const adminId = useAuthStore((state) => state.userInfo?.id);
   const role = useAiOpsRole();
+  // 开关未加载或加载失败时按关闭处理，避免渲染写按钮后 403。
   const { data: featuresData } = useRequest(aiOpsApi.getFeatures);
-  // features 未加载或加载失败时按关闭处理，避免渲染写按钮后 403。
   const feedbackUiEnabled = featuresData?.feedbackUiEnabled === true;
+  const featuresReady = featuresData != null;
   const canTriage = canTriageFeedback(role) && feedbackUiEnabled;
   const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
 
@@ -356,6 +751,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     });
     setPage(1);
   };
+
+  // URL 只保存 date-only；请求前转成显式时区的 ISO 区间，避免按服务器时区解释日期。
+  const dayRange = toLocalDayRangeIso(fromDate, toDate);
 
   // URL 是筛选的唯一来源；直达链接或后退时也要回到第一页。
   useEffect(() => {
@@ -376,14 +774,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     error: summaryError,
     refresh: refreshSummary,
     refreshAsync: refreshSummaryAsync,
-  } = useRequest(
-    () =>
-      chatApi.getFeedbackSummary({
-        ...(fromDate ? { from: fromDate } : {}),
-        ...(toDate ? { to: toDate } : {}),
-      }),
-    { refreshDeps: [fromDate, toDate] },
-  );
+  } = useRequest(() => chatApi.getFeedbackSummary(dayRange), {
+    refreshDeps: [fromDate, toDate],
+  });
 
   const {
     data,
@@ -395,14 +788,13 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     () =>
       chatApi.getFeedbackList({
         page,
-        pageSize: 20,
+        pageSize: FEEDBACK_PAGE_SIZE,
         ...(reviewStatus ? { reviewStatus } : {}),
         ...(failureKindFilter ? { failureKind: failureKindFilter } : {}),
         ...(resolutionFilter ? { resolution: resolutionFilter } : {}),
         ...(signalFilter ? { signal: signalFilter } : {}),
         ...(queueFilter ? { queue: queueFilter } : {}),
-        ...(fromDate ? { from: fromDate } : {}),
-        ...(toDate ? { to: toDate } : {}),
+        ...dayRange,
       } as any),
     {
       refreshDeps: [
@@ -423,11 +815,42 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   );
 
   const summary = summaryData as AiFeedbackSummary | undefined;
+  // 汇总与列表用同一套渲染状态推导，失败/加载/未知不靠各区块自行猜测。
+  const summaryState = resolveRenderState({
+    loading: summaryLoading,
+    error: summaryError,
+  });
+  const reviewStatusCount = (value: ReviewStatus) =>
+    summary ? countByValue(summary.byReviewStatus, 'status', value) : undefined;
+  const resolutionCount = (value: string) =>
+    summary
+      ? countByValue(summary.byResolution, 'resolution', value)
+      : undefined;
   const list = ((data as any)?.list ?? []) as FeedbackRow[];
   const datasetList: EvalDataset[] = Array.isArray(datasetListData)
     ? (datasetListData as EvalDataset[])
     : [];
-  const total = (data as any)?.total ?? 0;
+  // e2e: 数据集由 harness 物化并整体覆盖，控制台写入不算数，不能作为回归落点。
+  const writableDatasets = datasetList.filter(
+    (dataset) => !isHarnessDataset(dataset),
+  );
+  const rawTotal = (data as any)?.total;
+  const total: number | undefined =
+    typeof rawTotal === 'number' ? rawTotal : undefined;
+  // 处理掉当前页最后一条后，总数缩水会让页码越界。回退到最后一页重取一次，
+  // 不能把「这一页空了」显示成「整个队列空了」。
+  const lastPage =
+    total != null
+      ? Math.max(1, Math.ceil(total / FEEDBACK_PAGE_SIZE))
+      : undefined;
+  useEffect(() => {
+    if (lastPage != null && page > lastPage) setPage(lastPage);
+  }, [page, lastPage]);
+  const listState = resolveRenderState({
+    loading,
+    error,
+    isEmpty: list.length === 0,
+  });
   const kpis: Array<{ label: string; value?: number; href: string }> = [
     {
       label: '待处理',
@@ -436,7 +859,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     },
     {
       label: '系统信号',
-      value: summary?.signals ?? 0,
+      value: summary?.signals,
       href: withRange({ queue: 'SIGNAL' }),
     },
     {
@@ -469,6 +892,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     },
   ];
 
+  /** 409 = 别人先改了同一行；刷新拿新版本，避免用户对着旧数据反复失败。 */
+  const isVersionConflict = (err: any) =>
+    err?.response?.status === 409 || err?.status === 409;
+
   const triage = async (
     id: string,
     patch: {
@@ -478,18 +905,39 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
       verdict?: 'correct' | 'incorrect';
       errorType?: string;
     },
+    expectedVersion?: number,
+    noteText?: string,
   ) => {
-    const note = window.prompt('备注（可选，用于记录分诊原因）') ?? undefined;
+    // 同一条记录在请求飞行期间不接受第二次提交。
+    if (submittingRef.current.has(id)) return false;
+    submittingRef.current.add(id);
+    setSubmittingIds((prev) => new Set(prev).add(id));
     setActionError('');
     setActionInfo('');
     try {
-      await aiQualityApi.updateFeedback(id, { ...patch, note } as any);
+      await aiQualityApi.updateFeedback(id, {
+        ...patch,
+        ...(noteText ? { note: noteText } : {}),
+        ...(expectedVersion != null ? { expectedVersion } : {}),
+      } as any);
       // 必须等刷新完成再前进，否则候选列表还是旧数据，会跳过下一条。
       await Promise.all([refreshListAsync(), refreshSummaryAsync()]);
       return true;
     } catch (err: any) {
-      setActionError(err?.message ?? '分诊失败，请重试');
+      if (isVersionConflict(err)) {
+        await Promise.all([refreshListAsync(), refreshSummaryAsync()]);
+        setActionError('这条反馈刚被他人更新，列表已刷新，请重试');
+      } else {
+        setActionError(err?.message ?? '分诊失败，请重试');
+      }
       return false;
+    } finally {
+      submittingRef.current.delete(id);
+      setSubmittingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -501,32 +949,59 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const applyResolution = async (
     id: string,
     resolution: 'FIXED_PENDING_VERIFY' | 'CLOSED',
+    expectedVersion?: number,
   ) => {
     setActionError('');
     setActionInfo('');
     try {
-      await aiQualityApi.updateFeedback(id, { resolution } as any);
+      await aiQualityApi.updateFeedback(id, {
+        resolution,
+        ...(expectedVersion != null ? { expectedVersion } : {}),
+      } as any);
       await refreshAfterAction();
       setActionInfo(`已标记为${labelOf(RESOLUTION_LABELS, resolution)}`);
     } catch (err: any) {
-      setActionError(err?.message ?? '更新处理状态失败，请重试');
+      if (isVersionConflict(err)) {
+        await refreshAfterAction();
+        setActionError('这条反馈刚被他人更新，列表已刷新，请重试');
+      } else {
+        setActionError(err?.message ?? '更新处理状态失败，请重试');
+      }
     }
   };
 
-  /** 认领：负责人写当前管理员；已有负责人时可接手。 */
-  const claimOwner = async (id: string) => {
+  /**
+   * 认领：仅空位可认领；已有他人认领时必须显式 takeOver 才覆盖。
+   * 认领与处理完成分开——认领只写负责人，不改 reviewStatus/resolution。
+   */
+  const claimOwner = async (item: FeedbackRow) => {
     if (!adminId) {
       setActionError('未获取到当前管理员身份，无法认领');
       return;
     }
+    const currentOwner = item.claimedBy ?? item.ownerAdminId ?? null;
+    if (currentOwner === adminId) {
+      setActionInfo('这条反馈已经由你认领');
+      return;
+    }
+    const takeOver = Boolean(currentOwner);
     setActionError('');
     setActionInfo('');
     try {
-      await aiQualityApi.updateFeedback(id, { ownerAdminId: adminId } as any);
+      await aiQualityApi.updateFeedback(item.id, {
+        ownerAdminId: adminId,
+        ...(item.version != null ? { expectedVersion: item.version } : {}),
+        ...(takeOver ? { takeOver: true } : {}),
+      } as any);
       await refreshAfterAction();
-      setActionInfo('已认领，负责人是你');
+      setActionInfo(takeOver ? '已接手，负责人是你' : '已认领，负责人是你');
     } catch (err: any) {
-      setActionError(err?.message ?? '认领失败，请重试');
+      if (isVersionConflict(err)) {
+        await refreshAfterAction();
+        setActionError('这条反馈刚被他人认领或更新，列表已刷新，请重试');
+      } else {
+        setActionError(err?.message ?? '认领失败，请重试');
+      }
     }
   };
 
@@ -552,33 +1027,39 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     if (!ok) return;
     setActionError('');
     setActionInfo('');
-    const results = await Promise.allSettled(
-      batchExcludeTargets.map((item) =>
-        aiQualityApi.updateFeedback(item.id, {
-          reviewStatus: 'IGNORED',
-          resolution: 'EXCLUDED',
-          failureKind: 'SERVICE_ERROR',
-        } as any),
-      ),
-    );
-    const failed = results.filter(
-      (result) => result.status === 'rejected',
-    ).length;
-    await refreshAfterAction();
-    const succeeded = batchExcludeTargets.length - failed;
-    setActionInfo(
-      `已批量排除 ${succeeded} 条服务故障${
-        failed ? `，${failed} 条失败请重试` : ''
-      }`,
-    );
-    if (failed) {
-      setActionError(`批量排除有 ${failed} 条失败，请重试剩余条目`);
+    try {
+      const result = await aiQualityApi.batchExcludeFeedback(
+        batchExcludeTargets.map((item) => item.id),
+      );
+      await refreshAfterAction();
+      const skipped = result?.skipped ?? [];
+      setActionInfo(
+        `已批量排除 ${result?.succeeded.length ?? 0} 条服务故障${
+          skipped.length ? `，${skipped.length} 条跳过` : ''
+        }`,
+      );
+      if (skipped.length) {
+        setActionError(
+          `跳过原因：${skipped
+            .map(
+              (item) =>
+                `${item.id.slice(0, 8)} ${BATCH_EXCLUDE_SKIP_REASON[item.reason] ?? item.reason}`,
+            )
+            .join('；')}`,
+        );
+      }
+    } catch (err: any) {
+      setActionError(err?.message ?? '批量排除失败，请重试');
     }
   };
 
   const openAddToRegression = (item: FeedbackRow) => {
     setAddTarget(item);
-    setAddDatasetId((current) => current || datasetList[0]?.id || '');
+    setAddDatasetId((current) =>
+      writableDatasets.some((dataset) => dataset.id === current)
+        ? current
+        : (writableDatasets[0]?.id ?? ''),
+    );
     setActionError('');
     setActionInfo('');
   };
@@ -605,33 +1086,17 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     setActionError('');
     setActionInfo('');
     try {
-      const result = (await aiQualityApi.addCases(addDatasetId, {
-        cases: [
-          {
-            question: target.input,
-            answer: target.answer ?? '',
-            expect: { mustMention: [expected] },
-            expected,
-            sourceFeedbackId: target.id,
-            source: 'feedback',
-            tags: ['from-feedback', target.failureKind ?? 'UNKNOWN'],
-          },
-        ],
-      })) as (EvalDataset & { cases?: EvalCase[] }) | undefined;
-      const cases = result?.cases ?? [];
-      // 用例按创建时间升序返回，取最后一条与问题匹配的用例即本次新建项。
-      const created = [...cases]
-        .reverse()
-        .find((item) => item.question === (target.input ?? ''));
-      if (!created) {
-        throw new Error('用例已提交，但未能定位新建用例，请刷新后手动关联');
-      }
-      await aiQualityApi.updateFeedback(target.id, {
-        linkedEvalCaseId: created.id,
-        resolution: 'ADDED_TO_EVAL',
+      const result = await aiQualityApi.createRegressionCase(target.id, {
+        datasetId: addDatasetId,
+        expected,
+        ...(target.version != null ? { expectedVersion: target.version } : {}),
       });
       setAddTarget(null);
-      setActionInfo('已加入回归评测集');
+      setActionInfo(
+        result?.created === false
+          ? '这条反馈已在回归评测集中'
+          : '已加入回归评测集',
+      );
       await Promise.all([refresh(), refreshSummary(), refreshDatasets()]);
     } catch (err: any) {
       setActionError(err?.message ?? '加入回归失败，请重试');
@@ -658,8 +1123,25 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     }
   }, [reviewMode, reviewIndex, reviewList.length]);
 
-  // 当前条目已被分诊移除，下一条会顶到同一位置，所以索引保持不动。
-  const advanceReview = () => setReviewIndex(0);
+  // 跳过只移动游标：不提交、不回队首。
+  const skipReview = () => {
+    setDecision(null);
+    setNote('');
+    setReviewIndex((index) =>
+      Math.min(index + 1, Math.max(reviewList.length - 1, 0)),
+    );
+  };
+
+  // 归因初值取该条自身归因，其次当前筛选值；切条必须重置，不能用固定值覆盖。
+  const currentId = current?.id;
+  const currentFailureKind =
+    current?.failureKind ?? failureKindFilter ?? 'UNKNOWN';
+  useEffect(() => {
+    if (!reviewMode || !currentId) return;
+    setFailureKind(currentFailureKind);
+    // 备注属于单条记录，切条即清空。
+    setNote('');
+  }, [reviewMode, currentId, currentFailureKind]);
 
   const handleReview = async (kind: 'correct' | 'incorrect' | 'exclude') => {
     if (!current) return;
@@ -682,10 +1164,16 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
               resolution: 'EXCLUDED' as const,
               failureKind,
             };
-    const ok = await triage(current.id, patch);
+    const ok = await triage(
+      current.id,
+      patch,
+      current.version,
+      note.trim() || undefined,
+    );
     if (ok) {
       setDecision(null);
-      advanceReview();
+      setNote('');
+      // 提交成功后当前条目会被分诊移出候选，下一条顶到同一位置，索引保持不动。
     }
   };
 
@@ -757,7 +1245,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
 
   return (
     <section className="space-y-3">
-      {featuresData && !feedbackUiEnabled ? (
+      {featuresReady && !feedbackUiEnabled ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           反馈分诊未启用（AI_FEEDBACK_UI_ENABLED=false）。当前只能查看，不能提交判断。
         </div>
@@ -772,7 +1260,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
           >
             <div className="text-xs text-gray-500">{label}</div>
             <div className="text-lg font-semibold">
-              {value != null ? value : summaryLoading ? '加载中…' : '—'}
+              {formatKnownCount(value, summaryState)}
             </div>
           </Link>
         ))}
@@ -805,7 +1293,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
               >
             ).map(([value, label]) => (
               <option key={value} value={value}>
-                {label}
+                {withCount(label, reviewStatusCount(value))}
               </option>
             ))}
           </select>
@@ -845,7 +1333,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             <option value="">全部处理状态</option>
             {RESOLUTION_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {withCount(option.label, resolutionCount(option.value))}
               </option>
             ))}
           </select>
@@ -956,7 +1444,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             开始质检
           </Button>
         ) : null}
-        <span className="text-xs text-gray-500">共 {total} 条</span>
+        <span className="text-xs text-gray-500">
+          共 {formatKnownCount(total, listState)} 条
+        </span>
         {!canTriage ? (
           <span className="rounded-lg border px-2 py-0.5 text-xs text-gray-500 dark:border-white/10">
             只读
@@ -992,16 +1482,18 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             </button>
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            将这条反馈沉淀为一条评测用例，期望结果可稍后在回归测试中补充。
+            将这条反馈沉淀为一条评测用例。期望答案必填，提交时填写，作为回归判分标准。
           </p>
           <div className="mt-2 text-xs text-gray-500">
             问题：{addTarget.input ?? '-'} · 归因：
             {labelOf(FAILURE_KIND_LABELS, addTarget.failureKind)}
           </div>
-          {datasetList.length === 0 ? (
+          {writableDatasets.length === 0 ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-sm text-amber-700 dark:text-amber-300">
-                先创建评测集
+                {datasetList.length === 0
+                  ? '先创建评测集'
+                  : '现有数据集均为 e2e: 只读数据集，请先创建可写评测集'}
               </span>
               <Button
                 size="sm"
@@ -1023,9 +1515,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 onChange={(e) => setAddDatasetId(e.target.value)}
               >
                 <option value="">选择评测集</option>
-                {datasetList.map((dataset) => (
+                {writableDatasets.map((dataset) => (
                   <option key={dataset.id} value={dataset.id}>
-                    {dataset.name}（{dataset._count?.cases ?? 0} 条用例）
+                    {dataset.name}（{dataset._count?.cases ?? '未知'} 条用例）
                   </option>
                 ))}
               </select>
@@ -1078,7 +1570,14 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   {labelOf(TRANSFER_REASON_LABELS, current.transferReason)}
                 </div>
                 <div>处理客服：{handlerLabel(current.handlerId)}</div>
-                <div>负责人：{ownerLabel(current.ownerAdminId, adminId)}</div>
+                <div>
+                  负责人：
+                  {ownerLabel(
+                    current.claimedBy ?? current.ownerAdminId,
+                    adminId,
+                  )}
+                </div>
+                <div>处理结果：{feedbackOutcomeLabel(current)}</div>
               </div>
             </div>
             <div className="rounded-lg border bg-white p-3 dark:border-white/10 dark:bg-gray-900">
@@ -1099,39 +1598,50 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 </select>
               </label>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => void handleReview('correct')}>
+                <Button
+                  size="sm"
+                  aria-pressed={decision === 'correct'}
+                  onClick={() => setDecision('correct')}
+                >
                   回答正确
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => void handleReview('incorrect')}
+                  aria-pressed={decision === 'incorrect'}
+                  onClick={() => setDecision('incorrect')}
                 >
                   确认问题
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => void handleReview('exclude')}
+                  aria-pressed={decision === 'exclude'}
+                  onClick={() => setDecision('exclude')}
                 >
                   排除
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={!adminId || current.ownerAdminId === adminId}
+                  disabled={
+                    !adminId ||
+                    (current.claimedBy ?? current.ownerAdminId) === adminId
+                  }
                   title={
                     !adminId
                       ? '未获取到当前管理员身份'
-                      : current.ownerAdminId === adminId
+                      : (current.claimedBy ?? current.ownerAdminId) === adminId
                         ? '你已经是这条反馈的负责人'
-                        : '把负责人设为当前管理员'
+                        : (current.claimedBy ?? current.ownerAdminId)
+                          ? '从其他管理员手中接手'
+                          : '把负责人设为当前管理员'
                   }
-                  onClick={() => void claimOwner(current.id)}
+                  onClick={() => void claimOwner(current)}
                 >
-                  {current.ownerAdminId === adminId
+                  {(current.claimedBy ?? current.ownerAdminId) === adminId
                     ? '已认领'
-                    : current.ownerAdminId
+                    : (current.claimedBy ?? current.ownerAdminId)
                       ? '接手'
                       : '认领'}
                 </Button>
@@ -1148,17 +1658,43 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 >
                   加入回归
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setDecision(null);
-                    advanceReview();
-                  }}
-                >
+                <Button size="sm" variant="outline" onClick={skipReview}>
                   跳过
                 </Button>
               </div>
+              {decision ? (
+                <div className="mt-2 rounded-lg border border-gray-200 p-2 dark:border-white/10">
+                  <label className="flex flex-col gap-1 text-xs text-gray-500">
+                    备注（可选）
+                    <input
+                      aria-label="备注"
+                      className="rounded-lg border px-2 py-1 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      disabled={submittingIds.has(current.id)}
+                      onClick={() => void handleReview(decision)}
+                    >
+                      {submittingIds.has(current.id) ? '提交中…' : '提交判断'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={submittingIds.has(current.id)}
+                      onClick={() => {
+                        setDecision(null);
+                        setNote('');
+                      }}
+                    >
+                      取消备注
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-3 rounded-lg bg-gray-50 px-2 py-1.5 text-xs text-gray-500 dark:bg-white/5">
                 当前选择：
                 {decision ? DECISION_LABELS[decision] : '按 1 / 2 / 3 选择'}
@@ -1176,6 +1712,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
               </a>
             </div>
           </div>
+          <EvidencePanel
+            conversationId={current.conversationId}
+            messageId={current.messageId}
+            traceId={current.traceId}
+          />
         </section>
       ) : null}
 
@@ -1188,8 +1729,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 '来源',
                 '判定/信号',
                 '归因',
-                '分诊状态',
-                '处理状态',
+                '处理结果',
+                '负责人',
                 '诊断',
                 '用户问题',
                 'AI 回答',
@@ -1203,7 +1744,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {listState.kind === 'loading' ? (
               <tr>
                 <td
                   colSpan={11}
@@ -1212,7 +1753,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   加载中…
                 </td>
               </tr>
-            ) : error ? null : list.length === 0 ? (
+            ) : listState.kind === 'error' ? null : listState.kind ===
+              'empty' ? (
               <tr>
                 <td
                   colSpan={11}
@@ -1244,10 +1786,19 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                     {labelOf(FAILURE_KIND_LABELS, item.failureKind)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {reviewStatusLabel(item.reviewStatus)}
+                    {feedbackOutcomeLabel(item)}
+                    {item.reviewStatus === 'REVIEWED' &&
+                    item.resolution === 'FIXED_PENDING_VERIFY' ? (
+                      <span
+                        className="ml-1 rounded border border-amber-300 px-1 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/40 dark:text-amber-300"
+                        title="下一轮评测通过后自动关闭；判定失败会打回并记录回退时间"
+                      >
+                        待验
+                      </span>
+                    ) : null}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {labelOf(RESOLUTION_LABELS, item.resolution)}
+                    {ownerLabel(item.claimedBy ?? item.ownerAdminId, adminId)}
                   </td>
                   <td className="px-3 py-2">
                     <DiagnosisBadges item={item} />
@@ -1290,22 +1841,34 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                             size="sm"
                             variant="outline"
                             onClick={() =>
-                              void triage(item.id, {
-                                reviewStatus: 'IGNORED',
-                                resolution: 'EXCLUDED',
-                                failureKind: item.failureKind ?? 'UNKNOWN',
-                              })
+                              void triage(
+                                item.id,
+                                {
+                                  reviewStatus: 'IGNORED',
+                                  resolution: 'EXCLUDED',
+                                  failureKind: item.failureKind ?? 'UNKNOWN',
+                                },
+                                item.version,
+                              )
                             }
                           >
                             排除
                           </Button>
-                          {!item.ownerAdminId && adminId ? (
+                          {adminId &&
+                          (item.claimedBy ?? item.ownerAdminId) !== adminId ? (
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => void claimOwner(item.id)}
+                              title={
+                                (item.claimedBy ?? item.ownerAdminId)
+                                  ? '从其他管理员手中接手'
+                                  : '把负责人设为当前管理员'
+                              }
+                              onClick={() => void claimOwner(item)}
                             >
-                              认领
+                              {(item.claimedBy ?? item.ownerAdminId)
+                                ? '接手'
+                                : '认领'}
                             </Button>
                           ) : null}
                           {item.resolution === 'CONFIRMED' ? (
@@ -1317,6 +1880,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                                   void applyResolution(
                                     item.id,
                                     'FIXED_PENDING_VERIFY',
+                                    item.version,
                                   )
                                 }
                               >
@@ -1326,7 +1890,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                                 size="sm"
                                 variant="outline"
                                 onClick={() =>
-                                  void applyResolution(item.id, 'CLOSED')
+                                  void applyResolution(
+                                    item.id,
+                                    'CLOSED',
+                                    item.version,
+                                  )
                                 }
                               >
                                 关闭
@@ -1374,7 +1942,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         <Button
           size="sm"
           variant="outline"
-          disabled={page * 20 >= total}
+          disabled={
+            typeof total === 'number' && page * FEEDBACK_PAGE_SIZE >= total
+          }
           onClick={() => setPage((p) => p + 1)}
         >
           下一页
@@ -1606,9 +2176,7 @@ function KbRegressionCard() {
                   ? '否（不可作为证据）'
                   : '未知'}
               {status.lastSubsetRun.summary
-                ? ` · 准确率 ${evalAccuracyText(
-                    status.lastSubsetRun.summary,
-                  )}`
+                ? ` · 准确率 ${evalAccuracyText(status.lastSubsetRun.summary)}`
                 : ''}
             </div>
           ) : null}
@@ -1640,6 +2208,10 @@ function EvalPanel() {
   const [name, setName] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [casesJson, setCasesJson] = useState('[]');
+  const [expectEdit, setExpectEdit] = useState<{
+    caseId: string;
+    text: string;
+  } | null>(null);
   const [runId, setRunId] = useState('');
   const [mode, setMode] = useState<'STORED' | 'LIVE'>('STORED');
   const [baselineRunId, setBaselineRunId] = useState('');
@@ -1647,25 +2219,63 @@ function EvalPanel() {
   const [advanced, setAdvanced] = useState(false);
   const [pollRun, setPollRun] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
+  const [casesPage, setCasesPage] = useState(1);
+  const [resultsPage, setResultsPage] = useState(1);
+  // 单条结果的时间线是按需加载的，不做全量预取。
+  const [historyCaseId, setHistoryCaseId] = useState<string | null>(null);
+  const [history, setHistory] = useState<{
+    caseId: string;
+    data: EvalCaseHistory;
+  } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
   const role = useAiOpsRole();
-  const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
+  // 写入口统一由「有权限 + 开关开启」双重控制；缺一都不渲染按钮。
+  // 开关未加载或加载失败时按关闭处理，宁可少给入口，也不要点了再吃 403。
+  const { data: featuresData } = useRequest(aiOpsApi.getFeatures);
+  const evalEnabled = featuresData?.evalEnabled === true;
+  const featuresReady = featuresData != null;
+  const canWriteEval =
+    (role === 'SUPER_ADMIN' || role === 'ADMIN') && evalEnabled;
+  const writeDisabledReason = !featuresReady
+    ? '功能开关加载中…'
+    : !evalEnabled
+      ? 'AI 评测未启用，仅可查看历史结果'
+      : '只读角色仅可查看结果';
 
   const { data: datasets, refresh: refreshDatasets } = useRequest(
     aiQualityApi.listDatasets,
   );
   const { data: dataset, refresh: refreshDataset } = useRequest(
     () =>
-      selectedId ? aiQualityApi.getDataset(selectedId) : Promise.resolve(null),
-    { refreshDeps: [selectedId] },
+      selectedId
+        ? aiQualityApi.getDataset(selectedId, { page: casesPage })
+        : Promise.resolve(null),
+    { refreshDeps: [selectedId, casesPage] },
   );
+  // 运行中只轮询第一页：倒序后第一页就是最新结果，翻页留给终态运行。
+  // 以服务端返回的状态为准，避免「刚启动、状态未回」时把用户翻页带进轮询。
+  const runStatusRef = useRef<string | null>(null);
   const { data: run, refresh: refreshRun } = useRequest(
-    () => (runId ? aiQualityApi.getRun(runId) : Promise.resolve(null)),
+    () =>
+      runId
+        ? aiQualityApi.getRun(runId, {
+            page: runStatusRef.current === 'RUNNING' ? 1 : resultsPage,
+          })
+        : Promise.resolve(null),
     {
-      refreshDeps: [runId],
+      refreshDeps: [runId, pollRun, resultsPage],
       pollingInterval: pollRun ? 3000 : undefined,
     },
   );
+  useEffect(() => {
+    setCasesPage(1);
+  }, [selectedId]);
+  useEffect(() => {
+    setResultsPage(1);
+  }, [runId]);
   const {
     data: evidence,
     loading: evidenceLoading,
@@ -1678,16 +2288,87 @@ function EvalPanel() {
         : Promise.resolve(null),
     { refreshDeps: [showEvidence, runId] },
   );
-  const runStatus = (run as EvalRun | null | undefined)?.status;
-  useEffect(() => {
-    if (
-      runStatus === 'COMPLETED' ||
-      runStatus === 'FAILED' ||
-      runStatus === 'CANCELLED'
-    ) {
-      setPollRun(false);
+  // 差异只在运行登记了基线时请求；未登记基线不拿别的运行顶替。
+  const { data: runDiff } = useRequest(
+    () => {
+      const current = run as EvalRun | null | undefined;
+      return runId && current?.baselineRunId
+        ? aiQualityApi.getRunDiff(runId, current.baselineRunId)
+        : Promise.resolve(null);
+    },
+    {
+      refreshDeps: [runId, (run as EvalRun | null | undefined)?.baselineRunId],
+    },
+  );
+  // 判官校准：运行结束后才读；后端在样本 <20 时结构上不给百分比。
+  const { data: calibration } = useRequest(
+    () => {
+      const current = run as EvalRun | null | undefined;
+      return runId && current?.status === 'COMPLETED'
+        ? aiQualityApi.getRunCalibration(runId)
+        : Promise.resolve(null);
+    },
+    { refreshDeps: [runId, (run as EvalRun | null | undefined)?.status] },
+  );
+  // 只渲染真正的校准结果：老后端/异常返回没有 status 时不猜测、不崩。
+  const calibrationCard =
+    calibration &&
+    (calibration.status === 'ok' || calibration.status === 'insufficientSample')
+      ? calibration
+      : null;
+  const loadCaseHistory = async (caseId: string) => {
+    setHistoryError('');
+    setHistory(null);
+    if (!runId) {
+      setHistoryError('缺少运行 ID，无法加载时间线');
+      return;
     }
-  }, [runStatus]);
+    setHistoryLoading(true);
+    try {
+      const data = await aiQualityApi.getCaseHistory(runId, caseId);
+      setHistory({ caseId, data });
+    } catch (err: any) {
+      setHistoryError(err?.message ?? '时间线加载失败');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+  const toggleCaseHistory = (caseId: string) => {
+    if (historyCaseId === caseId) {
+      setHistoryCaseId(null);
+      return;
+    }
+    setHistoryCaseId(caseId);
+    void loadCaseHistory(caseId);
+  };
+  const runStatus = (run as EvalRun | null | undefined)?.status;
+  // 运行结束（含取消）后，数据集卡片与“基线”下拉各刷新一次。
+  // 用 runId+状态去重：取消路径会先显式刷新，随后的状态变更不能重复刷。
+  const lastRunRefreshRef = useRef('');
+  const refreshRunDependents = (status: string | null | undefined) => {
+    if (!status) return;
+    const key = `${runId}:${status}`;
+    if (lastRunRefreshRef.current === key) return;
+    lastRunRefreshRef.current = key;
+    void refreshDataset();
+    void refreshDatasets();
+  };
+  const prevRunStatusRef = useRef<{
+    runId: string;
+    status: string | null;
+  } | null>(null);
+  useEffect(() => {
+    const status = runStatus ?? null;
+    const prev = prevRunStatusRef.current;
+    // 只有同一次运行的 RUNNING → 终态才算“刚刚结束”；打开历史终态不算。
+    const sameRun = prev?.runId === runId;
+    prevRunStatusRef.current = { runId, status };
+    runStatusRef.current = status;
+    if (sameRun && prev.status === 'RUNNING' && isTerminalRunStatus(status)) {
+      refreshRunDependents(status);
+    }
+    if (isTerminalRunStatus(status)) setPollRun(false);
+  }, [runId, runStatus]);
   useEffect(() => {
     setShowEvidence(false);
   }, [runId]);
@@ -1709,8 +2390,14 @@ function EvalPanel() {
     try {
       const parsed = JSON.parse(casesJson);
       if (!Array.isArray(parsed)) throw new Error('JSON 必须是数组');
-      await aiQualityApi.addCases(selectedId, { cases: parsed });
-      setMessage(`已添加 ${parsed.length} 条用例`);
+      const result = await aiQualityApi.addCases(selectedId, { cases: parsed });
+      const created = result?.created ?? parsed.length;
+      const skipped = result?.skipped?.length;
+      setMessage(
+        skipped
+          ? `已添加 ${created} 条用例，跳过 ${skipped} 条重复`
+          : `已添加 ${created} 条用例`,
+      );
       await refreshDataset();
       await refreshDatasets();
     } catch (err: any) {
@@ -1718,21 +2405,43 @@ function EvalPanel() {
     }
   };
 
-  const editCase = async (item: any) => {
-    if (!selectedId) return;
-    const next = window.prompt('期望答案 / 必须提到的要点', expectedText(item));
-    if (next == null) return;
-    const expected = next.trim();
-    if (!expected) {
-      setMessage('期望答案不能为空');
+  const openExpectEditor = (item: any) => {
+    const mustMention = caseExpectation(item).mustMention;
+    setExpectEdit({
+      caseId: item.id,
+      text: Array.isArray(mustMention) ? mustMention.join('\n') : '',
+    });
+  };
+
+  const saveExpect = async (item: any) => {
+    if (!selectedId || !expectEdit) return;
+    const lines = expectEdit.text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0) {
+      setMessage('判分条件不能为空：至少填写一条必含关键词');
+      return;
+    }
+    if (lines.length > EVAL_INPUT_LIMITS.mustMention) {
+      setMessage(`最多 ${EVAL_INPUT_LIMITS.mustMention} 条必含关键词`);
+      return;
+    }
+    if (
+      lines.some((line) => line.length > EVAL_INPUT_LIMITS.mustMentionLength)
+    ) {
+      setMessage(
+        `每条必含关键词最多 ${EVAL_INPUT_LIMITS.mustMentionLength} 字符`,
+      );
       return;
     }
     try {
+      // 只提交 expect；非文本条件由后端字段级合并保留，expected 只读不改写。
       await aiQualityApi.updateCase(selectedId, item.id, {
-        expected,
-        expect: { mustMention: [expected] },
+        expect: { ...caseExpectation(item), mustMention: lines },
       });
       await refreshDataset();
+      setExpectEdit(null);
       setMessage('用例已更新');
     } catch (err: any) {
       setMessage(err?.message ?? '更新失败');
@@ -1753,12 +2462,15 @@ function EvalPanel() {
   };
 
   const start = async () => {
-    if (!selectedId) return;
+    // 双击/连点会在第一个请求落地前再发一次；后端有唯一索引兜底，
+    // 前端也不该把两次点击都变成请求（第二个必然是 409）。
+    if (!selectedId || starting) return;
     const isLive = mode === 'LIVE';
     const confirmText = isLive
       ? '确认启动实时评测？会真实调用 AI 客服与 judge 模型。'
       : '确认启动批量评测？会调用 judge 模型。';
     if (!window.confirm(confirmText)) return;
+    setStarting(true);
     try {
       const created = await aiQualityApi.startRun(selectedId, {
         mode,
@@ -1768,7 +2480,17 @@ function EvalPanel() {
       setPollRun(true);
       setMessage('已启动，正在轮询结果…');
     } catch (err: any) {
-      setMessage(err?.message ?? '启动失败');
+      // 409 = 该数据集已有 RUNNING（另一处/另一个管理员先启动）。
+      // axios 原始 message 是英文 "Request failed with status code 409"，不能直接展示。
+      if (err?.response?.status === 409) {
+        const existingId = err.response.data?.runId;
+        if (existingId) setRunId(existingId);
+        setMessage('该评测集已有运行中的评测，请等待完成或先取消');
+      } else {
+        setMessage(err?.message ?? '启动失败');
+      }
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -1784,7 +2506,8 @@ function EvalPanel() {
       setPollRun(false);
       setMessage('已取消本次运行');
       await refreshRun();
-      await refreshDatasets();
+      // 若服务端状态还没翻到 CANCELLED，这里先补一次；状态变更效果按 runId+状态去重。
+      refreshRunDependents('CANCELLED');
     } catch (err: any) {
       setMessage(err?.message ?? '取消失败');
     } finally {
@@ -1799,8 +2522,7 @@ function EvalPanel() {
   const runEvidence = evidence as RunEvidence | null | undefined;
   const list = Array.isArray(datasets) ? (datasets as EvalDataset[]) : [];
   const selectedMeta = list.find((item) => item.id === selectedId);
-  const harnessDataset =
-    isHarnessDataset(ds) || isHarnessDataset(selectedMeta);
+  const harnessDataset = isHarnessDataset(ds) || isHarnessDataset(selectedMeta);
   const lastRun = ds?.runs?.[0];
   const completedRuns = (ds?.runs ?? []).filter(
     (item) => item.status === 'COMPLETED',
@@ -1809,14 +2531,27 @@ function EvalPanel() {
   return (
     <section className="space-y-4">
       <KbRegressionCard />
+      {featuresReady && !evalEnabled ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          AI
+          评测未启用（AI_EVAL_ENABLED=false）。当前只能查看历史结果，不能创建评测集、导入用例或启动运行。
+        </div>
+      ) : null}
+      {featuresReady && evalEnabled && !canWriteEval ? (
+        <div className="text-xs text-gray-500">{writeDisabledReason}</div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          className="rounded-lg border px-3 py-2 text-sm dark:border-white/10 dark:bg-gray-800"
-          placeholder="评测集名称"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Button onClick={create}>创建评测集</Button>
+        {canWriteEval ? (
+          <>
+            <input
+              className="rounded-lg border px-3 py-2 text-sm dark:border-white/10 dark:bg-gray-800"
+              placeholder="评测集名称"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Button onClick={create}>创建评测集</Button>
+          </>
+        ) : null}
         <select
           aria-label="选择评测集"
           className="rounded-lg border px-3 py-2 text-sm dark:border-white/10 dark:bg-gray-800"
@@ -1830,11 +2565,11 @@ function EvalPanel() {
           <option value="">选择评测集</option>
           {list.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.name}（{d._count?.cases ?? 0} 条用例）
+              {d.name}（{d._count?.cases ?? '未知'} 条用例）
             </option>
           ))}
         </select>
-        {harnessDataset ? null : (
+        {harnessDataset || !canWriteEval ? null : (
           <Button
             size="sm"
             variant="outline"
@@ -1865,7 +2600,11 @@ function EvalPanel() {
             <div>
               <div className="text-xs text-gray-500">用例数</div>
               <div className="font-medium">
-                {ds?.cases?.length ?? selectedMeta?._count?.cases ?? 0}
+                {ds?.casesTotal ??
+                  ds?._count?.cases ??
+                  selectedMeta?._count?.cases ??
+                  ds?.cases?.length ??
+                  0}
               </div>
             </div>
             <div>
@@ -1918,54 +2657,54 @@ function EvalPanel() {
           ) : null}
           {harnessDataset ? (
             <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs text-gray-600 dark:border-white/10 dark:bg-gray-800 dark:text-gray-300">
-              该数据集由 harness 生成，只读。回归验证请在仓库根目录执行子集命令，或走 CI。
+              该数据集由 harness
+              生成，只读。回归验证请在仓库根目录执行子集命令，或走 CI。
             </div>
           ) : (
             <div className="mt-3 flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1 text-xs text-gray-500">
-              评测模式
-              <select
-                aria-label="评测模式"
-                className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
-                value={mode}
-                onChange={(e) =>
-                  setMode(e.target.value === 'LIVE' ? 'LIVE' : 'STORED')
-                }
-              >
-                <option value="STORED">历史回答</option>
-                <option value="LIVE">实时跑 AI</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-gray-500">
-              对比基线（可选）
-              <select
-                aria-label="对比基线"
-                className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
-                value={baselineRunId}
-                onChange={(e) => setBaselineRunId(e.target.value)}
-              >
-                <option value="">不对比基线</option>
-                {completedRuns.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.id.slice(0, 8)} · {formatPassRate(item.summary)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button size="sm" onClick={start} disabled={!canStartRun}>
-              启动批量评测
-            </Button>
-            {!canStartRun ? (
-              <span className="text-xs text-gray-500">
-                只读角色仅可查看结果
-              </span>
-            ) : null}
+              <label className="flex flex-col gap-1 text-xs text-gray-500">
+                评测模式
+                <select
+                  aria-label="评测模式"
+                  className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                  value={mode}
+                  onChange={(e) =>
+                    setMode(e.target.value === 'LIVE' ? 'LIVE' : 'STORED')
+                  }
+                >
+                  <option value="STORED">历史回答</option>
+                  <option value="LIVE">实时跑 AI</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-gray-500">
+                对比基线（可选）
+                <select
+                  aria-label="对比基线"
+                  className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                  value={baselineRunId}
+                  onChange={(e) => setBaselineRunId(e.target.value)}
+                >
+                  <option value="">不对比基线</option>
+                  {completedRuns.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {/* 按族读数字：EXTERNAL 是准确率，内部是通过率，不能互相顶替。 */}
+                      {item.id.slice(0, 8)} · {evalRateText(item)}（
+                      {item.mode === 'EXTERNAL' ? '准确率' : '通过率'}）
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {canWriteEval ? (
+                <Button size="sm" onClick={start} disabled={starting}>
+                  {starting ? '启动中…' : '启动批量评测'}
+                </Button>
+              ) : null}
             </div>
           )}
         </div>
       ) : null}
 
-      {selectedId && advanced && !harnessDataset ? (
+      {selectedId && advanced && !harnessDataset && canWriteEval ? (
         <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
           <h3 className="mb-2 text-sm font-semibold">
             高级模式：导入用例（JSON 数组）
@@ -1991,10 +2730,10 @@ function EvalPanel() {
       {selectedId && ds ? (
         <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
           <h3 className="mb-2 text-sm font-semibold">
-            用例（{ds.cases?.length ?? 0}）
+            用例（{knownCasesTotal(ds) ?? '未知'}）
           </h3>
           <div className="max-h-52 space-y-2 overflow-y-auto text-xs">
-            {(ds.cases ?? []).length === 0 ? (
+            {knownCasesTotal(ds) === 0 ? (
               <div className="text-gray-400">
                 暂无用例，可在高级模式中导入。
               </div>
@@ -2007,15 +2746,61 @@ function EvalPanel() {
                   <div className="font-medium">{c.question}</div>
                   <div className="text-gray-500">{c.answer}</div>
                   <div className="mt-1 text-gray-500">
-                    期望：{expectedText(c) || '未填写'}
+                    判分条件（expect）：
+                    {expectationText(c) || '未填写'}
                     {c.source === 'feedback' ? ' · 来源：反馈' : ''}
                   </div>
-                  {canStartRun && !harnessDataset ? (
+                  {expectationConditions(c).length > 0 ? (
+                    <div className="mt-1 text-gray-500">
+                      {expectationConditions(c).join(' · ')}
+                    </div>
+                  ) : null}
+                  {c.expected != null ? (
+                    <div className="mt-1 text-gray-400">
+                      兼容字段 expected（只读）：{expectedText(c)}
+                    </div>
+                  ) : null}
+                  {expectEdit && expectEdit.caseId === c.id ? (
+                    <div className="mt-2 space-y-1">
+                      <textarea
+                        aria-label="必含关键词"
+                        className="h-24 w-full rounded-lg border p-2 text-xs dark:border-white/10 dark:bg-gray-800"
+                        maxLength={
+                          EVAL_INPUT_LIMITS.mustMention *
+                          (EVAL_INPUT_LIMITS.mustMentionLength + 1)
+                        }
+                        value={expectEdit.text}
+                        onChange={(e) =>
+                          setExpectEdit({
+                            caseId: c.id,
+                            text: e.target.value,
+                          })
+                        }
+                      />
+                      <div className="text-gray-500">
+                        每行一条，最多 {EVAL_INPUT_LIMITS.mustMention} 条、每条{' '}
+                        {EVAL_INPUT_LIMITS.mustMentionLength} 字符
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => void saveExpect(c)}>
+                          保存判分条件
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setExpectEdit(null)}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {canWriteEval && !harnessDataset ? (
                     <div className="mt-1 flex gap-2">
                       <button
                         type="button"
                         className="text-primary-600 hover:underline"
-                        onClick={() => void editCase(c)}
+                        onClick={() => openExpectEditor(c)}
                       >
                         编辑期望
                       </button>
@@ -2032,6 +2817,11 @@ function EvalPanel() {
               ))
             )}
           </div>
+          <ResultPager
+            page={casesPage}
+            total={knownCasesTotal(ds)}
+            onChange={setCasesPage}
+          />
         </div>
       ) : null}
 
@@ -2056,24 +2846,78 @@ function EvalPanel() {
                 return `${headline.label} ${headline.value}`;
               })()}
             </span>
-            {typeof runData.summary?.judgeErrorRate === 'number' ? (
+            {runData.mode !== 'EXTERNAL' &&
+            typeof runData.summary?.validPassRate === 'number' ? (
               <span className="text-xs text-gray-500">
-                判官错误率 {formatRate(runData.summary.judgeErrorRate)}
+                有效通过率 {formatRate(runData.summary.validPassRate)}
+                （只按已判定条目算）
               </span>
             ) : null}
-            {Array.isArray(runData.summary?.judgeErrorKinds) &&
-            runData.summary.judgeErrorKinds.length > 0 ? (
+            {runData.mode !== 'EXTERNAL' && runData.summary?.total != null ? (
               <span className="text-xs text-gray-500">
-                判官错误类型{' '}
-                {runData.summary.judgeErrorKinds
-                  .map(
-                    (item: { kind: string; count: number }) =>
-                      `${item.kind} ${item.count}`,
-                  )
+                已判定 {runData.summary.judged ?? '未记录'}
+              </span>
+            ) : null}
+            {/* 覆盖率只属于外部运行（answer_accuracy 族）；旧运行没这个字段时
+                显示「未记录」，不用 0 或推算值冒充。 */}
+            {runData.mode === 'EXTERNAL' ? (
+              <span className="text-xs text-gray-500">
+                {typeof runData.summary?.coverage === 'number' &&
+                typeof runData.summary?.judgedCases === 'number'
+                  ? `已判 ${runData.summary.judgedCases} 条 · 覆盖率 ${formatRate(
+                      runData.summary.coverage,
+                    )}`
+                  : '覆盖率 未记录'}
+              </span>
+            ) : null}
+            {typeof runData.summary?.judgeErrorRate === 'number' ? (
+              <span className="text-xs text-gray-500">
+                判官失败率 {formatRate(runData.summary.judgeErrorRate)}
+              </span>
+            ) : null}
+            {judgeKindEntries(runData.summary?.judgeErrorKinds).length > 0 ? (
+              <span className="text-xs text-gray-500">
+                判官失败类型{' '}
+                {judgeKindEntries(runData.summary?.judgeErrorKinds)
+                  .map((item) => `${item.kind} ${item.count}`)
                   .join(' · ')}
               </span>
             ) : null}
-            {runData.status === 'RUNNING' && canStartRun ? (
+            <span className="text-xs text-gray-500">运行 ID：{runData.id}</span>
+            <span className="text-xs text-gray-500">
+              运行范围：
+              {runData.scope === 'full'
+                ? '全量'
+                : runData.scope === 'subset'
+                  ? '受影响子集'
+                  : '未记录'}
+            </span>
+            <span className="text-xs text-gray-500">
+              指标族：{runData.metricFamily ?? '未记录'}
+            </span>
+            <span className="text-xs text-gray-500">
+              已处理 {runData.summary?.processed ?? '未记录'} / 共{' '}
+              {runData.summary?.total ?? '未记录'}
+            </span>
+            <span className="text-xs text-gray-500">
+              失败类别：{runData.summary?.failureCategory ?? '未记录'}
+            </span>
+            {runData.executionErrorKind ? (
+              <span className="text-xs text-gray-500">
+                执行错误：
+                {labeledCode(
+                  EXECUTION_ERROR_LABELS,
+                  runData.executionErrorKind,
+                )}
+              </span>
+            ) : null}
+            {runData.mode !== 'EXTERNAL' &&
+            typeof runData.judgeSampleCount === 'number' ? (
+              <span className="text-xs text-gray-500">
+                判官采样 {runData.judgeSampleCount} 次/条
+              </span>
+            ) : null}
+            {runData.status === 'RUNNING' && canWriteEval ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -2103,16 +2947,16 @@ function EvalPanel() {
               runData.mode === 'EXTERNAL' ? (
                 <span className="text-xs text-gray-500">
                   共 {runData.summary.total} 条 · 正确{' '}
-                  {runData.summary.correct ?? 0} · 错误{' '}
-                  {runData.summary.incorrect ?? 0} · 判官失败{' '}
-                  {runData.summary.judgeError ?? 0}
+                  {runData.summary.correct ?? '未记录'} · 错误{' '}
+                  {runData.summary.incorrect ?? '未记录'} · 判官失败{' '}
+                  {runData.summary.judgeError ?? '未记录'}
                 </span>
               ) : (
                 <span className="text-xs text-gray-500">
                   共 {runData.summary.total} 条 · 解决{' '}
-                  {runData.summary.solved ?? 0} · 部分{' '}
-                  {runData.summary.partial ?? 0} · 未解决{' '}
-                  {runData.summary.unsolved ?? 0}
+                  {runData.summary.solved ?? '未记录'} · 部分{' '}
+                  {runData.summary.partial ?? '未记录'} · 未解决{' '}
+                  {runData.summary.unsolved ?? '未记录'}
                 </span>
               )
             ) : null}
@@ -2123,19 +2967,160 @@ function EvalPanel() {
                   passRate: runData.summary.baselinePassRate,
                 })}{' '}
                 · 变化 {formatDelta(runData.summary.delta)} · 新增失败{' '}
-                {runData.summary.newFailures ?? 0} · 修复{' '}
-                {runData.summary.fixed ?? 0}
+                {runData.summary.newFailures ?? '未记录'} · 修复{' '}
+                {runData.summary.fixed ?? '未记录'}
               </span>
             ) : null}
             {typeof runData.summary?.baselineAccuracy === 'number' ? (
               <span className="text-xs text-gray-500">
                 基线准确率 {formatRate(runData.summary.baselineAccuracy)} · 变化{' '}
                 {formatDelta(runData.summary.delta)} · 新增错误{' '}
-                {runData.summary.newFailures ?? 0} · 修复{' '}
-                {runData.summary.fixed ?? 0}
+                {runData.summary.newFailures ?? '未记录'} · 修复{' '}
+                {runData.summary.fixed ?? '未记录'}
               </span>
             ) : null}
           </div>
+          {runData.baselineRunId && runDiff ? (
+            <div className="mt-3 rounded-lg border p-3 dark:border-white/10">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold">与基线差异</span>
+                <span className="text-xs text-gray-500">
+                  基线运行{' '}
+                  <span className="font-mono">
+                    {runDiff.baselineRunId.slice(0, 8)}
+                  </span>{' '}
+                  · 指标族 {runDiff.metricFamily}
+                </span>
+              </div>
+              {runDiff.comparable === false ? (
+                // 不可比：只给原因，不给任何差异数字——假 delta 比没有更糟。
+                <div
+                  data-testid="diff-incomparable"
+                  className="mt-2 text-xs text-gray-400"
+                >
+                  <div>两次运行不可比，未计算差异数字</div>
+                  <ul className="mt-1 list-disc pl-5">
+                    {(runDiff.incomparableReasons ?? []).map((reason) => (
+                      <li key={reason}>{diffReasonLabel(reason)}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                    {(
+                      [
+                        'newFailure',
+                        'fixed',
+                        'regressed',
+                        'stillFailing',
+                      ] as const
+                    ).map((klass) => (
+                      <span key={klass} data-testid={`diff-${klass}`}>
+                        {DIFF_CLASS_LABELS[klass]}{' '}
+                        {runDiff.counts ? runDiff.counts[klass] : '未知'}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {runDiff.drift ? (
+                      <div
+                        data-testid="diff-drift"
+                        className="flex flex-wrap gap-3"
+                      >
+                        <span>样本 {runDiff.drift.sample} 条</span>
+                        <span>
+                          翻转 {runDiff.drift.flips} 条
+                          {runDiff.drift.flipRate === null
+                            ? ''
+                            : `（翻转率 ${formatRate(runDiff.drift.flipRate)}）`}
+                        </span>
+                        <span>
+                          方向 改善 {runDiff.drift.direction.improved} · 变差{' '}
+                          {runDiff.drift.direction.worsened}
+                        </span>
+                        <span>
+                          原始档位变化 {runDiff.drift.rawVerdictChanges.length}{' '}
+                          条
+                        </span>
+                        {runDiff.drift.lowSample ? (
+                          <span className="rounded border border-amber-300 px-2 py-0.5 text-amber-700 dark:border-amber-500/30 dark:text-amber-300">
+                            样本不足（需 ≥20 条），不下结论
+                          </span>
+                        ) : null}
+                        {runDiff.drift.judgeNondeterminismLikely ? (
+                          <span className="rounded border border-amber-300 px-2 py-0.5 text-amber-700 dark:border-amber-500/30 dark:text-amber-300">
+                            同输入翻转，疑判官不确定性
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      // 旧运行没记录抖动：显示「未记录」，不显示 0。
+                      <span>翻转率 未记录</span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    可比对 {runDiff.comparability.compared} 条 · 判官未判定{' '}
+                    {runDiff.comparability.undecided} 条 · 基线缺少{' '}
+                    {runDiff.comparability.missingBaseline} 条
+                  </div>
+                  <div className="mt-1 text-xs text-gray-400">
+                    {runDiff.note}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+          {calibrationCard ? (
+            <div
+              data-testid="run-calibration"
+              className="mt-3 rounded-lg border p-3 dark:border-white/10"
+            >
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold">判官校准</span>
+                <span className="text-xs text-gray-500">
+                  可比对人工标注 {calibrationCard.n} 条
+                  {calibrationCard.status === 'ok'
+                    ? ` · 一致率 ${calibrationCard.agreementRate}%`
+                    : ''}
+                </span>
+                {calibrationCard.status === 'insufficientSample' ? (
+                  <span className="rounded border border-amber-300 px-2 py-0.5 text-xs text-amber-700 dark:border-amber-500/30 dark:text-amber-300">
+                    样本不足（需 ≥{calibrationCard.threshold} 条），不下结论
+                  </span>
+                ) : null}
+                {calibrationCard.excluded > 0 ? (
+                  <span className="text-xs text-gray-500">
+                    未纳入比对 {calibrationCard.excluded} 条
+                  </span>
+                ) : null}
+              </div>
+              {calibrationCard.disagreements.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                  {calibrationCard.disagreements.map((item) => (
+                    <li key={`${item.caseId}-${item.labelerId}`}>
+                      用例 <span className="font-mono">{item.caseId}</span>
+                      ：判官{' '}
+                      {RESULT_VERDICT_LABELS[item.judgeVerdict] ??
+                        item.judgeVerdict}{' '}
+                      / 人工{' '}
+                      {RESULT_VERDICT_LABELS[item.humanCorrectness] ??
+                        item.humanCorrectness}
+                      {item.judgeReason
+                        ? ` · 判官理由：${item.judgeReason}`
+                        : ''}
+                      {item.humanComment
+                        ? ` · 人工备注：${item.humanComment}`
+                        : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="mt-1 text-xs text-gray-400">
+                {calibrationCard.note}
+              </div>
+            </div>
+          ) : null}
           {runData.summary?.error ? (
             <div className="mt-2 text-xs text-red-600 dark:text-red-300">
               失败原因：{runData.summary.error}
@@ -2254,13 +3239,104 @@ function EvalPanel() {
                     ) : null}
                     {grounding ? (
                       <div className="text-gray-500">依据分型：{grounding}</div>
+                    ) : runData.mode === 'EXTERNAL' ? (
+                      <div className="text-gray-500">依据分型：未检查</div>
                     ) : null}
                     <div className="text-gray-500">{r.reason}</div>
+                    {r.case?.id && runData.status !== 'RUNNING' ? (
+                      <div className="mt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          aria-expanded={historyCaseId === r.case.id}
+                          onClick={() => toggleCaseHistory(r.case.id)}
+                        >
+                          {historyCaseId === r.case.id
+                            ? '收起历史'
+                            : '查看历史'}
+                        </Button>
+                        {historyCaseId === r.case.id ? (
+                          <div className="mt-2 rounded border-l-2 border-gray-200 pl-2 dark:border-white/10">
+                            {historyLoading ? (
+                              <div className="text-gray-500">加载时间线…</div>
+                            ) : null}
+                            {historyError ? (
+                              <div className="text-red-600 dark:text-red-300">
+                                {historyError}{' '}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    void loadCaseHistory(r.case.id)
+                                  }
+                                >
+                                  重试
+                                </Button>
+                              </div>
+                            ) : null}
+                            {history?.caseId === r.case.id ? (
+                              history.data.timeline.length === 0 ? (
+                                <div className="text-gray-400">
+                                  该用例还没有运行记录。
+                                </div>
+                              ) : (
+                                <ol className="space-y-1">
+                                  {history.data.timeline.map((point) => (
+                                    <li key={point.runId}>
+                                      <span className="font-mono">
+                                        {point.runId.slice(0, 8)}
+                                      </span>{' '}
+                                      ·{' '}
+                                      {new Date(
+                                        point.startedAt,
+                                      ).toLocaleString()}{' '}
+                                      ·{' '}
+                                      {labelOf(
+                                        RUN_STATUS_LABELS,
+                                        point.status,
+                                      ) || point.status}
+                                      {point.isBaseline ? ' · 基线' : ''} ·{' '}
+                                      <span
+                                        data-testid={`history-outcome-${point.runId}`}
+                                        className={
+                                          point.outcome === 'pass'
+                                            ? 'text-emerald-600 dark:text-emerald-300'
+                                            : point.outcome === 'fail'
+                                              ? 'text-red-600 dark:text-red-300'
+                                              : 'text-gray-500'
+                                        }
+                                      >
+                                        {CASE_OUTCOME_LABELS[point.outcome] ??
+                                          point.outcome}
+                                      </span>
+                                      {point.judgeErrorKind
+                                        ? ` · 判官错误：${point.judgeErrorKind}`
+                                        : ''}
+                                    </li>
+                                  ))}
+                                </ol>
+                              )
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })
             )}
           </div>
+          {runData.status !== 'RUNNING' ? (
+            <ResultPager
+              page={resultsPage}
+              total={
+                typeof runData.resultsTotal === 'number'
+                  ? runData.resultsTotal
+                  : runData.results?.length
+              }
+              onChange={setResultsPage}
+            />
+          ) : null}
           <details className="mt-3">
             <summary className="cursor-pointer text-xs text-gray-500">
               原始输出（工程师）
@@ -2289,30 +3365,21 @@ function ChunkVersionDiff({
   onClose: () => void;
 }) {
   const { data, loading, error, refresh } = useRequest(
-    () => knowledgeApi.getChunks(documentId),
+    () => knowledgeApi.getChunksDiff(documentId),
     { refreshDeps: [documentId] },
   );
 
-  const chunks = Array.isArray(data) ? (data as DocumentChunk[]) : [];
-  const byVersion = new Map<number, Map<number, DocumentChunk>>();
-  for (const chunk of chunks) {
-    if (!byVersion.has(chunk.documentVersion)) {
-      byVersion.set(chunk.documentVersion, new Map());
-    }
-    byVersion.get(chunk.documentVersion)!.set(chunk.chunkIndex, chunk);
-  }
-  const versions = [...byVersion.keys()].sort((a, b) => b - a);
-  const currentVersion = versions[0];
-  const previousVersion = versions[1];
-  const indexes =
-    currentVersion != null && previousVersion != null
-      ? [
-          ...new Set([
-            ...byVersion.get(currentVersion)!.keys(),
-            ...byVersion.get(previousVersion)!.keys(),
-          ]),
-        ].sort((a, b) => a - b)
-      : [];
+  // 差异由服务端按两版本 chunkIndex 并集计算；页面只负责展示。
+  const diff = data as DocumentChunkDiff | undefined;
+  const changes = diff?.changes ?? [];
+  const hasTwoVersions =
+    diff?.currentVersion != null && diff?.previousVersion != null;
+  const changeLabels: Record<DocumentChunkDiffEntry['change'], string> = {
+    added: '新增',
+    removed: '删除',
+    modified: '变化',
+    unchanged: '相同',
+  };
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
@@ -2329,7 +3396,7 @@ function ChunkVersionDiff({
         </div>
       ) : loading ? (
         <div className="mt-2 text-xs text-gray-500">加载中…</div>
-      ) : versions.length < 2 ? (
+      ) : !hasTwoVersions ? (
         <div className="mt-2 text-xs text-gray-500">
           当前只保留一个版本，暂无可对比的旧版本。旧分块只在更新后的 7
           天保留期内可读。
@@ -2337,50 +3404,38 @@ function ChunkVersionDiff({
       ) : (
         <>
           <div className="mt-2 text-xs text-gray-500">
-            旧版本 v{previousVersion}（{byVersion.get(previousVersion)!.size}{' '}
-            块）→ 当前版本 v{currentVersion}（
-            {byVersion.get(currentVersion)!.size} 块）
+            旧版本 v{diff!.previousVersion} → 当前版本 v{diff!.currentVersion} ·
+            新增 {diff!.summary.added} · 删除 {diff!.summary.removed} · 修改{' '}
+            {diff!.summary.modified}
           </div>
           <div className="mt-2 space-y-2">
-            {indexes.map((index) => {
-              const previous = byVersion.get(previousVersion)!.get(index);
-              const current = byVersion.get(currentVersion)!.get(index);
-              const change =
-                previous && current
-                  ? previous.content === current.content
-                    ? '相同'
-                    : '变化'
-                  : current
-                    ? '新增'
-                    : '删除';
-              return (
-                <div
-                  key={index}
-                  className="rounded-lg border p-2 text-xs dark:border-white/10"
-                >
-                  <div className="mb-1 flex items-center gap-2 text-gray-500">
-                    <span>分块 {index}</span>
-                    <span className="rounded border px-1 py-0.5 dark:border-white/10">
-                      {change}
-                    </span>
-                  </div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div>
-                      <div className="mb-1 text-gray-400">旧版本</div>
-                      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-red-50/60 p-2 dark:bg-red-500/5">
-                        {previous?.content ?? '（该版本没有这个分块）'}
-                      </div>
+            {changes.map((row) => (
+              <div
+                key={row.chunkIndex}
+                className="rounded-lg border p-2 text-xs dark:border-white/10"
+              >
+                <div className="mb-1 flex items-center gap-2 text-gray-500">
+                  <span>分块 {row.chunkIndex}</span>
+                  <span className="rounded border px-1 py-0.5 dark:border-white/10">
+                    {changeLabels[row.change]}
+                  </span>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div>
+                    <div className="mb-1 text-gray-400">旧版本</div>
+                    <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-red-50/60 p-2 dark:bg-red-500/5">
+                      {row.previous?.content ?? '（该版本没有这个分块）'}
                     </div>
-                    <div>
-                      <div className="mb-1 text-gray-400">当前版本</div>
-                      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-emerald-50/60 p-2 dark:bg-emerald-500/5">
-                        {current?.content ?? '（该版本没有这个分块）'}
-                      </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-gray-400">当前版本</div>
+                    <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-emerald-50/60 p-2 dark:bg-emerald-500/5">
+                      {row.current?.content ?? '（该版本没有这个分块）'}
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </>
       )}
@@ -2427,6 +3482,7 @@ function RagPanel() {
   };
 
   const byScore = stats?.byScore;
+  const parseQuality = stats?.parseQuality;
   const cards = [
     ['文档总数', stats?.total],
     ['有标记', stats?.flagged],
@@ -2436,9 +3492,34 @@ function RagPanel() {
     ['一般', byScore?.fair],
     ['可疑', byScore?.suspicious],
   ] as const;
+  // 解析质量与有效性单独一组：解析只统计有明细快照的文档，
+  // 有效性还没有采集链路——两者都不能混进上面的评分分档。
+  const parseCards = [
+    ['解析通过', parseQuality?.passed],
+    ['解析未通过', parseQuality?.failed],
+    ['解析未采集', parseQuality?.notCollected],
+  ] as const;
   const recentFlags = stats?.recentFlags ?? [];
   const recentUpdated = stats?.recentUpdated ?? [];
   const results: any[] = result?.results ?? [];
+  const debug = result?.debug as
+    | {
+        rerank?: boolean;
+        relevanceGate?: {
+          applied: boolean;
+          blocked: number | boolean;
+          reason?: string;
+        } | null;
+      }
+    | undefined;
+  // blocked 是被拦掉的候选数（与 stage 日志同口径），>0 才算拦截。
+  const gateLabel = !debug?.relevanceGate
+    ? '未启用'
+    : !debug.relevanceGate.applied
+      ? '未启用'
+      : debug.relevanceGate.blocked
+        ? '拦截'
+        : '通过';
 
   return (
     <section className="space-y-4">
@@ -2449,6 +3530,32 @@ function RagPanel() {
         />
       ) : null}
 
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {parseCards.map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-xl border p-3 dark:border-white/10"
+          >
+            <div className="text-xs text-gray-500">{label}</div>
+            <div className="text-lg font-semibold">
+              {value != null ? value : statsLoading ? '加载中…' : '未知'}
+            </div>
+          </div>
+        ))}
+        <div className="rounded-xl border p-3 dark:border-white/10">
+          <div className="text-xs text-gray-500">有效性</div>
+          <div className="text-lg font-semibold">
+            {stats ? '未采集' : statsLoading ? '加载中…' : '未知'}
+          </div>
+        </div>
+      </div>
+
+      {stats?.effectiveness ? (
+        <p className="text-xs text-gray-500">
+          有效性口径：{stats.effectiveness.note}
+        </p>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
         {cards.map(([label, value]) => (
           <div
@@ -2457,7 +3564,7 @@ function RagPanel() {
           >
             <div className="text-xs text-gray-500">{label}</div>
             <div className="text-lg font-semibold">
-              {value != null ? value : statsLoading ? '加载中…' : '—'}
+              {value != null ? value : statsLoading ? '加载中…' : '未知'}
             </div>
           </div>
         ))}
@@ -2477,29 +3584,44 @@ function RagPanel() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['文档', '评分', '标记', '当前版本', '更新时间', '操作'].map(
-                  (h) => (
-                    <th key={h} className="px-3 py-2">
-                      {h}
-                    </th>
-                  ),
-                )}
+                {[
+                  '文档',
+                  '评分',
+                  '标记',
+                  '解析检查',
+                  '版本',
+                  '更新时间',
+                  '操作',
+                ].map((h) => (
+                  <th key={h} className="px-3 py-2">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {statsLoading ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     加载中…
                   </td>
                 </tr>
+              ) : statsError ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-red-500"
+                  >
+                    加载失败
+                  </td>
+                </tr>
               ) : recentUpdated.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     暂无更新记录
@@ -2508,7 +3630,7 @@ function RagPanel() {
               ) : (
                 recentUpdated.map((doc) => (
                   <tr
-                    key={`${doc.documentId}-${doc.activeVersion}`}
+                    key={`${doc.documentId}-${doc.version}`}
                     className="border-t border-gray-100 dark:border-white/5"
                   >
                     <td className="px-3 py-2" title={doc.documentId}>
@@ -2518,7 +3640,42 @@ function RagPanel() {
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
                       {doc.flags ?? '无标记'}
                     </td>
-                    <td className="px-3 py-2">v{doc.activeVersion}</td>
+                    <td className="px-3 py-2">
+                      {doc.parseChecks ? (
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(PARSE_CHECK_LABELS).map(
+                            ([key, label]) => {
+                              const entry = (
+                                doc.parseChecks as Record<
+                                  string,
+                                  { passed: boolean; detail?: string }
+                                >
+                              )[key];
+                              return (
+                                <span
+                                  key={key}
+                                  data-testid={`parse-check-${key}`}
+                                  title={entry?.detail}
+                                  className={
+                                    entry?.passed
+                                      ? 'rounded border border-emerald-200 px-1 text-xs text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-300'
+                                      : 'rounded border border-red-200 px-1 text-xs text-red-700 dark:border-red-500/30 dark:text-red-300'
+                                  }
+                                >
+                                  {label}
+                                  {entry?.passed ? '通过' : '未通过'}
+                                </span>
+                              );
+                            },
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">未采集</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-300">
+                      生效 v{doc.activeVersion} · 最新 v{doc.version}
+                    </td>
                     <td className="px-3 py-2">
                       {doc.updatedAt
                         ? new Date(doc.updatedAt).toLocaleString()
@@ -2566,6 +3723,15 @@ function RagPanel() {
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     加载中…
+                  </td>
+                </tr>
+              ) : statsError ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-3 py-6 text-center text-red-500"
+                  >
+                    加载失败
                   </td>
                 </tr>
               ) : recentFlags.length === 0 ? (
@@ -2650,6 +3816,11 @@ function RagPanel() {
         </div>
       ) : result ? (
         <div className="space-y-3">
+          {debug ? (
+            <div className="text-xs text-gray-500">
+              {`检索调试——rerank：${debug.rerank ? '开' : '关'} · 相关性门卫：${gateLabel}`}
+            </div>
+          ) : null}
           {results.length === 0 ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm dark:border-amber-500/30 dark:bg-amber-500/5">
               <div className="font-medium text-amber-800 dark:text-amber-200">

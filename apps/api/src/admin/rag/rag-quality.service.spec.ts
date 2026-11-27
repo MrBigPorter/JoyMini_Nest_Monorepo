@@ -46,3 +46,25 @@ describe('RagQualityService.checkTruncation', () => {
     expect(result.flags).not.toContain('truncation');
   });
 });
+
+describe('RagQualityService.check 通过判据', () => {
+  it('passed 由四项检查决定，不用分档阈值替代', () => {
+    // 10 字符：只有「空内容」检查不过，其余三项通过 → 75 分。
+    // 旧实现按 overallScore>=75 判 passed，会把这个文档误判为通过。
+    const result = makeService().check('a'.repeat(10), 10);
+
+    expect(result.overallScore).toBe(75);
+    expect(result.checks.emptyContent.passed).toBe(false);
+    expect(result.passed).toBe(false);
+  });
+
+  it('四项全过时 passed 为 true，与分档同源', () => {
+    const content = `${'x'.repeat(120)}\nRefunds are available within 7 days.`;
+
+    const result = makeService().check(content, content.length);
+
+    expect(result.overallScore).toBe(100);
+    expect(Object.values(result.checks).every((c) => c.passed)).toBe(true);
+    expect(result.passed).toBe(true);
+  });
+});

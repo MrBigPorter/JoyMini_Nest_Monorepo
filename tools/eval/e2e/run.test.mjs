@@ -333,6 +333,171 @@ test("toExternalResult：知识类按 golden 判定映射三态", () => {
   assert.equal(judgeErr.judgeErrorKind, "timeout");
 });
 
+test("toExternalResult：判官没给结论时归为不适用，不得归为输出格式", () => {
+  const shell = {
+    id: "negative:no-docs",
+    kind: "negative",
+    status: "ok",
+    judge: { grounding: { kind: "kb" }, goldenAgreement: { applicable: true } },
+    rounds: [{ reply: { content: "答" } }],
+  };
+  const result = toExternalResult(shell);
+
+  assert.equal(result.answerVerdict, "judge_error");
+  assert.equal(result.judgeErrorKind, "not_applicable");
+  assert.notEqual(result.judgeErrorKind, "output_format");
+  assert.match(result.reason, /^not_applicable: /);
+});
+
+test("toExternalResult：逐次判官尝试随结果上送，含原始输出与失败类别", () => {
+  const result = toExternalResult({
+    id: "knowledge:refund",
+    kind: "knowledge",
+    status: "ok",
+    judge: {
+      grounding: { kind: "kb" },
+      goldenAgreement: {
+        applicable: true,
+        faithful: true,
+        score: 1,
+        reason: "supported",
+        judgeInputHash: "hash-1",
+        judgeSpecVersion: "v3",
+        judgeAttempts: [
+          {
+            faithful: true,
+            score: 1,
+            reason: "supported",
+            rawOutput: '{"faithful":true}',
+            rawTruncated: false,
+          },
+          {
+            faithful: null,
+            score: null,
+            reason: "judge_parse_failed",
+            errorKind: "output_format",
+            rawOutput: "not json",
+            rawTruncated: false,
+          },
+          {
+            faithful: null,
+            score: null,
+            reason: "judge_error",
+            errorKind: "timeout",
+            // 调用失败没有原始输出：保留缺失，不补空串。
+          },
+        ],
+      },
+    },
+    rounds: [{ reply: { content: "3-5 天" } }],
+  });
+
+  assert.equal(result.judgeAttempts.length, 3);
+  assert.deepEqual(result.judgeAttempts[0], {
+    attemptIndex: 0,
+    outcome: "success",
+    score: 1,
+    rawOutput: '{"faithful":true}',
+    rawTruncated: false,
+    judgeVersion: "v3",
+    judgeInputHash: "hash-1",
+  });
+  assert.equal(result.judgeAttempts[1].outcome, "parse_failed");
+  assert.equal(result.judgeAttempts[1].errorKind, "output_format");
+  assert.equal(result.judgeAttempts[1].rawOutput, "not json");
+  assert.equal(result.judgeAttempts[2].outcome, "call_error");
+  assert.equal(result.judgeAttempts[2].errorKind, "timeout");
+  assert.equal("rawOutput" in result.judgeAttempts[2], false);
+});
+
+test("toExternalResult：旧判官响应没有逐次明细时不上送该字段", () => {
+  const result = toExternalResult({
+    id: "knowledge:delivery",
+    kind: "knowledge",
+    status: "ok",
+    judge: {
+      grounding: { kind: "kb" },
+      goldenAgreement: { faithful: true, score: 1, reason: "supported" },
+    },
+    rounds: [{ reply: { content: "3-5 天" } }],
+  });
+
+  assert.equal("judgeAttempts" in result, false);
+});
+
+test("toExternalResult：结构化失败类别优先于自由文本原因", () => {
+  const result = toExternalResult({
+    id: "knowledge:auth",
+    kind: "knowledge",
+    status: "ok",
+    judge: {
+      grounding: { kind: "kb" },
+      goldenAgreement: {
+        applicable: true,
+        faithful: null,
+        errorKind: "auth",
+        reason: "judge_error: timed out after 30s",
+      },
+    },
+    rounds: [{ reply: { content: "答" } }],
+  });
+
+  assert.equal(result.answerVerdict, "judge_error");
+  assert.equal(result.judgeErrorKind, "auth");
+});
+
+test("toExternalResult：真实超时仍记超时", () => {
+  const result = toExternalResult({
+    id: "knowledge:timeout",
+    kind: "knowledge",
+    status: "ok",
+    judge: {
+      grounding: { kind: "kb" },
+      goldenAgreement: {
+        faithful: null,
+        reason: "judge_error: timed out after 30s",
+      },
+    },
+    rounds: [{ reply: { content: "答" } }],
+  });
+
+  assert.equal(result.answerVerdict, "judge_error");
+  assert.equal(result.judgeErrorKind, "timeout");
+});
+
+test("summarizeExternalResults：空壳判定不计入判官失败率", () => {
+  const shell = (id) =>
+    toExternalResult({
+      id,
+      kind: "negative",
+      status: "ok",
+      judge: { grounding: { kind: "kb" }, goldenAgreement: { applicable: true } },
+      rounds: [{ reply: { content: "答" } }],
+    });
+  const correct = toExternalResult({
+    id: "knowledge:ok",
+    kind: "knowledge",
+    status: "ok",
+    judge: {
+      grounding: { kind: "kb" },
+      goldenAgreement: { faithful: true, score: 1, reason: "supported" },
+    },
+    rounds: [{ reply: { content: "答" } }],
+  });
+
+  const local = summarizeExternalResults([
+    shell("a"),
+    shell("b"),
+    shell("c"),
+    correct,
+  ]);
+
+  assert.equal(local.total, 4);
+  assert.equal(local.correct, 1);
+  assert.equal(local.judgeErrorRate, 0);
+  assert.deepEqual(local.judgeErrorKinds, []);
+});
+
 test("toExternalResult：任务完成度/安全断言不并入答案准确性", () => {
   for (const kind of ["action", "read", "boundary"]) {
     const result = toExternalResult({
@@ -397,6 +562,8 @@ test("summarizeExternalResults：与服务端同口径，排除 harness/not_appl
     incorrect: 1,
     judgeError: 4,
     accuracy: 0.5,
+    judgedCases: 2,
+    coverage: 0.3333,
     // 判官实际调用 4 次（2 次成功 + 2 次 timeout），失败 2 次
     judgeErrorRate: 0.5,
     judgeErrorKinds: [{ kind: "timeout", count: 2 }],
@@ -416,6 +583,37 @@ test("summarizeExternalResults：子集记录 scope 与登记用例数", () => {
   });
   assert.equal(local.scope, "subset");
   assert.equal(local.selectedCaseCount, 7);
+});
+
+test("summarizeExternalResults：覆盖率按入库条数计算，跳过计入总数不计入已判", () => {
+  const local = summarizeExternalResults([
+    { answerVerdict: "correct" },
+    { answerVerdict: "incorrect" },
+    { answerVerdict: "judge_error", judgeErrorKind: "harness" },
+    { answerVerdict: "judge_error", judgeErrorKind: "not_applicable" },
+  ]);
+  assert.equal(local.total, 4);
+  assert.equal(local.judgedCases, 2);
+  assert.equal(local.coverage, 0.5);
+});
+
+test("summarizeExternalResults：零条时覆盖率为 null", () => {
+  const local = summarizeExternalResults([]);
+  assert.equal(local.judgedCases, 0);
+  assert.equal(local.coverage, null);
+});
+
+test("compareSummaryWithRecord：覆盖率不一致被指出", () => {
+  const local = summarizeExternalResults([{ answerVerdict: "correct" }]);
+  const { ok, mismatches } = compareSummaryWithRecord(local, {
+    ...local,
+    coverage: 0.5,
+  });
+  assert.equal(ok, false);
+  assert.deepEqual(
+    mismatches.map((item) => item.field),
+    ["coverage"],
+  );
 });
 
 test("summarizeExternalResults：judgeAgreement 只统计 ≥2 次成功的用例", () => {
@@ -476,6 +674,8 @@ test("compareSummaryWithRecord：逐字段核对库内 summary", () => {
     incorrect: 0,
     judgeError: 1,
     accuracy: 1,
+    judgedCases: 1,
+    coverage: 0.5,
     judgeErrorRate: 0.5,
     judgeErrorKinds: [{ kind: "timeout", count: 1 }],
     judgeAgreement: 1,

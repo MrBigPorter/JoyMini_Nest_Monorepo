@@ -97,7 +97,8 @@ test.describe('AI Ops quality — tabs & review card', () => {
     // Feedback panel: filters + mocked row + triage card (role loaded async).
     await expect(page.getByLabel('反馈分诊状态')).toBeVisible();
     await expect(page.getByText('What is the refund policy?')).toBeVisible();
-    await expect(page.getByText('分诊归因')).toBeVisible({
+    // 写入口由角色与开关共同决定；出现即可进入质检。
+    await expect(page.getByRole('button', { name: '开始质检' })).toBeVisible({
       timeout: 20_000,
     });
 
@@ -140,6 +141,119 @@ test.describe('AI Ops quality — tabs & review card', () => {
     await expect(page).toHaveURL(/failureKind=SERVICE_ERROR/);
     await page.reload();
     await expect(page).toHaveURL(/failureKind=SERVICE_ERROR/);
+  });
+});
+
+test.describe('AI Ops quality — 信任态', () => {
+  const okBody = (data: unknown) =>
+    JSON.stringify({ code: 10000, message: 'ok', data });
+
+  test('跳过只移动游标，不提交也不回队首', async ({ page, api }) => {
+    await page.goto('/ai-ops/quality/');
+    await expect(page.getByRole('button', { name: '开始质检' })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await dismissDevOverlay(page);
+    await page.getByRole('button', { name: '开始质检' }).click();
+    await expect(page.getByText('质检 1 / 2')).toBeVisible();
+
+    await page.getByRole('button', { name: '跳过' }).click();
+
+    await expect(page.getByText('质检 2 / 2')).toBeVisible();
+    expect(api.requests.filter((r) => r.method === 'PATCH')).toHaveLength(0);
+  });
+
+  test('写入被 403 拒绝时显示错误而不是假成功', async ({ page }) => {
+    await page.route('**/api/v1/admin/ai-feedback/*', async (route) => {
+      if (route.request().method() === 'PATCH') {
+        return route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 403,
+            message: '无权限执行该操作',
+            data: null,
+          }),
+        });
+      }
+      return route.fallback();
+    });
+
+    await page.goto('/ai-ops/quality/');
+    await expect(page.getByRole('button', { name: '开始质检' })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await dismissDevOverlay(page);
+    await page.getByRole('button', { name: '开始质检' }).click();
+    await expect(page.getByText('质检 1 / 2')).toBeVisible();
+    await page.getByRole('button', { name: '确认问题' }).first().click();
+    await page.getByRole('button', { name: '提交判断' }).click();
+
+    await expect(page.getByText('无权限执行该操作')).toBeVisible({
+      timeout: 20_000,
+    });
+    // 提交失败时卡片原地保留，不能当作已处理。
+    await expect(page.getByText('质检 1 / 2')).toBeVisible();
+    await expect(page.getByRole('button', { name: '提交判断' })).toBeEnabled();
+  });
+
+  test('总量缩水后页码越界自动回退最后一页', async ({ page }) => {
+    const seenPages: number[] = [];
+    const firstPageRow = {
+      id: 'feedback-page-1',
+      conversationId: 'conv-page-1',
+      input: 'How do I return an item?',
+      answer: 'Open the order page and choose return.',
+      messageId: 'msg-page-1',
+      userId: 'user-page-1',
+      source: 'explicit',
+      verdict: 'correct',
+      errorType: null,
+      signal: 'thumbs_up',
+      note: null,
+      adminId: null,
+      reviewStatus: 'PENDING',
+      failureKind: null,
+      resolution: null,
+      createdAt: '2026-11-21T10:00:00.000Z',
+    };
+    await page.route('**/api/v1/admin/ai-feedback*', async (route) => {
+      const url = new URL(route.request().url());
+      const pageParam = Number(url.searchParams.get('page') ?? '1');
+      seenPages.push(pageParam);
+      // 第 2 页回来时总量只剩 1 条：页面必须回退到第 1 页重取。
+      const data =
+        pageParam === 2
+          ? { list: [], total: 1 }
+          : { list: [firstPageRow], total: 21 };
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: okBody(data),
+      });
+    });
+
+    await page.goto('/ai-ops/quality/');
+    await expect(
+      page.getByText('How do I return an item?').first(),
+    ).toBeVisible({ timeout: 20_000 });
+
+    await dismissDevOverlay(page);
+    await page.getByRole('button', { name: '下一页' }).click();
+
+    await expect
+      .poll(() => seenPages.includes(2), { timeout: 10_000 })
+      .toBe(true);
+    await expect
+      .poll(() => seenPages.lastIndexOf(1) > seenPages.indexOf(2), {
+        timeout: 10_000,
+      })
+      .toBe(true);
+    await expect(
+      page.getByText('How do I return an item?').first(),
+    ).toBeVisible();
   });
 });
 

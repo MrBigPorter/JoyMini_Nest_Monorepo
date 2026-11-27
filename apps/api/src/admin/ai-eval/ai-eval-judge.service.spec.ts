@@ -1,9 +1,15 @@
 import {
+  AiEvalJudgeService,
   allowSameVendor,
   assertIndependentVendor,
   parseJudgeOutput,
   vendorOf,
 } from './ai-eval-judge.service';
+import {
+  JUDGE_PROMPT_HASH,
+  JUDGE_SAMPLE_COUNT,
+  JUDGE_SPEC_VERSION,
+} from './judge-spec';
 
 describe('parseJudgeOutput', () => {
   it('解析 solved / partial / unsolved 三类判定', () => {
@@ -78,5 +84,22 @@ describe('vendorOf / assertIndependentVendor', () => {
       true,
     );
     expect(allowSameVendor({ NODE_ENV: 'development' })).toBe(true);
+  });
+});
+
+describe('AiEvalJudgeService.spec', () => {
+  it('返回运行可留存的判官身份：版本 / prompt hash / 模型 / 供应商 / 采样数', () => {
+    const configService = {
+      get: (_key: string, fallback?: unknown) => fallback,
+    } as any;
+    const service = new AiEvalJudgeService(configService);
+
+    expect(service.spec()).toEqual({
+      version: JUDGE_SPEC_VERSION,
+      promptHash: JUDGE_PROMPT_HASH,
+      model: 'llama-3.3-70b-versatile',
+      vendor: 'groq',
+      sampleCount: JUDGE_SAMPLE_COUNT,
+    });
   });
 });

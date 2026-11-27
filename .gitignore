@@ -39,8 +39,10 @@ playwright-report/
 test-results/
 apps/admin-next/playwright-report/
 apps/admin-next/test-results/
-# Ad-hoc debug scripts (tracked storage state stays in admin.json)
-apps/admin-next/playwright/.auth/*.mjs
+# Playwright E2E storage state + ad-hoc debug scripts
+# admin.json 里是 admin 的 bearer 凭据（access + refresh token），仓库公开，禁止入库；
+# 由 auth.setup.ts 每次 e2e 自动重新生成。
+apps/admin-next/playwright/.auth/
 
 # Turbo
 .turbo
@@ -93,6 +95,8 @@ apps/frontend-blog/public/workbox-*.js.br
 __pycache__/
 tools/eval/reports/
 tools/eval/task/reports/
+# 判官结构化输出探针（apps/api/scripts/probe-judge-structured-output.ts）的本地输出
+/reports/
 
 # Synthetic AI traffic simulator runtime (accounts.json contains tokens)
 tools/simulator/.runtime/

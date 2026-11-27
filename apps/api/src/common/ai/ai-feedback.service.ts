@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import {
   deriveExplicit,
@@ -153,10 +159,7 @@ export class AiFeedbackService {
     if (messageId) {
       const byMessage = await this.prisma.aiTrace.findFirst({
         where: {
-          OR: [
-            { aiMessageId: messageId },
-            { triggerMessageId: messageId },
-          ],
+          OR: [{ aiMessageId: messageId }, { triggerMessageId: messageId }],
         },
         orderBy: { createdAt: 'desc' },
         select: { id: true },
@@ -380,11 +383,17 @@ export class AiFeedbackService {
    * 列表默认只带 verdict/signal，分诊时看不出“到底问了什么、AI 答了什么”。
    * 这里按 messageId / createdAt 回查上下文，给前端补 input + answer。
    *
-   * 管理端单页最多 100 条，属于低频后台查询；用 Promise.all 并行回查，
-   * 避免把 100 条压成串行 N+1。
+   * 管理端单页最多 100 条。逐条回查是 2N 次 Prisma 调用，页越大越慢；
+   * 这里改成一次 LATERAL 查询：调用次数固定为 1，与页大小无关。
+   *
+   * 只把 feedback id 传进 SQL，会话/时间一律由库内 `ai_answer_feedback` 自带的值比较，
+   * 避免 JS Date 与 `timestamp without time zone` 列之间的时区往返。
+   * 索引见迁移 `chat_message_feedback_context_indexes`：
+   * (conversationId, createdAt) 服务隐式反馈回查，(conversationId, source, createdAt) 服务按角色过滤。
    */
   private async attachMessageContext<
     T extends {
+      id: string;
       conversationId: string;
       messageId: string | null;
       input: string | null;
@@ -392,63 +401,86 @@ export class AiFeedbackService {
       createdAt: Date;
     },
   >(rows: T[]) {
-    return Promise.all(
-      rows.map(async (row) => {
-        const linked = row.messageId
-          ? await this.prisma.chatMessage.findUnique({
-              where: { id: row.messageId },
-              select: { content: true, source: true, seqId: true },
-            })
-          : null;
+    if (rows.length === 0) return [];
 
-        let input = row.input;
-        let answer: string | null = null;
-
-        if (row.source === 'explicit') {
-          // explicit 的 messageId 是被评价的 AI 消息。
-          answer = linked?.content ?? null;
-          if (!input && linked) {
-            const userMessage = await this.prisma.chatMessage.findFirst({
-              where: {
-                conversationId: row.conversationId,
-                source: 'user',
-                seqId: { lt: linked.seqId },
-              },
-              orderBy: { seqId: 'desc' },
-              select: { content: true },
-            });
-            input = userMessage?.content ?? null;
-          }
-        } else {
-          // implicit：messageId 可能是当前用户消息（重复追问），也可能为空。
-          if (!input && linked?.source === 'user') input = linked.content;
-          if (!input) {
-            const userMessage = await this.prisma.chatMessage.findFirst({
-              where: {
-                conversationId: row.conversationId,
-                source: 'user',
-                createdAt: { lte: row.createdAt },
-              },
-              orderBy: { createdAt: 'desc' },
-              select: { content: true },
-            });
-            input = userMessage?.content ?? null;
-          }
-          const aiMessage = await this.prisma.chatMessage.findFirst({
-            where: {
-              conversationId: row.conversationId,
-              source: 'ai',
-              createdAt: { lte: row.createdAt },
-            },
-            orderBy: { createdAt: 'desc' },
-            select: { content: true },
-          });
-          answer = aiMessage?.content ?? null;
-        }
-
-        return { ...row, input, answer };
-      }),
+    const contextRows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        feedbackId: string;
+        linkedContent: string | null;
+        linkedSource: string | null;
+        linkedSeqId: number | null;
+        explicitUserContent: string | null;
+        implicitUserContent: string | null;
+        implicitAiContent: string | null;
+      }>
+    >(
+      `
+        SELECT f.id AS "feedbackId",
+               linked.content AS "linkedContent",
+               linked.source AS "linkedSource",
+               linked."seqId" AS "linkedSeqId",
+               explicit_user.content AS "explicitUserContent",
+               implicit_user.content AS "implicitUserContent",
+               implicit_ai.content AS "implicitAiContent"
+          FROM ai_answer_feedback f
+          LEFT JOIN "ChatMessage" linked ON linked.id = f.message_id
+          LEFT JOIN LATERAL (
+            SELECT m.content
+              FROM "ChatMessage" m
+             WHERE linked."seqId" IS NOT NULL
+               AND m."conversationId" = f.conversation_id
+               AND m.source = 'user'
+               AND m."seqId" < linked."seqId"
+             ORDER BY m."seqId" DESC
+             LIMIT 1
+          ) explicit_user ON true
+          LEFT JOIN LATERAL (
+            SELECT m.content
+              FROM "ChatMessage" m
+             WHERE m."conversationId" = f.conversation_id
+               AND m.source = 'user'
+               AND m."createdAt" <= f.created_at
+             ORDER BY m."createdAt" DESC
+             LIMIT 1
+          ) implicit_user ON true
+          LEFT JOIN LATERAL (
+            SELECT m.content
+              FROM "ChatMessage" m
+             WHERE m."conversationId" = f.conversation_id
+               AND m.source = 'ai'
+               AND m."createdAt" <= f.created_at
+             ORDER BY m."createdAt" DESC
+             LIMIT 1
+          ) implicit_ai ON true
+         WHERE f.id = ANY($1::text[])
+      `,
+      rows.map((row) => row.id),
     );
+
+    const byId = new Map(contextRows.map((row) => [row.feedbackId, row]));
+
+    return rows.map((row) => {
+      const context = byId.get(row.id);
+      let input = row.input;
+      let answer: string | null = null;
+
+      if (row.source === 'explicit') {
+        // explicit 的 messageId 是被评价的 AI 消息。
+        answer = context?.linkedContent ?? null;
+        if (!input && context?.linkedSeqId != null) {
+          input = context.explicitUserContent ?? null;
+        }
+      } else {
+        // implicit：messageId 可能是当前用户消息（重复追问），也可能为空。
+        if (!input && context?.linkedSource === 'user') {
+          input = context.linkedContent;
+        }
+        if (!input) input = context?.implicitUserContent ?? null;
+        answer = context?.implicitAiContent ?? null;
+      }
+
+      return { ...row, input, answer };
+    });
   }
 
   /** 运营首页/质量待办的分组计数。 */
@@ -462,22 +494,34 @@ export class AiFeedbackService {
       : actionable;
     const signalWhere = createdAt ? { AND: [{ createdAt }, signal] } : signal;
 
-    const [total, pending, signals, byFailureKind, byResolution] =
-      await Promise.all([
-        this.prisma.aiAnswerFeedback.count({ where: base }),
-        this.prisma.aiAnswerFeedback.count({ where: pendingWhere as never }),
-        this.prisma.aiAnswerFeedback.count({ where: signalWhere as never }),
-        this.prisma.aiAnswerFeedback.groupBy({
-          by: ['failureKind'],
-          where: base,
-          _count: { id: true },
-        }),
-        this.prisma.aiAnswerFeedback.groupBy({
-          by: ['resolution'],
-          where: base,
-          _count: { id: true },
-        }),
-      ]);
+    const [
+      total,
+      pending,
+      signals,
+      byFailureKind,
+      byResolution,
+      byReviewStatus,
+    ] = await Promise.all([
+      this.prisma.aiAnswerFeedback.count({ where: base }),
+      this.prisma.aiAnswerFeedback.count({ where: pendingWhere as never }),
+      this.prisma.aiAnswerFeedback.count({ where: signalWhere as never }),
+      this.prisma.aiAnswerFeedback.groupBy({
+        by: ['failureKind'],
+        where: base,
+        _count: { id: true },
+      }),
+      this.prisma.aiAnswerFeedback.groupBy({
+        by: ['resolution'],
+        where: base,
+        _count: { id: true },
+      }),
+      // 分诊状态计数：REVIEWED 是多种处理结果的集合，页面需要独立计数
+      this.prisma.aiAnswerFeedback.groupBy({
+        by: ['reviewStatus'],
+        where: base,
+        _count: { id: true },
+      }),
+    ]);
     return {
       total,
       pending,
@@ -488,6 +532,10 @@ export class AiFeedbackService {
       })),
       byResolution: byResolution.map((row) => ({
         resolution: row.resolution,
+        count: row._count.id,
+      })),
+      byReviewStatus: byReviewStatus.map((row) => ({
+        status: row.reviewStatus,
         count: row._count.id,
       })),
     };
@@ -504,95 +552,158 @@ export class AiFeedbackService {
       note?: string;
       ownerAdminId?: string;
       linkedEvalCaseId?: string;
+      /** 客户端读到的版本；过期说明别人先改了，返回 409 让前端重读。 */
+      expectedVersion?: number;
+      /** 已被他人认领时，显式接手才允许改写负责人。 */
+      takeOver?: boolean;
     },
     adminId: string,
   ) {
-    const existing = await this.prisma.aiAnswerFeedback.findUnique({
-      where: { id },
-      select: {
-        verdict: true,
-        failureKind: true,
-        resolution: true,
-        reviewStatus: true,
-      },
-    });
-    if (!existing) {
-      throw new NotFoundException('Feedback not found');
-    }
+    // 读→派生→写必须在同一事务里：分成两步时，两个管理员能写出
+    // 「verdict=correct + resolution=EXCLUDED」这类互相矛盾的行。
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.aiAnswerFeedback.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          conversationId: true,
+          messageId: true,
+          traceId: true,
+          verdict: true,
+          failureKind: true,
+          resolution: true,
+          reviewStatus: true,
+          note: true,
+          ownerAdminId: true,
+          claimedBy: true,
+          version: true,
+        },
+      });
+      if (!existing) {
+        throw new NotFoundException('Feedback not found');
+      }
+      if (
+        input.expectedVersion != null &&
+        input.expectedVersion !== existing.version
+      ) {
+        throw new ConflictException(
+          'Feedback changed since it was loaded; reload and retry',
+        );
+      }
 
-    const nextVerdict = input.verdict ?? existing.verdict;
-    const nextFailureKind =
-      nextVerdict === 'correct'
-        ? null
-        : (input.failureKind ?? existing.failureKind);
-
-    // 结论与旧状态必须同时派生，避免 reviewStatus / resolution 分叉（113 §9）。
-    let nextResolution: FeedbackResolution | undefined;
-    let nextReviewStatus: string | undefined;
-    if (input.resolution) {
-      nextResolution = input.resolution;
-      nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[input.resolution];
-    } else if (input.reviewStatus) {
-      nextResolution =
+      const nextVerdict = input.verdict ?? existing.verdict;
+      const nextFailureKind =
         nextVerdict === 'correct'
-          ? 'NO_ISSUE'
-          : REVIEW_STATUS_TO_RESOLUTION[input.reviewStatus];
-      nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[nextResolution];
-    } else if (input.verdict === 'correct') {
-      nextResolution = 'NO_ISSUE';
-      nextReviewStatus = 'REVIEWED';
-    } else if (input.verdict === 'incorrect' && !existing.resolution) {
-      nextResolution = 'OPEN';
-      nextReviewStatus = 'PENDING';
-    }
+          ? null
+          : (input.failureKind ?? existing.failureKind);
 
-    const judgmentProvided = Boolean(
-      input.verdict ||
-      input.failureKind ||
-      input.reviewStatus ||
-      input.resolution,
-    );
-    const judgmentChanged =
-      (input.verdict != null && nextVerdict !== existing.verdict) ||
-      (input.failureKind != null && nextFailureKind !== existing.failureKind);
+      // 结论与旧状态必须同时派生，避免 reviewStatus / resolution 分叉（113 §9）。
+      let nextResolution: FeedbackResolution | undefined;
+      let nextReviewStatus: string | undefined;
+      if (input.resolution) {
+        nextResolution = input.resolution;
+        nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[input.resolution];
+      } else if (input.reviewStatus) {
+        nextResolution =
+          nextVerdict === 'correct'
+            ? 'NO_ISSUE'
+            : REVIEW_STATUS_TO_RESOLUTION[input.reviewStatus];
+        nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[nextResolution];
+      } else if (input.verdict === 'correct') {
+        nextResolution = 'NO_ISSUE';
+        nextReviewStatus = 'REVIEWED';
+      } else if (input.verdict === 'incorrect' && !existing.resolution) {
+        nextResolution = 'OPEN';
+        nextReviewStatus = 'PENDING';
+      }
 
-    const updated = await this.prisma.aiAnswerFeedback.update({
-      where: { id },
-      data: {
-        ...(nextResolution
-          ? { resolution: nextResolution, reviewStatus: nextReviewStatus }
-          : {}),
-        ...(nextVerdict === 'correct'
-          ? { failureKind: null }
-          : input.failureKind
-            ? { failureKind: input.failureKind }
+      const judgmentProvided = Boolean(
+        input.verdict ||
+        input.failureKind ||
+        input.reviewStatus ||
+        input.resolution,
+      );
+      const judgmentChanged =
+        (input.verdict != null && nextVerdict !== existing.verdict) ||
+        (input.failureKind != null && nextFailureKind !== existing.failureKind);
+
+      // 认领与处理完成是正交属性：只改负责人时不碰 reviewStatus/reviewedBy。
+      // 已有人认领时必须显式 takeOver，不静默覆盖负责人。
+      const claimData: Record<string, unknown> = {};
+      if (input.ownerAdminId !== undefined) {
+        const owner = input.ownerAdminId.trim() || null;
+        if (
+          owner &&
+          existing.claimedBy &&
+          existing.claimedBy !== owner &&
+          input.takeOver !== true
+        ) {
+          throw new ConflictException(
+            'Feedback is already claimed; pass takeOver=true to take over',
+          );
+        }
+        if (owner && existing.claimedBy !== owner) {
+          claimData.claimedBy = owner;
+          claimData.claimedAt = new Date();
+        } else if (!owner && existing.claimedBy) {
+          // 释放认领，回到「未认领」而不是留下一个失效的负责人。
+          claimData.claimedBy = null;
+          claimData.claimedAt = null;
+        }
+        claimData.ownerAdminId = owner;
+      }
+
+      // 版本条件更新 = 乐观锁：并发请求只有一个 count=1，另一个拿到 409。
+      const written = await tx.aiAnswerFeedback.updateMany({
+        where: { id, version: existing.version },
+        data: {
+          ...(nextResolution
+            ? { resolution: nextResolution, reviewStatus: nextReviewStatus }
             : {}),
-        ...(input.verdict ? { verdict: input.verdict } : {}),
-        ...(input.errorType !== undefined
-          ? { errorType: input.errorType ?? null }
-          : {}),
-        ...(input.note !== undefined ? { note: input.note.slice(0, 500) } : {}),
-        ...(input.ownerAdminId !== undefined
-          ? { ownerAdminId: input.ownerAdminId }
-          : {}),
-        ...(input.linkedEvalCaseId !== undefined
-          ? { linkedEvalCaseId: input.linkedEvalCaseId }
-          : {}),
-        ...(judgmentProvided
-          ? { reviewedBy: adminId, reviewedAt: new Date() }
-          : {}),
-      },
-    });
+          ...(nextVerdict === 'correct'
+            ? { failureKind: null }
+            : input.failureKind
+              ? { failureKind: input.failureKind }
+              : {}),
+          ...(input.verdict ? { verdict: input.verdict } : {}),
+          ...(input.errorType !== undefined
+            ? { errorType: input.errorType ?? null }
+            : {}),
+          ...(input.note !== undefined
+            ? { note: input.note.slice(0, 500) }
+            : {}),
+          ...claimData,
+          ...(input.linkedEvalCaseId !== undefined
+            ? { linkedEvalCaseId: input.linkedEvalCaseId }
+            : {}),
+          ...(judgmentProvided
+            ? { reviewedBy: adminId, reviewedAt: new Date() }
+            : {}),
+          version: { increment: 1 },
+        },
+      });
+      if (written.count === 0) {
+        throw new ConflictException(
+          'Feedback changed since it was loaded; reload and retry',
+        );
+      }
 
-    // 只有判定变化才写评分；仅改备注/指派不重复写 HUMAN score。
-    if (judgmentChanged) {
-      await this.prisma.aiScore
-        .create({
+      const updated = await tx.aiAnswerFeedback.findUnique({ where: { id } });
+      if (!updated) {
+        throw new NotFoundException('Feedback not found');
+      }
+
+      // 只有判定变化才写评分；仅改备注/认领不重复写 HUMAN score。
+      // 评分写失败必须让整个分诊回滚：不能出现「状态改了、评分没写」的半截事实。
+      if (judgmentChanged) {
+        await tx.aiScore.create({
           data: {
             conversationId: updated.conversationId,
             messageId: updated.messageId ?? null,
             traceId: updated.traceId ?? null,
             source: 'HUMAN',
+            // 分诊分是 0/1 判定，与评测的 0..1 连续分不同量纲。
+            valueKind: 'binary',
             value:
               updated.verdict === 'correct'
                 ? 1
@@ -608,15 +719,280 @@ export class AiFeedbackService {
               failureKind: updated.failureKind,
             },
           },
-        })
-        .catch((err) =>
-          this.logger.warn(
-            `[feedback] score write failed for feedback ${updated.id}: ${err?.message ?? err}`,
-          ),
-        );
+        });
+      }
+
+      return updated;
+    });
+  }
+
+  /**
+   * 把一条反馈沉淀为回归用例（quality-console-trust D4）。
+   *
+   * 前端旧的「addCases + 按 question 反查」在并发下会关联错用例：
+   * 同一个反馈点两次，会生成两条题干相同的用例，再按题干回查可能拿到别人那条。
+   * 这里用「事务 + 按 feedbackId 的咨询锁 + 部分唯一索引」把语义收口到
+   * 「一条反馈最多一个回归用例」，重复调用返回已有用例。
+   *
+   * 回链（写 linkedEvalCaseId）失败时整个事务回滚，不留下没有来源的孤儿用例。
+   */
+  async createRegressionCase(
+    feedbackId: string,
+    input: { datasetId: string; expected: string; expectedVersion?: number },
+    adminId: string,
+  ): Promise<{
+    created: boolean;
+    linkedEvalCaseId: string;
+    datasetId: string;
+    feedbackId: string;
+  }> {
+    const expected = input.expected?.trim();
+    if (!expected) {
+      throw new BadRequestException(
+        'Regression case requires an expectation (expected)',
+      );
     }
 
-    return updated;
+    return this.prisma.$transaction(async (tx) => {
+      // 事务级咨询锁：同一反馈的并发请求在数据库层串行，锁随事务结束释放。
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${feedbackId}))`;
+
+      const feedback = await tx.aiAnswerFeedback.findUnique({
+        where: { id: feedbackId },
+        select: {
+          id: true,
+          conversationId: true,
+          messageId: true,
+          input: true,
+          source: true,
+          failureKind: true,
+          resolution: true,
+          linkedEvalCaseId: true,
+          version: true,
+          createdAt: true,
+        },
+      });
+      if (!feedback) {
+        throw new NotFoundException('Feedback not found');
+      }
+      if (
+        input.expectedVersion != null &&
+        input.expectedVersion !== feedback.version
+      ) {
+        throw new ConflictException(
+          'Feedback changed since it was loaded; reload and retry',
+        );
+      }
+
+      // 已有用例：幂等返回；回链缺失时补上，但不重复建用例。
+      const existing = await tx.aiEvalCase.findFirst({
+        where: { sourceFeedbackId: feedbackId },
+        select: { id: true, datasetId: true },
+      });
+      if (existing) {
+        if (
+          feedback.linkedEvalCaseId !== existing.id ||
+          feedback.resolution !== 'ADDED_TO_EVAL'
+        ) {
+          await tx.aiAnswerFeedback.update({
+            where: { id: feedbackId },
+            data: {
+              linkedEvalCaseId: existing.id,
+              resolution: 'ADDED_TO_EVAL',
+              reviewStatus: 'REVIEWED',
+              reviewedBy: adminId,
+              reviewedAt: new Date(),
+              version: { increment: 1 },
+            },
+          });
+        }
+        return {
+          created: false,
+          linkedEvalCaseId: existing.id,
+          datasetId: existing.datasetId,
+          feedbackId,
+        };
+      }
+
+      const dataset = await tx.aiEvalDataset.findUnique({
+        where: { id: input.datasetId },
+        select: { id: true, name: true },
+      });
+      if (!dataset) {
+        throw new NotFoundException('Eval dataset not found');
+      }
+      if (
+        typeof dataset.name === 'string' &&
+        dataset.name.trim().toLowerCase().startsWith('e2e:')
+      ) {
+        throw new BadRequestException(
+          'External harness datasets are read-only; cannot add regression case',
+        );
+      }
+
+      const question = feedback.input?.trim();
+      if (!question) {
+        throw new BadRequestException(
+          'Feedback has no user question; cannot build a regression case',
+        );
+      }
+      const answer = await this.resolveFeedbackAnswer(tx, feedback);
+
+      const created = await tx.aiEvalCase.create({
+        data: {
+          datasetId: dataset.id,
+          question,
+          answer: answer ?? '',
+          expect: { mustMention: [expected] } as any,
+          expected: expected as any,
+          metadata: { sourceFeedbackId: feedbackId } as any,
+          sourceFeedbackId: feedbackId,
+          source: 'feedback',
+          tags: ['from-feedback', feedback.failureKind ?? 'UNKNOWN'] as any,
+        },
+        select: { id: true, datasetId: true },
+      });
+
+      // 版本条件更新：读取后若有人先改了这条反馈，回链落空 → 409 并回滚建用例。
+      const written = await tx.aiAnswerFeedback.updateMany({
+        where: { id: feedbackId, version: feedback.version },
+        data: {
+          linkedEvalCaseId: created.id,
+          resolution: 'ADDED_TO_EVAL',
+          reviewStatus: 'REVIEWED',
+          reviewedBy: adminId,
+          reviewedAt: new Date(),
+          version: { increment: 1 },
+        },
+      });
+      if (written.count === 0) {
+        throw new ConflictException(
+          'Feedback changed while linking the regression case; retry',
+        );
+      }
+
+      return {
+        created: true,
+        linkedEvalCaseId: created.id,
+        datasetId: created.datasetId,
+        feedbackId,
+      };
+    });
+  }
+
+  /**
+   * 批量排除服务故障（quality-console-trust D5）。
+   *
+   * 前端过去并发发 20 个 PATCH：部分失败时只剩一个总数，运营不知道哪条没排掉。
+   * 这里逐条校验并返回逐条结果；模型答错不在批量范围，永不误伤。
+   * 单次上限 50，与前端当前页大小对齐。
+   */
+  async batchExclude(
+    ids: string[],
+    adminId: string,
+  ): Promise<{
+    succeeded: string[];
+    skipped: Array<{ id: string; reason: string }>;
+  }> {
+    const unique = Array.from(new Set(ids));
+    if (unique.length > 50) {
+      throw new BadRequestException(
+        'At most 50 feedback ids can be excluded in one batch',
+      );
+    }
+
+    const rows = await this.prisma.aiAnswerFeedback.findMany({
+      where: { id: { in: unique } },
+      select: {
+        id: true,
+        failureKind: true,
+        resolution: true,
+        reviewStatus: true,
+      },
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    const succeeded: string[] = [];
+    const skipped: Array<{ id: string; reason: string }> = [];
+    for (const id of unique) {
+      const row = byId.get(id);
+      if (!row) {
+        skipped.push({ id, reason: 'NOT_FOUND' });
+        continue;
+      }
+      if (row.failureKind !== 'SERVICE_ERROR') {
+        skipped.push({
+          id,
+          reason:
+            row.failureKind === 'MODEL_ERROR'
+              ? 'MODEL_ERROR'
+              : 'NOT_SERVICE_ERROR',
+        });
+        continue;
+      }
+      if (row.resolution === 'EXCLUDED' || row.reviewStatus === 'IGNORED') {
+        skipped.push({ id, reason: 'ALREADY_EXCLUDED' });
+        continue;
+      }
+      try {
+        await this.updateTriage(
+          id,
+          { reviewStatus: 'IGNORED', resolution: 'EXCLUDED' },
+          adminId,
+        );
+        succeeded.push(id);
+      } catch (err) {
+        skipped.push({
+          id,
+          reason:
+            err instanceof ConflictException
+              ? 'VERSION_CONFLICT'
+              : 'UPDATE_FAILED',
+        });
+      }
+    }
+
+    this.logger.log(
+      `[Feedback] batch-exclude admin=${adminId} succeeded=${succeeded.length} skipped=${skipped.length}`,
+    );
+    return { succeeded, skipped };
+  }
+
+  /**
+   * 回归用例里的答案取被评价的 AI 消息；显式反馈按 messageId 精确取，
+   * 隐式信号回退到该反馈时间点前最近一条 AI 消息。取不到就留空，
+   * 由运营在评测集里补，不能让「找不到答案」阻断沉淀。
+   */
+  private async resolveFeedbackAnswer(
+    tx: {
+      chatMessage: {
+        findUnique: (args: any) => Promise<any>;
+        findFirst: (args: any) => Promise<any>;
+      };
+    },
+    feedback: {
+      conversationId: string;
+      messageId: string | null;
+      createdAt: Date;
+    },
+  ): Promise<string | null> {
+    if (feedback.messageId) {
+      const message = await tx.chatMessage.findUnique({
+        where: { id: feedback.messageId },
+        select: { content: true, source: true },
+      });
+      if (message?.source === 'ai') return message.content ?? null;
+    }
+    const latest = await tx.chatMessage.findFirst({
+      where: {
+        conversationId: feedback.conversationId,
+        source: 'ai',
+        createdAt: { lte: feedback.createdAt },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { content: true },
+    });
+    return latest?.content ?? null;
   }
 }
 

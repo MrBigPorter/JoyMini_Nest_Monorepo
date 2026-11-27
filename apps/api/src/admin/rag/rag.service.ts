@@ -17,6 +17,75 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 import { KnowledgeDomainService } from './knowledge-domain.service';
 import { sha256 } from '@api/common/crypto.util';
+import { Prisma } from '@prisma/client';
+
+/** 解析质量四项检查的单项快照（与 RagQualityService.check 的 checks 同形）。 */
+export interface ParseCheckEntry {
+  passed: boolean;
+  detail?: string;
+  rate?: number;
+}
+
+export type ParseChecksSnapshot = Record<
+  'truncation' | 'retentionRate' | 'encoding' | 'emptyContent',
+  ParseCheckEntry
+>;
+
+export const PARSE_CHECK_KEYS = [
+  'truncation',
+  'retentionRate',
+  'encoding',
+  'emptyContent',
+] as const;
+
+export interface QualityStats {
+  total: number;
+  needReview: number;
+  flagged: number;
+  byScore: {
+    excellent: number;
+    good: number;
+    fair: number;
+    suspicious: number;
+  };
+  /** 解析质量口径：通过/未通过只统计有明细快照的文档，其余如实标为未采集。 */
+  parseQuality: {
+    collected: number;
+    passed: number;
+    failed: number;
+    notCollected: number;
+  };
+  /** 有效性（检索命中与引用正确）尚未采集，不伪造 0 或百分比。 */
+  effectiveness: {
+    status: 'pendingMetric';
+    collected: false;
+    note: string;
+  };
+  recentFlags: Array<{
+    documentId: string;
+    title: string;
+    score: number | null;
+    flags: string | null;
+    parsedAt: Date;
+  }>;
+  /**
+   * 最近更新文档：不论有没有质量标记都列出来。
+   * 更新正文后标记会被重算（多半清空），只按「有标记」筛会让刚改过的文档
+   * 从页面上消失，正好错过该看新旧分块的时候。
+   */
+  recentUpdated: Array<{
+    documentId: string;
+    title: string;
+    score: number | null;
+    flags: string | null;
+    /** 生效版本（正在对外服务） */
+    activeVersion: number;
+    /** 最新写入版本（可能尚未激活） */
+    version: number;
+    parseChecks: ParseChecksSnapshot | null;
+    updatedAt: Date;
+  }>;
+}
 
 @Injectable()
 export class RagService {
@@ -37,6 +106,7 @@ export class RagService {
   private qualityFields(content: string): {
     qualityScore: number;
     qualityFlags: string | null;
+    parseChecks: Prisma.InputJsonValue;
   } {
     const result = this.ragQualityService.check(
       content,
@@ -45,6 +115,8 @@ export class RagService {
     return {
       qualityScore: result.overallScore,
       qualityFlags: result.flags.length > 0 ? result.flags.join(',') : null,
+      // 明细快照随分数一起落库，页面才能展示四项检查而非只有一个总分。
+      parseChecks: result.checks as unknown as Prisma.InputJsonValue,
     };
   }
 
@@ -180,37 +252,7 @@ export class RagService {
    * 获取质量统计数据
    * 返回按分数段的文档分布 + 最近的问题标记
    */
-  async getQualityStats(): Promise<{
-    total: number;
-    needReview: number;
-    flagged: number;
-    byScore: {
-      excellent: number;
-      good: number;
-      fair: number;
-      suspicious: number;
-    };
-    recentFlags: Array<{
-      documentId: string;
-      title: string;
-      score: number | null;
-      flags: string | null;
-      parsedAt: Date;
-    }>;
-    /**
-     * 最近更新文档：不论有没有质量标记都列出来。
-     * 更新正文后标记会被重算（多半清空），只按「有标记」筛会让刚改过的文档
-     * 从页面上消失，正好错过该看新旧分块的时候。
-     */
-    recentUpdated: Array<{
-      documentId: string;
-      title: string;
-      score: number | null;
-      flags: string | null;
-      activeVersion: number;
-      updatedAt: Date;
-    }>;
-  }> {
+  async getQualityStats(): Promise<QualityStats> {
     const docs = await this.prisma.knowledgeDocument.findMany({
       where: { isActive: true },
       select: {
@@ -218,9 +260,11 @@ export class RagService {
         title: true,
         qualityScore: true,
         qualityFlags: true,
+        parseChecks: true,
         createdAt: true,
         updatedAt: true,
         activeVersion: true,
+        version: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -237,6 +281,10 @@ export class RagService {
     let flagged = 0;
     let flaggedHighScore = 0;
 
+    // 解析质量只统计有四项检查明细快照的文档：没有快照就如实算「未采集」，
+    // 不能拿 qualityScore 反推 passed，也不能把缺失当成 0。
+    const parseQuality = { collected: 0, passed: 0, failed: 0, notCollected: 0 };
+
     for (const doc of docs) {
       const score = doc.qualityScore;
 
@@ -244,6 +292,18 @@ export class RagService {
         flagged += 1;
         if (score === null || score === undefined || score >= 70) {
           flaggedHighScore += 1;
+        }
+      }
+
+      const snapshot = this.parseChecksOf(doc.parseChecks);
+      if (snapshot === null) {
+        parseQuality.notCollected += 1;
+      } else {
+        parseQuality.collected += 1;
+        if (PARSE_CHECK_KEYS.every((key) => snapshot[key].passed)) {
+          parseQuality.passed += 1;
+        } else {
+          parseQuality.failed += 1;
         }
       }
 
@@ -278,10 +338,46 @@ export class RagService {
         score: doc.qualityScore,
         flags: doc.qualityFlags,
         activeVersion: doc.activeVersion,
+        version: doc.version,
+        parseChecks: this.parseChecksOf(doc.parseChecks),
         updatedAt: doc.updatedAt,
       }));
 
-    return { total, needReview, flagged, byScore, recentFlags, recentUpdated };
+    return {
+      total,
+      needReview,
+      flagged,
+      byScore,
+      parseQuality,
+      // 有效性（检索命中、引用正确）还没有采集链路，明确标出来而不是给个假 0 分。
+      effectiveness: {
+        status: 'pendingMetric',
+        collected: false,
+        note: '检索命中与引用正确率尚未采集，不参与评分。',
+      },
+      recentFlags,
+      recentUpdated,
+    };
+  }
+
+  /**
+   * 把库里的 JSONB 快照还原成四项检查；缺任何一项都算未采集（null）。
+   * 旧数据没有这一列，页面据此显示「未采集」而不是 0。
+   */
+  private parseChecksOf(raw: Prisma.JsonValue | null): ParseChecksSnapshot | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const record = raw as Record<string, unknown>;
+    const snapshot = {} as ParseChecksSnapshot;
+    for (const key of PARSE_CHECK_KEYS) {
+      const entry = record[key];
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return null;
+      }
+      const passed = (entry as { passed?: unknown }).passed;
+      if (typeof passed !== 'boolean') return null;
+      snapshot[key] = entry as ParseCheckEntry;
+    }
+    return snapshot;
   }
 
   // ==================== Chunk operations ====================
@@ -301,6 +397,76 @@ export class RagService {
         updatedAt: true,
       },
     });
+  }
+
+  /**
+   * 新旧版本分块差异：按两版本 chunkIndex 并集逐位比对。
+   * 只做诊断（新增/删除/修改/未变），不判断内容对错。
+   */
+  async getChunksDiff(documentId: string) {
+    await this.getById(documentId);
+    const chunks = await this.prisma.documentChunk.findMany({
+      where: { documentId },
+      orderBy: [{ documentVersion: 'desc' }, { chunkIndex: 'asc' }],
+      select: {
+        id: true,
+        chunkIndex: true,
+        content: true,
+        tokenCount: true,
+        documentVersion: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const versions = [...new Set(chunks.map((chunk) => chunk.documentVersion))]
+      .sort((a, b) => b - a);
+    const currentVersion = versions[0] ?? null;
+    const previousVersion = versions[1] ?? null;
+    const empty = {
+      added: 0,
+      removed: 0,
+      modified: 0,
+      unchanged: 0,
+    };
+    if (currentVersion === null || previousVersion === null) {
+      return {
+        currentVersion,
+        previousVersion,
+        changes: [],
+        summary: empty,
+      };
+    }
+
+    const byVersion = new Map<number, Map<number, (typeof chunks)[number]>>();
+    for (const chunk of chunks) {
+      if (!byVersion.has(chunk.documentVersion)) {
+        byVersion.set(chunk.documentVersion, new Map());
+      }
+      byVersion.get(chunk.documentVersion)!.set(chunk.chunkIndex, chunk);
+    }
+    const current = byVersion.get(currentVersion)!;
+    const previous = byVersion.get(previousVersion)!;
+    const indexes = [
+      ...new Set([...current.keys(), ...previous.keys()]),
+    ].sort((a, b) => a - b);
+
+    const summary = { ...empty };
+    const changes = indexes.map((chunkIndex) => {
+      const before = previous.get(chunkIndex) ?? null;
+      const after = current.get(chunkIndex) ?? null;
+      const change = !before
+        ? 'added'
+        : !after
+          ? 'removed'
+          : before.content === after.content
+            ? 'unchanged'
+            : 'modified';
+      summary[change] += 1;
+      return { chunkIndex, change, previous: before, current: after };
+    });
+
+    return { currentVersion, previousVersion, changes, summary };
   }
 
   /**

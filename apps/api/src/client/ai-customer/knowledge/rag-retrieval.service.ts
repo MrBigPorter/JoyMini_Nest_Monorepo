@@ -102,6 +102,20 @@ export interface RetrievalDebug {
   topVectorScore: number;
   /** 是否执行了 rerank */
   rerank: boolean;
+  /**
+   * 相关性门卫结论。早退（空 query / 无候选）时门卫没跑，为 null——
+   * 调参时不能把「没跑」误读成「全部放行」。
+   */
+  relevanceGate: {
+    applied: boolean;
+    /** 词面锚点阈值 */
+    threshold: number;
+    /** 通用地板分 */
+    floor: number;
+    /** 被拦掉的候选数（>0 即发生拦截） */
+    blocked: number;
+    reason: string;
+  } | null;
 }
 
 export interface RetrievalOptions {
@@ -450,6 +464,13 @@ export class RagRetrievalService {
         candidates,
         topScore,
         useRerank,
+        {
+          applied: gate.applied,
+          threshold: gateThreshold,
+          floor: gate.floor,
+          blocked: gate.blocked,
+          reason: gate.reason,
+        },
       ),
     };
   }
@@ -464,6 +485,7 @@ export class RagRetrievalService {
     candidates: number,
     topScoreBeforeRerank: number,
     rerank: boolean,
+    relevanceGate: RetrievalDebug['relevanceGate'] = null,
   ): RetrievalDebug {
     const layer = (chunks: RetrievedChunk[]) => ({
       count: chunks.length,
@@ -485,6 +507,7 @@ export class RagRetrievalService {
         vectorResults.reduce((max, r) => Math.max(max, r.score), 0).toFixed(4),
       ),
       rerank,
+      relevanceGate,
     };
   }
 

@@ -1352,6 +1352,11 @@ export interface AiFeedbackItem {
   failureKind?: string | null;
   resolution?: string | null;
   ownerAdminId?: string | null;
+  /** 认领者（与 ownerAdminId 同步，CAS 认领用） */
+  claimedBy?: string | null;
+  claimedAt?: string | null;
+  /** 乐观并发版本；分诊/认领时回传，服务端不一致返回 409 */
+  version?: number;
   linkedEvalCaseId?: string | null;
   traceId?: string | null;
   transferReason?: string | null;
@@ -1446,6 +1451,8 @@ export interface AiFeedbackSummary {
   signals?: number;
   byFailureKind: Array<{ failureKind: string | null; count: number }>;
   byResolution: Array<{ resolution: string | null; count: number }>;
+  /** 分诊状态计数；旧后端没有该字段时按未采集处理 */
+  byReviewStatus?: Array<{ status: string | null; count: number }>;
 }
 
 export interface QueryAiFeedbackParams {
@@ -1851,6 +1858,25 @@ export interface DocumentChunk {
   documentVersion: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DocumentChunkDiffEntry {
+  chunkIndex: number;
+  change: 'added' | 'removed' | 'modified' | 'unchanged';
+  previous: DocumentChunk | null;
+  current: DocumentChunk | null;
+}
+
+export interface DocumentChunkDiff {
+  currentVersion: number | null;
+  previousVersion: number | null;
+  changes: DocumentChunkDiffEntry[];
+  summary: {
+    added: number;
+    removed: number;
+    modified: number;
+    unchanged: number;
+  };
 }
 
 export interface CreateKnowledgeDocPayload {
@@ -2344,6 +2370,10 @@ export interface EvalDataset {
   createdAt: string;
   updatedAt: string;
   _count?: { cases: number; runs: number };
+  /** 数据集详情分页：cases 只承载当前页，总数看这里 */
+  casesTotal?: number;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface EvalCase {
@@ -2419,12 +2449,149 @@ export interface RunEvidence {
   checks: RunEvidenceCheck[];
 }
 
+/** 单用例一次运行的判定归一：未判定（判官无结论）不算失败。 */
+export type EvalCaseOutcome = 'pass' | 'fail' | 'undecided';
+
+export interface EvalCaseHistoryPoint {
+  runId: string;
+  status: string;
+  mode: string | null;
+  scope: string | null;
+  isBaseline: boolean | null;
+  startedAt: string;
+  verdict: string | null;
+  answerVerdict: string | null;
+  judgeErrorKind: string | null;
+  score: number | null;
+  answerScore: number | null;
+  outcome: EvalCaseOutcome;
+}
+
+export interface EvalCaseHistory {
+  caseId: string;
+  datasetId: string;
+  case: {
+    id: string;
+    question: string;
+    tags: string[] | null;
+    sourceFeedbackId: string | null;
+  };
+  timeline: EvalCaseHistoryPoint[];
+}
+
+/** 两次运行的描述性差异分类；显著性由 compare.py 负责，页面不得声称。 */
+export type EvalDiffClass =
+  | 'newFailure'
+  | 'fixed'
+  | 'regressed'
+  | 'stillFailing';
+
+export interface EvalDiffItem {
+  caseId: string;
+  question: string;
+  baselineVerdict: string | null;
+  currentVerdict: string | null;
+}
+
+/** 差异接口回传的运行元数据快照；缺失字段为 null，不是空字符串。 */
+export interface EvalRunDiffMeta {
+  id: string;
+  mode: string | null;
+  status: string | null;
+  scope: string | null;
+  metricFamily: string;
+  metricSpecVersion: string | null;
+  judgeSpecVersion: string | null;
+  datasetHash: string | null;
+  startedAt: string | null;
+}
+
+/**
+ * 跨运行抖动：只在两次都拿到布尔结论的用例上统计。
+ * `flipRate` 为 0..1 小数；样本为 0 时为 null，页面显示「未记录」而非 0。
+ */
+export interface EvalRunDrift {
+  sample: number;
+  flips: number;
+  flipRate: number | null;
+  direction: { improved: number; worsened: number };
+  rawVerdictChanges: Array<{
+    caseId: string;
+    baselineVerdict: string | null;
+    currentVerdict: string | null;
+  }>;
+  lowSample: boolean;
+  sameInput: boolean;
+  judgeNondeterminismLikely: boolean;
+}
+
+export interface EvalRunDiff {
+  runId: string;
+  baselineRunId: string;
+  metricFamily: string;
+  /** 旧后端没有该字段；新后端总是带两端元数据。 */
+  runs?: { current: EvalRunDiffMeta; baseline: EvalRunDiffMeta };
+  /** 旧后端缺少该字段时按可比处理（当时没有不可比判定）。 */
+  comparable?: boolean;
+  incomparableReasons?: string[];
+  /** 溯源字段缺失只提示，不阻断比较。 */
+  warnings?: string[];
+  comparability: {
+    compared: number;
+    undecided: number;
+    missingBaseline: number;
+  };
+  /** 旧后端或不可比时为 null。 */
+  drift?: EvalRunDrift | null;
+  /** 不可比时两者都是 null——页面不得渲染差异数字。 */
+  counts: Record<EvalDiffClass, number> | null;
+  classes: Record<EvalDiffClass, EvalDiffItem[]> | null;
+  note: string;
+}
+
+export interface RunCalibrationDisagreement {
+  caseId: string;
+  question: string | null;
+  judgeVerdict: string;
+  humanCorrectness: string;
+  judgeReason: string | null;
+  humanComment: string;
+  labelerId: string;
+}
+
+interface RunCalibrationBase {
+  runId: string;
+  datasetId: string;
+  metricFamily: string;
+  threshold: number;
+  /** 可比对的人工标注数（判官有结论） */
+  n: number;
+  /** 未纳入比对：预标注、判官失败、unsafe/abstain 等 */
+  excluded: number;
+  disagreements: RunCalibrationDisagreement[];
+  note: string;
+}
+
+/**
+ * 判官校准结果。样本不足时没有 agreementRate 字段——
+ * 页面不能把「样本不足」渲染成 0% 或任何百分比。
+ */
+export type RunCalibration =
+  | (RunCalibrationBase & {
+      status: 'ok';
+      agreements: number;
+      agreementRate: number;
+    })
+  | (RunCalibrationBase & { status: 'insufficientSample' });
+
 export interface EvalRun {
   id: string;
   datasetId: string;
   status: string;
   /** EXTERNAL：结果由 tools/eval/e2e harness 写入，不属于管理端复跑 */
   mode?: 'STORED' | 'LIVE' | 'EXTERNAL';
+  /** 运行范围：full 全量 / subset 受影响子集（子集不得登记基线） */
+  scope?: 'full' | 'subset' | string | null;
   baselineRunId?: string | null;
   createdBy: string | null;
   datasetSnapshot?: Record<string, any> | null;
@@ -2432,10 +2599,20 @@ export interface EvalRun {
   gateMode?: string | null;
   judgeSpecVersion?: string | null;
   metricSpecVersion?: string | null;
+  /** 内部运行的指标族（verdict3）；EXTERNAL 为 answer_accuracy-v3（见 summary） */
+  metricFamily?: string | null;
+  /** 内部运行的单条判官采样次数（当前固定 1，不能冒充多次采样的基线） */
+  judgeSampleCount?: number | null;
+  /** run 级执行失败类别（如 live_call）；与 unsolved / judge_error 分账 */
+  executionErrorKind?: string | null;
   isBaseline?: boolean;
   summary: Record<string, any> | null;
   startedAt: string;
   finishedAt: string | null;
+  /** 运行结果分页：results 只承载当前页 */
+  resultsTotal?: number;
+  page?: number;
+  pageSize?: number;
   results?: Array<{
     id: string;
     /** 任务成功率；EXTERNAL run 为 null */
@@ -2496,12 +2673,12 @@ export interface AiSpanRow {
 
 export interface AiScoreRow {
   id: string;
-  configId: string | null;
   traceId: string | null;
-  spanId: string | null;
   conversationId: string | null;
   messageId: string | null;
   source: string;
+  /** 量纲：binary=0/1 判定，graded=0..1 连续分；展示分数前先看这里 */
+  valueKind: 'binary' | 'graded';
   value: number | null;
   stringValue: string | null;
   comment: string | null;
@@ -2661,8 +2838,6 @@ export interface AiEvalReportSummary {
 
 export interface AiAnnotationLabels {
   correctness: 'solved' | 'partial' | 'unsolved' | 'unsafe' | 'abstain' | null;
-  helpfulness: number | null;
-  tone_safety: number | null;
   comment: string;
 }
 
@@ -2677,4 +2852,16 @@ export interface AiAnnotationRow {
   answer: string;
   status: 'pending' | 'done';
   labels: AiAnnotationLabels;
+  labelerId: string;
+  /** 当前展示的标签来自人工还是预标注；null 表示还没标注。 */
+  labelSource: 'human' | 'prelabel' | null;
+  confidence: number | null;
+  guidelineVersion: string | null;
+  /** 预标注建议单独保留，人工改判后仍可追溯。 */
+  prelabel: {
+    correctness: AiAnnotationLabels['correctness'];
+    confidence: number | null;
+    guidelineVersion: string;
+  } | null;
+  updatedAt: string | null;
 }

@@ -1,11 +1,12 @@
 {
   "permissions": {
     "deny": [
-      "Read(./**/.env)",
       "Read(./**/.env.local)",
       "Read(./**/.env.production)",
       "Read(./**/.env.development)",
-      "Read(./deploy/.env.*)",
+      "Read(./deploy/.env)",
+      "Read(./deploy/.env.dev)",
+      "Read(./deploy/.env.prod)",
       "Bash(rm -rf:*)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",

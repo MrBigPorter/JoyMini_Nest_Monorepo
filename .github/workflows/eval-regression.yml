@@ -35,6 +35,19 @@ on:
         description: "要跑的分支或 commit（默认当前触发分支）"
         required: false
         type: string
+      kinds:
+        description: "冒烟用：限定用例类别（knowledge,multi,action,read,boundary；留空 = 全部）"
+        required: false
+        type: string
+      limit:
+        description: "冒烟用：知识题条数（0 = 全部）"
+        required: false
+        type: string
+        default: "0"
+      account_count:
+        description: "冒烟用：账号数（留空 = subset 4 / full 12）"
+        required: false
+        type: string
 
 concurrency:
   # 同一时间只允许一个回归运行，避免账号池与限流互相干扰
@@ -98,7 +111,9 @@ jobs:
           E2E_BASE_RUN_ID: ${{ inputs.base_run_id }}
           # 子集只跑 knowledge/multi（config 按 scope 自动收窄），账号只需 4 个，
           # 避免每次手动触发都在 QA 上批量注册账号。
-          E2E_ACCOUNT_COUNT: ${{ inputs.scope == 'subset' && '4' || '12' }}
+          E2E_ACCOUNT_COUNT: ${{ inputs.account_count || (inputs.scope == 'subset' && '4' || '12') }}
+          E2E_KINDS: ${{ inputs.kinds }}
+          E2E_LIMIT: ${{ inputs.limit }}
           # 管理员令牌二选一：E2E_ADMIN_TOKEN（会过期）或测试账号凭据
           # （每次运行现调 test-login 换 token，推荐后者）。
           E2E_ADMIN_TOKEN: ${{ secrets.E2E_ADMIN_TOKEN }}

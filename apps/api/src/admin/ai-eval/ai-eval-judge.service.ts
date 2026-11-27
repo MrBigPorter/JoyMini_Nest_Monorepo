@@ -8,10 +8,31 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { firstApiKey, parseApiKeys } from '@api/common/utils/api-keys';
+import { captureJudgeRawOutput } from '@api/common/ai/judge-raw-output';
+import {
+  rawOutputText,
+  structuredOutputEnabled,
+  TASK_JUDGE_SCHEMA,
+} from '@api/common/ai/judge-structured-output';
+import {
+  LlmUsageCollector,
+  LlmUsageSnapshot,
+} from '@api/common/ai/usage-collector';
 import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
+import { classifyJudgeError } from '@api/admin/rag/judge-input-spec';
+import { JudgeErrorKind } from './dto/external-eval.dto';
+import {
+  JUDGE_DEFAULT_BASE_URL,
+  JUDGE_DEFAULT_MODEL,
+  JUDGE_PROMPT_HASH,
+  JUDGE_SAMPLE_COUNT,
+  JUDGE_SPEC_VERSION,
+  JUDGE_SYSTEM_PROMPT,
+  JudgeSpecSnapshot,
+} from './judge-spec';
 
 export type TaskVerdict = 'solved' | 'partial' | 'unsolved';
 
@@ -42,18 +63,58 @@ export interface TaskJudgeResult {
   judgeVendor: string;
   /** judge 是否与被测模型（DeepSeek）不同厂商 */
   vendorIndependent: boolean;
+  /** 截断后的原始输出，供留痕复盘。 */
+  rawOutput?: string | null;
+  rawTruncated?: boolean;
+  /** 本次判定（含密钥轮换的失败尝试）的真实用量。 */
+  usage?: LlmUsageSnapshot;
 }
 
-const JUDGE_SYSTEM_PROMPT = `你是 AI 客服任务完成度的严格评审员。
-只依据给出的「用户问题」「AI 回答」「期望任务」「确认卡片」判断，不引入外部知识。
+/**
+ * 判官没能给出判定（格式不可解析等）。调用方据此记 `judge_error`，
+ * 绝不能把它当成 `unsolved` —— 那会把判官故障算进回答错误率。
+ *
+ * 原始输出挂在异常字段上而不是拼进 message：message 会进日志与
+ * 错误响应，原文可能含个人信息。
+ */
+export class JudgeFailureError extends Error {
+  constructor(
+    readonly kind: JudgeErrorKind,
+    message: string,
+    readonly rawOutput: string | null = null,
+    readonly rawTruncated = false,
+  ) {
+    super(message);
+    this.name = 'JudgeFailureError';
+  }
+}
 
-判定标准：
-- solved：回答了问题；expectTask.mustMention 中的关键信息全部出现；若期望确认动作，确认卡片存在且动作匹配；写操作没有被真实执行。
-- partial：方向相关，但缺少关键信息、答案不完整或格式不对。
-- unsolved：答非所问、拒绝回答、编造信息，或写操作被直接执行（没有确认卡片）。
+export interface ParsedTaskVerdict {
+  verdict: TaskVerdict;
+  score: number;
+  reason: string;
+}
 
-只输出一个 JSON 对象，不要 markdown：
-{"verdict":"solved|partial|unsolved","score":0.0-1.0,"reason":"不超过 80 字的中文理由"}`;
+/**
+ * 把已解析成对象的结果收敛到统一形状；文本解析与结构化解析共用。
+ */
+export function normalizeTaskVerdict(value: unknown): ParsedTaskVerdict | null {
+  if (!value || typeof value !== 'object') return null;
+  const parsed = value as Record<string, unknown>;
+  if (
+    parsed.verdict !== 'solved' &&
+    parsed.verdict !== 'partial' &&
+    parsed.verdict !== 'unsolved'
+  ) {
+    return null;
+  }
+  const score = Number(parsed.score);
+  return {
+    verdict: parsed.verdict,
+    score: Number.isFinite(score) ? Math.min(1, Math.max(0, score)) : 0,
+    reason: typeof parsed.reason === 'string' ? parsed.reason.slice(0, 200) : '',
+  };
+}
 
 /** 从模型输出里解析 JSON；容忍 ```json 代码块。解析失败返回 null。 */
 export function parseJudgeOutput(
@@ -67,17 +128,7 @@ export function parseJudgeOutput(
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '');
   try {
-    const parsed = JSON.parse(text);
-    if (!['solved', 'partial', 'unsolved'].includes(parsed.verdict)) {
-      return null;
-    }
-    const score = Number(parsed.score);
-    return {
-      verdict: parsed.verdict,
-      score: Number.isFinite(score) ? Math.min(1, Math.max(0, score)) : 0,
-      reason:
-        typeof parsed.reason === 'string' ? parsed.reason.slice(0, 200) : '',
-    };
+    return normalizeTaskVerdict(JSON.parse(text));
   } catch {
     return null;
   }
@@ -141,15 +192,30 @@ export function resolveJudgeConfig(
     type: 'online',
     model: configService.get<string>(
       'AI_EVAL_JUDGE_MODEL',
-      'llama-3.3-70b-versatile',
+      JUDGE_DEFAULT_MODEL,
     ),
     baseURL: configService.get<string>(
       'AI_EVAL_JUDGE_BASE_URL',
-      'https://api.groq.com/openai/v1',
+      JUDGE_DEFAULT_BASE_URL,
     ),
     apiKey: firstApiKey(configService.get<string>('GROQ_API_KEY')),
   };
 }
+
+/** judge 链调用可接收的回调配置（用量采集挂载点）。 */
+interface JudgeInvokeConfig {
+  callbacks?: unknown[];
+}
+
+type StructuredJudgeChain = {
+  invoke(
+    input: { input: string },
+    config?: JudgeInvokeConfig,
+  ): Promise<{
+    raw?: unknown;
+    parsed?: unknown;
+  }>;
+};
 
 @Injectable()
 export class AiEvalJudgeService {
@@ -160,6 +226,7 @@ export class AiEvalJudgeService {
   private readonly config: LlmProviderConfig;
   private readonly apiKeys: string[];
   private readonly prompt: ChatPromptTemplate;
+  private readonly structuredEnabled: boolean;
 
   constructor(private readonly configService: ConfigService) {
     const config = resolveJudgeConfig(configService);
@@ -191,6 +258,9 @@ export class AiEvalJudgeService {
       new SystemMessage(JUDGE_SYSTEM_PROMPT),
       ['human', '{input}'],
     ]);
+    this.structuredEnabled = structuredOutputEnabled(
+      this.configService.get<string>('EVAL_JUDGE_STRUCTURED_OUTPUT'),
+    );
   }
 
   /** 每次调用单独建链，便于按 key 轮换。 */
@@ -198,6 +268,68 @@ export class AiEvalJudgeService {
     return this.prompt
       .pipe(createLLM({ ...this.config, apiKey }, { temperature: 0 }))
       .pipe(new StringOutputParser());
+  }
+
+  /**
+   * 结构化链同样按 key 构建：解码约束不能成为绕开密钥轮换的旁路。
+   * 必须显式 jsonMode（非 gpt 模型默认 jsonSchema，DeepSeek 实测 400）。
+   */
+  private buildStructuredChain(apiKey: string): StructuredJudgeChain {
+    return this.prompt.pipe(
+      createLLM({ ...this.config, apiKey }, { temperature: 0 }).withStructuredOutput(
+        TASK_JUDGE_SCHEMA,
+        { method: 'jsonMode', includeRaw: true },
+      ),
+    ) as unknown as StructuredJudgeChain;
+  }
+
+  /**
+   * 同一次尝试内取判官输出：结构化优先，提供方拒绝时用同一密钥降级文本链。
+   * 换密钥是「调用失败」的策略，不用于解码降级。
+   */
+  private async invokeJudge(
+    apiKey: string,
+    input: string,
+    usage: LlmUsageCollector,
+  ): Promise<{ raw: string; parsed: ParsedTaskVerdict | null }> {
+    const callbacks = [usage];
+    if (this.structuredEnabled) {
+      try {
+        const result = await this.buildStructuredChain(apiKey).invoke(
+          { input },
+          { callbacks },
+        );
+        const raw = rawOutputText(result?.raw);
+        const parsed = normalizeTaskVerdict(result?.parsed);
+        if (!parsed) {
+          this.logger.warn(
+            '[task-judge] structured output rejected by schema, falling back to text parse',
+          );
+        }
+        return { raw, parsed };
+      } catch (err: any) {
+        this.logger.warn(
+          `[task-judge] structured judge call failed, falling back to text: ${err?.message ?? err}`,
+        );
+      }
+    }
+
+    const raw = await this.buildChain(apiKey).invoke({ input }, { callbacks });
+    return { raw, parsed: null };
+  }
+
+  /**
+   * 本次进程实际使用的判官身份（模型/供应商来自运行时配置，版本与 prompt
+   * 指纹来自 judge-spec）。run 启动时快照这五项，历史数字才可归因。
+   */
+  spec(): JudgeSpecSnapshot {
+    return {
+      version: JUDGE_SPEC_VERSION,
+      promptHash: JUDGE_PROMPT_HASH,
+      model: this.judgeModel,
+      vendor: this.judgeVendor,
+      sampleCount: JUDGE_SAMPLE_COUNT,
+    };
   }
 
   async judge(input: TaskJudgeInput): Promise<TaskJudgeResult> {
@@ -215,31 +347,39 @@ export class AiEvalJudgeService {
       pendingConfirm: input.pendingConfirm ?? null,
     };
 
+    // 一次 judge() 共享一个 collector：密钥轮换的每次尝试都计入调用数。
+    const usage = new LlmUsageCollector('judge');
     let lastError: unknown = null;
     for (let index = 0; index < this.apiKeys.length; index += 1) {
       try {
-        const raw = await this.buildChain(this.apiKeys[index]).invoke({
-          input: JSON.stringify(payload),
-        });
-        const parsed = parseJudgeOutput(String(raw));
-        if (!parsed) {
+        const { raw, parsed } = await this.invokeJudge(
+          this.apiKeys[index],
+          JSON.stringify(payload),
+          usage,
+        );
+        const captured = captureJudgeRawOutput(raw);
+        const verdict = parsed ?? parseJudgeOutput(String(raw));
+        if (!verdict) {
           this.logger.warn('[task-judge] judge output is not valid JSON');
-          return {
-            verdict: 'unsolved',
-            score: 0,
-            reason: 'judge_parse_failed',
-            judgeModel,
-            judgeVendor: this.judgeVendor,
-            vendorIndependent: this.vendorIndependent,
-          };
+          // 格式错误换 key 也不会变好：立即抛给调用方记 judge_error(output_format)，
+          // 而不是返回 unsolved 把判官故障混进回答错误。
+          throw new JudgeFailureError(
+            'output_format',
+            'AI eval judge output is not valid JSON',
+            captured.rawOutput,
+            captured.rawTruncated,
+          );
         }
         return {
-          ...parsed,
+          ...verdict,
+          ...captured,
+          usage: usage.snapshot(),
           judgeModel,
           judgeVendor: this.judgeVendor,
           vendorIndependent: this.vendorIndependent,
         };
       } catch (err: any) {
+        if (err instanceof JudgeFailureError) throw err;
         lastError = err;
         this.logger.warn(
           `[task-judge] key ${index + 1}/${this.apiKeys.length} failed: ${err?.message ?? err}`,
@@ -250,6 +390,10 @@ export class AiEvalJudgeService {
     this.logger.error(
       `[task-judge] judge call failed: ${(lastError as any)?.message ?? lastError}`,
     );
-    throw new ServiceUnavailableException('AI eval judge call failed');
+    // 保留 503（整单不可用），但把失败类别带进 body，调用方无需再猜错误文本。
+    throw new ServiceUnavailableException({
+      message: 'AI eval judge call failed',
+      kind: classifyJudgeError(lastError),
+    });
   }
 }

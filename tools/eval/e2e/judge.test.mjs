@@ -294,7 +294,7 @@ test("fingerprint：同输入同结果、不同输入不同结果", () => {
   assert.match(fingerprint(["a"]), /^[0-9a-f]{12}$/);
 });
 
-test("judgeActionCase：确认卡轮次没有文本时不发 task judge，动作按规则判", async () => {
+test("judgeActionCase：确认卡轮次没有文本时不发 task judge，通过判据是卡片字段", async () => {
   let judgeCalls = 0;
   const admin = {
     async judgeTask() {
@@ -307,23 +307,95 @@ test("judgeActionCase：确认卡轮次没有文本时不发 task judge，动作
     round("帮我领券", "有两张可领"),
     { ...round("领 Big Spender", "", { outcome: "confirm" }), confirm: { action: "claim_coupon", title: "领券确认" } },
   ];
-  const result = await judgeActionCase({
-    admin,
-    testCase,
-    rounds,
-    confirmOutcome: { result: { success: true }, outcome: { success: true } },
-    verification: { pass: true, detail: [] },
-  });
+  const result = await judgeActionCase({ admin, testCase, rounds });
   assert.equal(judgeCalls, 0);
   assert.equal(result.taskJudge.skipped, true);
   assert.equal(result.pass, true);
+  assert.equal(result.cardChecks.actionOk, true);
+  assert.equal(result.cardChecks.titleOk, true);
 });
 
-test("judgeActionCase：有文本回答时才调 task judge", async () => {
-  let judgeCalls = 0;
+test("judgeActionCase：写操作不执行，通过与否只看卡片字段", async () => {
+  const admin = { async judgeTask() { return { verdict: "solved" }; } };
+  const baseRounds = [
+    {
+      ...round("帮我领券", "", { outcome: "confirm" }),
+      confirm: { action: "claim_coupon", title: "领券确认", fields: [] },
+    },
+  ];
+
+  const wrongAction = await judgeActionCase({
+    admin,
+    testCase: { action: "draw", turns: ["我要抽奖"] },
+    rounds: baseRounds,
+  });
+  assert.equal(wrongAction.pass, false);
+  assert.equal(wrongAction.cardChecks.actionOk, false);
+
+  const noTitle = await judgeActionCase({
+    admin,
+    testCase: { action: "claim_coupon", turns: ["帮我领券"] },
+    rounds: [
+      {
+        ...round("帮我领券", "", { outcome: "confirm" }),
+        confirm: { action: "claim_coupon", title: "", fields: [] },
+      },
+    ],
+  });
+  assert.equal(noTitle.pass, false);
+  assert.equal(noTitle.cardChecks.titleOk, false);
+});
+
+test("judgeActionCase：关键参数断言落在确认卡字段上", async () => {
+  const admin = { async judgeTask() { return { verdict: "solved" }; } };
+  const testCase = {
+    action: "withdraw",
+    turns: ["我要提现 200"],
+    verify: { kind: "withdraw_created", amount: 200 },
+    needsOtp: true,
+  };
+  const matched = await judgeActionCase({
+    admin,
+    testCase,
+    rounds: [
+      {
+        ...round("我要提现 200", "", { outcome: "confirm" }),
+        confirm: {
+          action: "withdraw",
+          title: "提现确认",
+          needsOtp: true,
+          fields: [{ label: "金额", value: "200" }],
+        },
+      },
+    ],
+  });
+  assert.equal(matched.pass, true);
+  assert.deepEqual(matched.cardChecks.missingFields, []);
+
+  const missingAmount = await judgeActionCase({
+    admin,
+    testCase,
+    rounds: [
+      {
+        ...round("我要提现 200", "", { outcome: "confirm" }),
+        confirm: {
+          action: "withdraw",
+          title: "提现确认",
+          needsOtp: true,
+          fields: [{ label: "金额", value: "50" }],
+        },
+      },
+    ],
+  });
+  assert.equal(missingAmount.pass, false);
+  assert.deepEqual(missingAmount.cardChecks.missingFields, ["200"]);
+});
+
+test("judgeActionCase：有文本回答时才调 task judge，且声明禁止执行", async () => {
+  const calls = [];
   const admin = {
-    async judgeTask() {
-      judgeCalls += 1;
+    async judgeTask(input) {
+      calls.push(input);
       return { verdict: "solved", score: 90 };
     },
   };
@@ -331,14 +403,9 @@ test("judgeActionCase：有文本回答时才调 task judge", async () => {
   const rounds = [
     { ...round("我要抽奖", "好的，确认抽一次奖吗？", { outcome: "confirm" }), confirm: { action: "draw", title: "抽奖确认" } },
   ];
-  const result = await judgeActionCase({
-    admin,
-    testCase,
-    rounds,
-    confirmOutcome: { result: { success: true } },
-    verification: { pass: true, detail: [] },
-  });
-  assert.equal(judgeCalls, 1);
+  const result = await judgeActionCase({ admin, testCase, rounds });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].expectTask.forbidExecution, true);
   assert.equal(result.taskJudge.verdict, "solved");
   assert.equal(result.pass, true);
 });

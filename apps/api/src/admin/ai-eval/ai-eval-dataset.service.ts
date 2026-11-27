@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  ConflictException,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -7,23 +9,59 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { createHash } from 'crypto';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { isPrismaUniqueConstraintError } from '@api/common/prisma/prisma-error';
 import { redactPiiText } from '@api/common/utils/pii-redaction';
+import { redactJudgeRawCapture } from '@api/common/ai/judge-raw-output';
+import {
+  addUsageSnapshot,
+  emptyUsageSnapshot,
+  LlmUsageCollector,
+  LlmUsageSnapshot,
+} from '@api/common/ai/usage-collector';
+import {
+  CostedUsage,
+  estimateRunCost,
+  loadPriceTable,
+} from '@api/common/ai/model-pricing';
+import { runTraceabilityIssues, type RunTrace } from './run-comparability';
 import { CorpusFingerprintService } from '@api/common/knowledge/corpus-fingerprint.service';
 import { evaluateKnowledgeStability } from '@api/common/knowledge/corpus-fingerprint';
 import type { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { runWithContext } from '@api/common/logger/trace-context';
-import { AiEvalJudgeService } from './ai-eval-judge.service';
+import { classifyJudgeError } from '@api/admin/rag/judge-input-spec';
+import { EVAL_RUN_RESULTS_LIMITS } from './dto/eval-input.validators';
+import {
+  AiEvalJudgeService,
+  JudgeFailureError,
+  TaskJudgeResult,
+} from './ai-eval-judge.service';
+import {
+  EXTERNAL_METRIC_FAMILY,
+  INTERNAL_METRIC_FAMILY,
+  INTERNAL_METRIC_SPEC_VERSION,
+} from './judge-spec';
+import { PRELABEL_LABELER } from './annotation-labels';
 import { AddEvalCasesDto } from './dto/eval-dataset.dto';
 import {
   CreateExternalRunDto,
   ExternalEvalCaseSnapshotDto,
   ExternalEvalResultDto,
   IngestExternalResultsDto,
+  JUDGE_ERROR_KINDS,
   JUDGE_FAILURE_KINDS,
+  JudgeErrorKind,
 } from './dto/external-eval.dto';
 import { AI_EVAL_QUEUE, AI_EVAL_RUN_JOB, AiEvalJobData } from './ai-eval.queue';
 import { computeKbRegressionStatus } from './kb-regression.util';
+import {
+  CaseDiffClass,
+  CaseOutcome,
+  classifyCaseDiff,
+  outcomeFromAnswerVerdict,
+  outcomeFromVerdict,
+} from './case-history.util';
 import {
   evaluateRunEvidence,
   maxHarnessFailureRate,
@@ -31,14 +69,149 @@ import {
 
 export type EvalMode = 'STORED' | 'LIVE' | 'EXTERNAL';
 
+/**
+ * run 级失败类别（见需求总纲 §4.2）：入队、预算、未捕获异常、心跳超时、判官整体不可用。
+ * 单条失败不落这里——那是 judgeErrors / executionError 的事。
+ */
+/** 两次运行差异里单个用例的展示信息。 */
+export interface CaseDiffItem {
+  caseId: string;
+  question: string;
+  baselineVerdict: string | null;
+  currentVerdict: string | null;
+}
+
+/** 判官三分类结论；只有这些值能与人工标注比对。 */
+const JUDGE_VERDICT_VALUES = new Set(['solved', 'partial', 'unsolved']);
+
+/** 校准最小样本量：低于它只报「样本不足」，不给百分比结论。 */
+export const CALIBRATION_MIN_SAMPLE = 20;
+
+export interface RunCalibrationDisagreement {
+  caseId: string;
+  question: string | null;
+  judgeVerdict: string;
+  humanCorrectness: string;
+  judgeReason: string | null;
+  humanComment: string;
+  labelerId: string;
+}
+
+interface RunCalibrationBase {
+  runId: string;
+  datasetId: string;
+  metricFamily: string;
+  threshold: number;
+  /** 可比对的标注数（人工标注 × 判官有结论） */
+  n: number;
+  /** 未纳入比对：预标注、判官失败、unsafe/abstain 等 */
+  excluded: number;
+  disagreements: RunCalibrationDisagreement[];
+  note: string;
+}
+
+/**
+ * 判官校准结果。样本充足时带一致率；样本不足时类型上就没有
+ * agreementRate 字段，避免消费方把不存在的结论读成 0%。
+ */
+export type RunCalibration =
+  | (RunCalibrationBase & {
+      status: 'ok';
+      agreements: number;
+      /** 一致率百分比（保留一位小数） */
+      agreementRate: number;
+    })
+  | (RunCalibrationBase & { status: 'insufficientSample' });
+
+export type EvalFailureCategory =
+  | 'enqueue'
+  | 'budget'
+  | 'unhandled'
+  | 'heartbeat'
+  | 'judge_unavailable';
+
+/** 连续判官失败达熔断阈值：整单失败的专用错误，便于归类为 judge_unavailable。 */
+export class JudgeCircuitOpenError extends Error {
+  constructor(
+    readonly failures: number,
+    cause: string,
+  ) {
+    super(`judge failed ${failures} times in a row: ${cause}`);
+    this.name = 'JudgeCircuitOpenError';
+  }
+}
+
 /** 外部运行物化出的数据集名前缀；同时用于阻止对 harness 数据集启动 STORED/LIVE 重跑。 */
 export const EXTERNAL_DATASET_PREFIX = 'e2e:';
 
 /** EXTERNAL run 可能跑几小时，stale 清扫阈值放宽到 24 小时。 */
 export const EXTERNAL_RUN_STALE_MS = 24 * 60 * 60 * 1000;
 
-/** 内部 run 的 stale 阈值。 */
+/** 内部 run 的 stale 阈值默认 30 分钟；可用 AI_EVAL_RUN_STALE_MS 覆盖（测试/压测）。 */
 export const INTERNAL_RUN_STALE_MS = 30 * 60 * 1000;
+
+/** 心跳最小写间隔：连跑时每条用例都写会把写放大成每 case 一次。 */
+export const EVAL_HEARTBEAT_INTERVAL_MS = 30 * 1000;
+
+/**
+ * 基线登记的最低样本量：总数与知识类用例都要达标，防止小样本高准确率被登记。
+ *
+ * 「知识类」= 判官打分的用例（knowledge / negative / multi / 旧名 kb）：
+ * 准确率是统计量，样本太少就没有意义，每类至少 12 条。
+ * 「规则类」= 确定性核验的用例（action / read / boundary）：通过与否由规则算出，
+ * 不存在抽样误差，只要求「这一类被覆盖到」，下限 6 条（题库结构上最少的一类）。
+ * 未知类别按知识类口径从严处理，避免数据脏了以后被当成规则类放行。
+ */
+export const MIN_PROMOTE_TOTAL_SAMPLES = 150;
+export const MIN_PROMOTE_SAMPLES_PER_KNOWLEDGE_KIND = 12;
+export const MIN_PROMOTE_SAMPLES_PER_RULE_KIND = 6;
+export const RULE_CASE_KINDS: ReadonlySet<string> = new Set([
+  'action',
+  'read',
+  'boundary',
+]);
+
+function resolveInternalRunStaleMs(): number {
+  const raw = Number(process.env.AI_EVAL_RUN_STALE_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : INTERNAL_RUN_STALE_MS;
+}
+
+/**
+ * 连续判官失败熔断阈值（默认 5）。
+ * 单条失败留痕后继续；连续失败到这个数说明判官整体不可用，
+ * 再跑下去只会烧 token 产出一批同样不可信的数字，整单直接 FAILED。
+ */
+export const DEFAULT_JUDGE_FAILURE_CIRCUIT = 5;
+
+function resolveJudgeFailureCircuit(): number {
+  const raw = Number(process.env.AI_EVAL_JUDGE_FAILURE_CIRCUIT);
+  return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_JUDGE_FAILURE_CIRCUIT;
+}
+
+/**
+ * 内部 run 的用例快照哈希：只排序后的 caseId 集合，与顺序无关、与回答内容无关。
+ * 同批用例任何时候复算都得到同一个值，用来回答「两次 run 是不是同一套题」。
+ */
+export function snapshotHashOfCaseIds(ids: string[]): string {
+  return createHash('sha256')
+    .update([...ids].sort().join('\n'))
+    .digest('hex');
+}
+
+/**
+ * 题干查重键：NFKC 抹平全半角，压缩空白并统一小写。
+ * 只用于查重，不改写入值——审核者仍看到原始题干。
+ */
+export function normalizeEvalQuestion(question: string): string {
+  return question.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** 运行代码版本：与 /health 同口径（APP_VERSION > GIT_SHA > unknown）。 */
+export function resolveEvalCodeVersion(
+  env: Record<string, string | undefined> = process.env,
+): string {
+  return env.APP_VERSION || env.GIT_SHA || 'unknown';
+}
 
 /** 注入令牌：避免评测服务直接依赖客服 graph 的庞大运行时依赖。 */
 export const AI_EVAL_LIVE_AI = 'AI_EVAL_LIVE_AI';
@@ -78,7 +251,37 @@ export const EVAL_ESTIMATE_CHARS_PER_TOKEN = 4;
 export const EVAL_ESTIMATE_PROMPT_OVERHEAD_CHARS = 600;
 
 /** 单次 run 的默认 token 预算；AI_EVAL_RUN_TOKEN_BUDGET <= 0 时关闭护栏。 */
-export const DEFAULT_EVAL_RUN_TOKEN_BUDGET = 200_000;
+export const DEFAULT_EVAL_RUN_TOKEN_BUDGET = 1_000_000;
+
+/**
+ * 预算预测的移动平均参数。
+ *
+ * 字符估算只算题干与固定开销，不含 RAG 上下文、系统提示词、多节点调用与
+ * 判官提示词；真实用量通常是估算的数倍。所以：拿到真实样本后改用真实用量
+ * 的指数移动平均做下一条的预测，并乘安全系数，避免阈值附近的抖动误停。
+ * 旧默认阈值 200k 按估算口径定，接真实账本后必然大面积超限，故一并上调。
+ */
+export const EVAL_BUDGET_EWMA_ALPHA = 0.5;
+export const EVAL_BUDGET_EWMA_SAFETY = 1.1;
+
+/**
+ * 翻转率低于该样本量时标注低样本：百分比只是描述，不足以当成门禁依据。
+ * 与判官校准的最小样本保持一致（20）。
+ */
+export const DRIFT_LOW_SAMPLE_THRESHOLD = 20;
+
+/** 差异接口展示的两端运行元数据快照。 */
+interface RunMetaSnapshot {
+  id: string;
+  mode: string | null;
+  status: string | null;
+  scope: string | null;
+  metricFamily: string;
+  metricSpecVersion: string | null;
+  judgeSpecVersion: string | null;
+  datasetHash: string | null;
+  startedAt: Date | null;
+}
 
 interface EvalUsageEstimate {
   promptTokens: number;
@@ -92,6 +295,25 @@ interface EvalRunUsage {
   completionTokens: number;
   budget: number;
   exceeded: boolean;
+  /**
+   * 真实用量账本（provider 回传），按角色分账。
+   * 与 estimatedTokens 并存：估算账本保留历史语义，真实账本只增不改。
+   */
+  real: { chat: LlmUsageSnapshot; judge: LlmUsageSnapshot };
+  /**
+   * 本次运行判官使用的模型（来自 run 行快照）。
+   * 缺省时成本只能走全局回退，不能假设是默认判官模型。
+   */
+  judgeModel?: string | null;
+  /**
+   * 预算判定依据：还没拿到真实样本时用估算，拿到后切到真实用量移动平均。
+   * 随 summary 落库，历史运行的停跑原因才可解释。
+   */
+  budgetBasis: 'estimated-v1' | 'real-ewma-v1';
+  /** 最近用例真实 token 的指数移动平均；无样本时为 null。 */
+  realEwma: number | null;
+  /** 参与移动平均的真实样本条数。 */
+  realSamples: number;
 }
 
 /**
@@ -126,6 +348,7 @@ export interface LiveAiRunner {
     userId: string,
     debug?: boolean,
     sessionId?: string,
+    options?: { usageCollector?: LlmUsageCollector },
   ): Promise<{
     agentOutput: string;
     pendingConfirm?: Record<string, any> | null;
@@ -134,7 +357,8 @@ export interface LiveAiRunner {
 
 export interface StartRunOptions {
   mode?: EvalMode;
-  baselineRunId?: string;
+  /** 不传 = 回退到当前基线；null = 显式不对比 */
+  baselineRunId?: string | null;
 }
 
 interface BaselineSnapshot {
@@ -168,6 +392,12 @@ interface CaseVerdict {
 export class AiEvalDatasetService {
   private readonly logger = new Logger(AiEvalDatasetService.name);
 
+  /**
+   * 每个 run 最近一次心跳写入时间（进程内）。
+   * 只用来看是否到了 30s 写窗口，不参与存活判定——判定只认 DB 的 heartbeatAt。
+   */
+  private readonly lastHeartbeatAt = new Map<string, number>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly judge: AiEvalJudgeService,
@@ -178,7 +408,6 @@ export class AiEvalDatasetService {
   ) {}
 
   async listDatasets() {
-    await this.recoverStaleRuns();
     return this.prisma.aiEvalDataset.findMany({
       orderBy: { updatedAt: 'desc' },
       include: { _count: { select: { cases: true, runs: true } } },
@@ -219,12 +448,38 @@ export class AiEvalDatasetService {
     });
   }
 
-  async getDataset(id: string) {
-    await this.recoverStaleRuns();
+  /** 分页参数统一入口：页大小上限由 spec 固定为 200。 */
+  private resolvePage(options: { page?: number; pageSize?: number } = {}) {
+    const page = options.page ?? 1;
+    const pageSize =
+      options.pageSize ?? EVAL_RUN_RESULTS_LIMITS.defaultPageSize;
+    if (
+      !Number.isInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > EVAL_RUN_RESULTS_LIMITS.maxPageSize
+    ) {
+      throw new BadRequestException(
+        `pageSize must be an integer between 1 and ${EVAL_RUN_RESULTS_LIMITS.maxPageSize}`,
+      );
+    }
+    if (!Number.isInteger(page) || page < 1) {
+      throw new BadRequestException('page must be an integer >= 1');
+    }
+    return { page, pageSize, skip: (page - 1) * pageSize, take: pageSize };
+  }
+
+  /**
+   * 数据集详情。`cases` 只承载当前页，总数用 `_count.cases`，
+   * 避免大用例集把接口拖成全量拉取。
+   */
+  async getDataset(
+    id: string,
+    options: { page?: number; pageSize?: number } = {},
+  ) {
+    const { page, pageSize, skip, take } = this.resolvePage(options);
     const dataset = await this.prisma.aiEvalDataset.findUnique({
       where: { id },
       include: {
-        cases: { orderBy: { createdAt: 'asc' } },
         runs: {
           orderBy: { startedAt: 'desc' },
           take: 20,
@@ -233,7 +488,21 @@ export class AiEvalDatasetService {
       },
     });
     if (!dataset) throw new NotFoundException('Eval dataset not found');
-    return dataset;
+
+    const cases = await this.prisma.aiEvalCase.findMany({
+      where: { datasetId: id },
+      orderBy: { createdAt: 'asc' },
+      skip,
+      take,
+    });
+
+    return {
+      ...dataset,
+      cases,
+      casesTotal: dataset._count.cases,
+      page,
+      pageSize,
+    };
   }
 
   async addCases(datasetId: string, dto: AddEvalCasesDto) {
@@ -244,20 +513,65 @@ export class AiEvalDatasetService {
     if (!dataset) throw new NotFoundException('Eval dataset not found');
     this.assertDatasetWritable(dataset.name, 'add cases');
 
-    await this.prisma.aiEvalCase.createMany({
-      data: dto.cases.map((item) => ({
-        datasetId,
-        question: item.question,
-        answer: item.answer,
-        expect: (item.expect ?? {}) as any,
-        expected: (item.expected ?? null) as any,
-        metadata: (item.metadata ?? null) as any,
-        sourceFeedbackId: item.sourceFeedbackId ?? null,
-        source: item.source ?? null,
-        tags: (item.tags ?? []) as any,
-      })),
+    const existing = await this.prisma.aiEvalCase.findMany({
+      where: { datasetId },
+      select: { question: true },
     });
-    return this.getDataset(datasetId);
+    const datasetKeys = new Set(
+      existing.map((row) => normalizeEvalQuestion(row.question)),
+    );
+    const batchKeys = new Set<string>();
+    const skipped: Array<{
+      question: string;
+      reason: 'DUPLICATE_IN_DATASET' | 'DUPLICATE_IN_BATCH';
+    }> = [];
+    const toCreate: typeof dto.cases = [];
+    for (const item of dto.cases) {
+      const key = normalizeEvalQuestion(item.question);
+      if (datasetKeys.has(key)) {
+        skipped.push({
+          question: item.question,
+          reason: 'DUPLICATE_IN_DATASET',
+        });
+        continue;
+      }
+      if (batchKeys.has(key)) {
+        skipped.push({ question: item.question, reason: 'DUPLICATE_IN_BATCH' });
+        continue;
+      }
+      batchKeys.add(key);
+      toCreate.push(item);
+    }
+
+    if (toCreate.length > 0) {
+      await this.prisma.aiEvalCase.createMany({
+        data: toCreate.map((item) => ({
+          datasetId,
+          question: item.question,
+          answer: item.answer,
+          expect: (item.expect ?? {}) as any,
+          expected: (item.expected ?? null) as any,
+          metadata: (item.metadata ?? null) as any,
+          sourceFeedbackId: item.sourceFeedbackId ?? null,
+          source: item.source ?? null,
+          tags: (item.tags ?? []) as any,
+        })),
+      });
+    }
+    // createMany 不回传 id；分页后不能再靠「最后一页最后一条」定位新建项，
+    // 所以按本次要创建的题干回查，供反馈「加入回归」直接关联。
+    const createdCases =
+      toCreate.length > 0
+        ? await this.prisma.aiEvalCase.findMany({
+            where: {
+              datasetId,
+              question: { in: toCreate.map((item) => item.question) },
+            },
+            select: { id: true, question: true },
+          })
+        : [];
+    const result = await this.getDataset(datasetId);
+    return { ...result, created: toCreate.length, skipped, createdCases };
   }
 
   async updateCase(
@@ -274,7 +588,7 @@ export class AiEvalDatasetService {
   ) {
     const existing = await this.prisma.aiEvalCase.findUnique({
       where: { id: caseId },
-      select: { id: true, datasetId: true },
+      select: { id: true, datasetId: true, expect: true },
     });
     if (!existing || existing.datasetId !== datasetId) {
       throw new NotFoundException('Eval case not found');
@@ -284,12 +598,21 @@ export class AiEvalDatasetService {
       select: { name: true },
     });
     this.assertDatasetWritable(dataset?.name, 'edit cases');
+    // expect 是唯一判分来源；编辑只覆盖提交的文本字段，
+    // confirmAction/forbidExecution/intent 等非文本条件必须保留。
+    const mergedExpect =
+      dto.expect !== undefined
+        ? {
+            ...((existing.expect as Record<string, any> | null) ?? {}),
+            ...dto.expect,
+          }
+        : undefined;
     await this.prisma.aiEvalCase.update({
       where: { id: caseId },
       data: {
         ...(dto.question !== undefined ? { question: dto.question } : {}),
         ...(dto.answer !== undefined ? { answer: dto.answer } : {}),
-        ...(dto.expect !== undefined ? { expect: dto.expect as any } : {}),
+        ...(mergedExpect !== undefined ? { expect: mergedExpect as any } : {}),
         ...(dto.expected !== undefined
           ? { expected: dto.expected as any }
           : {}),
@@ -320,23 +643,36 @@ export class AiEvalDatasetService {
   }
 
   /**
-   * 进程重启后遗留的 RUNNING 统一标 FAILED。
-   * - 内部 run（STORED/LIVE）：30 分钟。
+   * 清扫僵死 RUNNING。由 cron 任务（AiEvalRunSweepTask）与 startRun 调用，
+   * 读接口不再清扫：GET 不应产生写副作用，也不该因为一次页面打开抢写锁。
+   *
+   * 存活判定只认 DB 的 heartbeatAt（无心跳的老行回退 startedAt）：
+   * - 内部 run（STORED/LIVE）：心跳空闲超 AI_EVAL_RUN_STALE_MS（默认 30 分钟）；
    * - EXTERNAL run：harness 可能跑几小时，阈值 24 小时，且不受内部清扫影响。
+   *
+   * 为什么不能用 startedAt 判活：长跑会被误杀；为什么不能用进程内时间戳：
+   * worker 被杀时内存一起消失，只有 DB 里停住的心跳能说明它死了。
    */
-  private async recoverStaleRuns(): Promise<void> {
+  async sweepStaleRuns(): Promise<void> {
     const now = Date.now();
+    const internalCutoff = new Date(now - resolveInternalRunStaleMs());
     await this.prisma.aiEvalRun
       .updateMany({
         where: {
           status: 'RUNNING',
           mode: { not: 'EXTERNAL' },
-          startedAt: { lt: new Date(now - INTERNAL_RUN_STALE_MS) },
+          OR: [
+            { heartbeatAt: { lt: internalCutoff } },
+            { heartbeatAt: null, startedAt: { lt: internalCutoff } },
+          ],
         },
         data: {
           status: 'FAILED',
-          finishedAt: new Date(),
-          summary: { error: 'run interrupted: stale RUNNING' },
+          finishedAt: new Date(now),
+          summary: {
+            error: 'run interrupted: stale RUNNING',
+            failureCategory: 'heartbeat',
+          },
         },
       })
       .catch((err) =>
@@ -353,10 +689,11 @@ export class AiEvalDatasetService {
         },
         data: {
           status: 'FAILED',
-          finishedAt: new Date(),
+          finishedAt: new Date(now),
           summary: {
             mode: 'EXTERNAL',
             error: 'run interrupted: stale EXTERNAL run',
+            failureCategory: 'heartbeat',
           },
         },
       })
@@ -399,7 +736,7 @@ export class AiEvalDatasetService {
       );
     }
 
-    await this.recoverStaleRuns();
+    await this.sweepStaleRuns();
     // EXTERNAL run 由 harness 写入，不占用「每数据集仅一个 RUNNING」的名额。
     const running = await this.prisma.aiEvalRun.findFirst({
       where: { datasetId, status: 'RUNNING', mode: { not: 'EXTERNAL' } },
@@ -422,9 +759,40 @@ export class AiEvalDatasetService {
       options.baselineRunId,
     );
 
-    const run = await this.prisma.aiEvalRun.create({
-      data: { datasetId, createdBy, mode, baselineRunId },
-    });
+    // 预检查之上还有数据库部分唯一索引兜底：两个请求同时读到「无 RUNNING」时，
+    // 只有一个能 create 成功，另一个撞 P2002。这里把冲突翻译成 409，
+    // 而不是让 500 冒到前端；冲突请求也不再投递 job。
+    // 判官身份在启动时快照：之后改 prompt/换模型，也要能区分旧 run 的口径。
+    const judgeSpec = this.judge.spec();
+    let run: { id: string };
+    try {
+      run = await this.prisma.aiEvalRun.create({
+        data: {
+          datasetId,
+          createdBy,
+          mode,
+          baselineRunId,
+          judgeSpecVersion: judgeSpec.version,
+          judgePromptHash: judgeSpec.promptHash,
+          judgeModel: judgeSpec.model,
+          judgeVendor: judgeSpec.vendor,
+          judgeSampleCount: judgeSpec.sampleCount,
+          metricFamily: INTERNAL_METRIC_FAMILY,
+        },
+      });
+    } catch (err) {
+      if (isPrismaUniqueConstraintError(err)) {
+        const existing = await this.prisma.aiEvalRun.findFirst({
+          where: { datasetId, status: 'RUNNING', mode: { not: 'EXTERNAL' } },
+          select: { id: true, startedAt: true },
+        });
+        throw new ConflictException({
+          message: 'This dataset already has a run in progress',
+          runId: existing?.id ?? null,
+        });
+      }
+      throw err;
+    }
     try {
       await this.queue.add(
         AI_EVAL_RUN_JOB,
@@ -448,7 +816,12 @@ export class AiEvalDatasetService {
           data: {
             status: 'FAILED',
             finishedAt: new Date(),
-            summary: { mode, baselineRunId, error: `enqueue failed: ${error}` },
+            summary: {
+              mode,
+              baselineRunId,
+              error: `enqueue failed: ${error}`,
+              failureCategory: 'enqueue',
+            },
           },
         })
         .catch((updateErr) =>
@@ -498,6 +871,9 @@ export class AiEvalDatasetService {
     datasetId: string,
     explicit?: string | null,
   ): Promise<string | null> {
+    // 显式 null = 「本次不对比」。不能悄悄回退到已登记基线：
+    // 用户选了不对比却拿到 delta，会误以为是自己的选择产生的数字。
+    if (explicit === null) return null;
     const trimmed = explicit?.trim() || null;
     if (trimmed) {
       await this.assertBaselineRun(trimmed, datasetId);
@@ -546,11 +922,14 @@ export class AiEvalDatasetService {
       select: {
         id: true,
         status: true,
+        mode: true,
+        datasetId: true,
         summary: true,
         codeVersion: true,
         judgeSpecVersion: true,
         metricSpecVersion: true,
         datasetSnapshot: true,
+        knowledgeSnapshot: true,
         scope: true,
       },
     });
@@ -560,11 +939,40 @@ export class AiEvalDatasetService {
         `Run is ${run.status}; only COMPLETED runs can be promoted`,
       );
     }
+    // 内部 run 的 verdict3 任务成功率与外部 harness 的答案准确率是两族指标，
+    // 拿内部 run 当外部基线会让后续 delta 用错口径。
+    if (run.mode !== 'EXTERNAL') {
+      throw new BadRequestException(
+        `Run mode is ${run.mode ?? 'missing'}; only EXTERNAL full-scope runs ` +
+          'can be promoted as a baseline',
+      );
+    }
     // 子集是变更后的诊断结果，语料与用例集都不是全量，不能当基线。
     if (run.scope === 'subset') {
       throw new BadRequestException(
         'Subset runs are diagnostic only and cannot be promoted; ' +
           'run a full-scope regression first',
+      );
+    }
+    // scope 缺失不等于全量：老数据/脏数据没有范围声明时不能默认放行。
+    if (run.scope !== 'full') {
+      throw new BadRequestException(
+        `Run scope is missing (${run.scope ?? 'null'}); only full-scope runs ` +
+          'can be promoted',
+      );
+    }
+    const knowledgeSnapshot = (run.knowledgeSnapshot ?? null) as {
+      stable?: unknown;
+      stableReason?: unknown;
+    } | null;
+    if (knowledgeSnapshot?.stable !== true) {
+      const reason =
+        typeof knowledgeSnapshot?.stableReason === 'string'
+          ? knowledgeSnapshot.stableReason
+          : 'unknown';
+      throw new BadRequestException(
+        `Knowledge snapshot is not stable (${reason}); results on a changing ` +
+          'corpus cannot be used as a baseline',
       );
     }
 
@@ -613,6 +1021,70 @@ export class AiEvalDatasetService {
       );
     }
 
+    // 快照必须与数据集当前基线同源：hash 不同说明用例集变了，
+    // 两条 run 的数字不能相减，登记后会把「换了题」读成「变好了/变差了」。
+    const snapshotHash =
+      typeof snapshot?.hash === 'string' ? snapshot.hash : '';
+    const currentBaseline = await this.prisma.aiEvalRun.findFirst({
+      where: { isBaseline: true, datasetId: run.datasetId },
+      orderBy: { finishedAt: 'desc' },
+      select: { id: true, datasetSnapshot: true },
+    });
+    const currentBaselineHash =
+      (currentBaseline?.datasetSnapshot as { hash?: unknown } | null)?.hash ??
+      null;
+    if (
+      currentBaseline &&
+      typeof currentBaselineHash === 'string' &&
+      currentBaselineHash !== snapshotHash
+    ) {
+      throw new BadRequestException(
+        `datasetSnapshot.hash ${snapshotHash} differs from baseline ` +
+          `${currentBaselineHash}; the case set changed and results are not ` +
+          'comparable',
+      );
+    }
+
+    // 最低样本量：小样本的高准确率不可信。
+    // 知识类（判官打分）每类要够统计量，规则类（确定性核验）只要求覆盖到。
+    const snapshotCases = Array.isArray(
+      (run.datasetSnapshot as { cases?: unknown } | null)?.cases,
+    )
+      ? ((run.datasetSnapshot as { cases: Array<{ kind?: unknown }> }).cases ??
+        [])
+      : [];
+    if (snapshotCases.length < MIN_PROMOTE_TOTAL_SAMPLES) {
+      throw new BadRequestException(
+        `Run has ${snapshotCases.length} cases; baseline promotion requires ` +
+          `at least ${MIN_PROMOTE_TOTAL_SAMPLES}`,
+      );
+    }
+    const countByKind = new Map<string, number>();
+    for (const item of snapshotCases) {
+      const kind =
+        typeof item?.kind === 'string' && item.kind.trim()
+          ? item.kind
+          : 'unknown';
+      countByKind.set(kind, (countByKind.get(kind) ?? 0) + 1);
+    }
+    for (const [kind, count] of countByKind) {
+      if (RULE_CASE_KINDS.has(kind)) {
+        if (count < MIN_PROMOTE_SAMPLES_PER_RULE_KIND) {
+          throw new BadRequestException(
+            `kind "${kind}" has ${count} cases; baseline promotion requires at ` +
+              `least ${MIN_PROMOTE_SAMPLES_PER_RULE_KIND} per rule kind`,
+          );
+        }
+        continue;
+      }
+      if (count < MIN_PROMOTE_SAMPLES_PER_KNOWLEDGE_KIND) {
+        throw new BadRequestException(
+          `kind "${kind}" has ${count} cases; baseline promotion requires at ` +
+            `least ${MIN_PROMOTE_SAMPLES_PER_KNOWLEDGE_KIND} per knowledge kind`,
+        );
+      }
+    }
+
     const judgeAgreement =
       typeof summary.judgeAgreement === 'number' &&
       Number.isFinite(summary.judgeAgreement)
@@ -642,8 +1114,9 @@ export class AiEvalDatasetService {
         'SELECT pg_advisory_xact_lock($1)::text',
         PROMOTE_BASELINE_LOCK_KEY,
       );
+      // 只清同一数据集的旧基线：基线按数据集界定，A 登记不得影响 B。
       await tx.aiEvalRun.updateMany({
-        where: { isBaseline: true, id: { not: id } },
+        where: { isBaseline: true, datasetId: run.datasetId, id: { not: id } },
         data: { isBaseline: false },
       });
       await tx.aiEvalRun.update({
@@ -717,19 +1190,824 @@ export class AiEvalDatasetService {
     });
   }
 
-  async getRun(id: string) {
-    await this.recoverStaleRuns();
+  /**
+   * 读取一次运行。`results` 仍是数组，但只承载当前页；
+   * 总数走 `resultsTotal`，避免大运行一次拉全量拖垮接口。
+   * RUNNING 倒序，让轮询的第一页始终是最新结果。
+   */
+  async getRun(id: string, options: { page?: number; pageSize?: number } = {}) {
+    const { page, pageSize, skip, take } = this.resolvePage(options);
+
+    const run = await this.prisma.aiEvalRun.findUnique({ where: { id } });
+    if (!run) throw new NotFoundException('Eval run not found');
+
+    const where = { runId: id };
+    const [resultsTotal, results] = await Promise.all([
+      this.prisma.aiEvalResult.count({ where }),
+      this.prisma.aiEvalResult.findMany({
+        where,
+        include: { case: true },
+        orderBy: { createdAt: run.status === 'RUNNING' ? 'desc' : 'asc' },
+        skip,
+        take,
+      }),
+    ]);
+
+    return { ...run, results, resultsTotal, page, pageSize };
+  }
+
+  /**
+   * 单用例跨运行的判定时间线（按运行时间升序）。
+   * 只返回该用例所在数据集的运行，避免跨数据集读别人的用例。
+   */
+  async getCaseHistory(runId: string, caseId: string) {
     const run = await this.prisma.aiEvalRun.findUnique({
-      where: { id },
-      include: {
+      where: { id: runId },
+      select: {
+        id: true,
+        datasetId: true,
+        mode: true,
+        status: true,
+        scope: true,
+        judgeSpecVersion: true,
+        datasetSnapshot: true,
+        startedAt: true,
+        summary: true,
+      },
+    });
+    if (!run) throw new NotFoundException('Eval run not found');
+
+    const evalCase = await this.prisma.aiEvalCase.findUnique({
+      where: { id: caseId },
+      select: {
+        id: true,
+        datasetId: true,
+        question: true,
+        tags: true,
+        sourceFeedbackId: true,
+      },
+    });
+    if (!evalCase || evalCase.datasetId !== run.datasetId) {
+      throw new NotFoundException('Case not found in this run dataset');
+    }
+
+    const runs = await this.prisma.aiEvalRun.findMany({
+      where: {
+        datasetId: run.datasetId,
+        results: { some: { caseId } },
+        // 运行中/失败的过程快照会让翻转线失真，查询层先排除。
+        status: { notIn: ['RUNNING', 'FAILED'] },
+      },
+      select: {
+        id: true,
+        status: true,
+        mode: true,
+        startedAt: true,
+        scope: true,
+        isBaseline: true,
+        judgeSpecVersion: true,
+        datasetSnapshot: true,
+        summary: true,
         results: {
-          include: { case: true },
-          orderBy: { createdAt: 'asc' },
+          where: { caseId },
+          select: {
+            verdict: true,
+            answerVerdict: true,
+            judgeErrorKind: true,
+            score: true,
+            answerScore: true,
+          },
+        },
+      },
+      orderBy: [{ startedAt: 'asc' }, { id: 'asc' }],
+    });
+
+    const referenceMeta = this.runMetaOf(run, this.metricFamilyOf(run));
+    const timeline = runs
+      .filter((item) => item.status !== 'RUNNING' && item.status !== 'FAILED')
+      .map((item) => {
+        const result = item.results[0] ?? null;
+        const reasons = this.incomparabilityReasons(
+          referenceMeta,
+          this.runMetaOf(item, this.metricFamilyOf(item)),
+        );
+        return {
+          runId: item.id,
+          status: item.status,
+          mode: item.mode,
+          scope: item.scope,
+          isBaseline: item.isBaseline,
+          startedAt: item.startedAt,
+          verdict: result?.verdict ?? null,
+          answerVerdict: result?.answerVerdict ?? null,
+          judgeErrorKind: result?.judgeErrorKind ?? null,
+          score: result?.score ?? null,
+          answerScore: result?.answerScore ?? null,
+          outcome: this.outcomeOfResult(result, this.metricFamilyOf(item)),
+          // 每个时间点独立标注：不同快照的点不能连成同一条翻转线。
+          comparability: {
+            comparable: reasons.length === 0,
+            reasons,
+          },
+        };
+      });
+
+    return {
+      caseId: evalCase.id,
+      datasetId: run.datasetId,
+      case: {
+        id: evalCase.id,
+        question: evalCase.question,
+        tags: evalCase.tags,
+        sourceFeedbackId: evalCase.sourceFeedbackId,
+      },
+      timeline,
+    };
+  }
+
+  /**
+   * 两次运行的描述性差异（新增失败 / 修复 / 回退 / 仍失败）。
+   *
+   * 只做集合运算，不声称显著：显著性由 `compare.py` 的配对检验负责。
+   * 判官未判出结论或基线缺该用例时不计入任何一类，只体现在 comparability 里。
+   */
+  async getRunDiff(runId: string, options: { baselineRunId?: string } = {}) {
+    const run = await this.prisma.aiEvalRun.findUnique({
+      where: { id: runId },
+      select: {
+        id: true,
+        datasetId: true,
+        baselineRunId: true,
+        mode: true,
+        status: true,
+        scope: true,
+        judgeSpecVersion: true,
+        datasetSnapshot: true,
+        startedAt: true,
+        summary: true,
+        results: {
+          select: {
+            caseId: true,
+            verdict: true,
+            answerVerdict: true,
+            judgeErrorKind: true,
+            actualAnswer: true,
+            judgeInputHash: true,
+            case: { select: { question: true } },
+          },
         },
       },
     });
     if (!run) throw new NotFoundException('Eval run not found');
-    return run;
+
+    const baselineRunId = options.baselineRunId ?? run.baselineRunId;
+    if (!baselineRunId) {
+      throw new BadRequestException(
+        'Run has no baseline; pass baselineRunId explicitly',
+      );
+    }
+    if (baselineRunId === runId) {
+      throw new BadRequestException(
+        'baselineRunId must differ from the run being compared',
+      );
+    }
+
+    const baseline = await this.prisma.aiEvalRun.findUnique({
+      where: { id: baselineRunId },
+      select: {
+        id: true,
+        datasetId: true,
+        mode: true,
+        status: true,
+        scope: true,
+        judgeSpecVersion: true,
+        datasetSnapshot: true,
+        summary: true,
+        startedAt: true,
+        results: {
+          select: {
+            caseId: true,
+            verdict: true,
+            answerVerdict: true,
+            judgeErrorKind: true,
+            actualAnswer: true,
+            judgeInputHash: true,
+          },
+        },
+      },
+    });
+    if (!baseline) throw new NotFoundException('Baseline run not found');
+    if (baseline.datasetId !== run.datasetId) {
+      throw new BadRequestException(
+        'Diff requires both runs to belong to the same dataset',
+      );
+    }
+
+    const currentFamily = this.metricFamilyOf(run);
+    const baselineFamily = this.metricFamilyOf(baseline);
+    const currentMeta = this.runMetaOf(run, currentFamily);
+    const baselineMeta = this.runMetaOf(baseline, baselineFamily);
+    const incomparableReasons = this.incomparabilityReasons(
+      currentMeta,
+      baselineMeta,
+    );
+    const warnings = this.traceabilityWarnings(currentMeta, baselineMeta);
+
+    if (incomparableReasons.length > 0) {
+      // 历史页面不应因为不可比直接打不开：只给原因，不给任何差异数字。
+      return {
+        runId: run.id,
+        baselineRunId: baseline.id,
+        metricFamily: currentFamily,
+        runs: { current: currentMeta, baseline: baselineMeta },
+        comparable: false,
+        incomparableReasons,
+        warnings,
+        comparability: { compared: 0, undecided: 0, missingBaseline: 0 },
+        drift: null,
+        counts: null,
+        classes: null,
+        note: '两次运行不可比，未计算差异；可比性原因见 incomparableReasons。',
+      };
+    }
+
+    const baselineByCase = new Map<
+      string,
+      {
+        outcome: CaseOutcome;
+        verdict: string | null;
+        actualAnswer: string | null;
+        judgeInputHash: string | null;
+      }
+    >();
+    for (const item of baseline.results) {
+      baselineByCase.set(item.caseId, {
+        outcome: this.outcomeOfResult(item, baselineFamily),
+        verdict: this.rawVerdictOf(item, baselineFamily),
+        actualAnswer: item.actualAnswer ?? null,
+        judgeInputHash: item.judgeInputHash ?? null,
+      });
+    }
+
+    // 只有「基线通过 → 当前失败」需要回看更早历史，用来区分新增失败与回退。
+    const suspectCaseIds = run.results
+      .filter((item) => this.outcomeOfResult(item, currentFamily) === 'fail')
+      .map((item) => item.caseId)
+      .filter((caseId) => baselineByCase.get(caseId)?.outcome === 'pass');
+    const earlierFailures = await this.loadEarlierFailures(
+      run.datasetId,
+      baseline.startedAt,
+      suspectCaseIds,
+      baselineFamily,
+    );
+
+    const classes: Record<CaseDiffClass, CaseDiffItem[]> = {
+      newFailure: [],
+      fixed: [],
+      regressed: [],
+      stillFailing: [],
+    };
+
+    let compared = 0;
+    let undecided = 0;
+    let missingBaseline = 0;
+    // 抖动统计：只在两次都拿到布尔结论的用例上算翻转率。
+    let flips = 0;
+    let improved = 0;
+    let worsened = 0;
+    let allFlipsSameInput = true;
+    const rawVerdictChanges: Array<{
+      caseId: string;
+      baselineVerdict: string | null;
+      currentVerdict: string | null;
+    }> = [];
+    // 判官版本缺一边时无法确认「同版本」，不再归因于判官非确定性。
+    const versionsComparable =
+      !currentMeta.judgeSpecVersion ||
+      !baselineMeta.judgeSpecVersion ||
+      currentMeta.judgeSpecVersion === baselineMeta.judgeSpecVersion;
+
+    for (const item of run.results) {
+      const currentOutcome = this.outcomeOfResult(item, currentFamily);
+      const previous = baselineByCase.get(item.caseId);
+      if (!previous) {
+        missingBaseline += 1;
+        continue;
+      }
+      if (currentOutcome === 'undecided' || previous.outcome === 'undecided') {
+        undecided += 1;
+        continue;
+      }
+      const klass = classifyCaseDiff({
+        baseline: previous.outcome,
+        current: currentOutcome,
+        hadEarlierFailure: earlierFailures.has(item.caseId),
+      });
+      if (!klass) continue;
+      compared += 1;
+      const currentRaw = this.rawVerdictOf(item, currentFamily);
+      classes[klass].push({
+        caseId: item.caseId,
+        question: item.case.question,
+        baselineVerdict: previous.verdict,
+        currentVerdict: currentRaw,
+      });
+
+      if (currentOutcome !== previous.outcome) {
+        flips += 1;
+        if (currentOutcome === 'pass') improved += 1;
+        else worsened += 1;
+        const sameAnswer =
+          (item.actualAnswer ?? null) === previous.actualAnswer;
+        const hashComparable = Boolean(
+          item.judgeInputHash && previous.judgeInputHash,
+        );
+        const sameHash =
+          !hashComparable || item.judgeInputHash === previous.judgeInputHash;
+        if (!(sameAnswer && sameHash && versionsComparable)) {
+          allFlipsSameInput = false;
+        }
+      } else if (currentRaw !== previous.verdict) {
+        // 同结论、判官原始档位变化：单列，不与翻转混算。
+        rawVerdictChanges.push({
+          caseId: item.caseId,
+          baselineVerdict: previous.verdict,
+          currentVerdict: currentRaw,
+        });
+      }
+    }
+
+    return {
+      runId: run.id,
+      baselineRunId: baseline.id,
+      metricFamily: currentFamily,
+      runs: { current: currentMeta, baseline: baselineMeta },
+      comparable: true,
+      incomparableReasons: [],
+      warnings,
+      comparability: { compared, undecided, missingBaseline },
+      drift: {
+        sample: compared,
+        flips,
+        flipRate: compared > 0 ? Number((flips / compared).toFixed(4)) : null,
+        direction: { improved, worsened },
+        rawVerdictChanges,
+        lowSample: compared < DRIFT_LOW_SAMPLE_THRESHOLD,
+        sameInput: flips > 0 ? allFlipsSameInput : true,
+        judgeNondeterminismLikely: flips > 0 && allFlipsSameInput,
+      },
+      counts: {
+        newFailure: classes.newFailure.length,
+        fixed: classes.fixed.length,
+        regressed: classes.regressed.length,
+        stillFailing: classes.stillFailing.length,
+      },
+      classes,
+      note: '描述性分类，不构成统计显著性结论；显著性由 compare.py 配对检验给出。',
+    };
+  }
+
+  /**
+   * 判官校准：把同一运行里的人工标注与判官结论逐条对齐。
+   *
+   * 只用于评估判官口径，不进入任何指标或发布证据。样本不足 20 条时
+   * 结构上就不带 agreementRate 字段——消费方拿不到一个会被误读的百分比。
+   * 预标注、判官失败、unsafe/abstain 这类不在同一维度上的标注只计入 excluded。
+   */
+  async getRunCalibration(runId: string): Promise<RunCalibration> {
+    const run = await this.prisma.aiEvalRun.findUnique({
+      where: { id: runId },
+      select: {
+        id: true,
+        datasetId: true,
+        mode: true,
+        summary: true,
+        results: {
+          select: {
+            caseId: true,
+            verdict: true,
+            answerVerdict: true,
+            judgeErrorKind: true,
+            reason: true,
+            case: { select: { question: true } },
+          },
+        },
+      },
+    });
+    if (!run) throw new NotFoundException('Eval run not found');
+
+    const family = this.metricFamilyOf(run);
+    const annotations = await this.prisma.aiEvalAnnotation.findMany({
+      where: { runId, turn: 0, source: 'human' },
+      orderBy: [{ caseId: 'asc' }, { labelerId: 'asc' }],
+      select: {
+        caseId: true,
+        labelerId: true,
+        source: true,
+        correctness: true,
+        comment: true,
+      },
+    });
+
+    const base = {
+      runId: run.id,
+      datasetId: run.datasetId,
+      metricFamily: family,
+      threshold: CALIBRATION_MIN_SAMPLE,
+      excluded: 0,
+      disagreements: [] as RunCalibrationDisagreement[],
+    };
+
+    // 外部运行判的是答案正确性（correct/incorrect），与人工解决度不是同一维度，
+    // 硬对齐只会产生假分歧，所以整体不计入校准样本。
+    if (family !== INTERNAL_METRIC_FAMILY) {
+      return {
+        ...base,
+        status: 'insufficientSample',
+        n: 0,
+        excluded: annotations.length,
+        note: '外部运行按答案正确性判分，与人工解决度不同口径，不参与判官校准。',
+      };
+    }
+
+    const resultByCase = new Map(run.results.map((item) => [item.caseId, item]));
+    const disagreements: RunCalibrationDisagreement[] = [];
+    let agreements = 0;
+    let comparable = 0;
+    let excluded = 0;
+
+    for (const annotation of annotations) {
+      if (
+        annotation.source !== 'human' ||
+        annotation.labelerId === PRELABEL_LABELER
+      ) {
+        excluded += 1;
+        continue;
+      }
+      // 人工只标 solved/partial/unsolved 才与判官三分类可比。
+      if (!JUDGE_VERDICT_VALUES.has(annotation.correctness ?? '')) {
+        excluded += 1;
+        continue;
+      }
+      const result = resultByCase.get(annotation.caseId);
+      // 判官失败没有结论的，不能算分歧。
+      const judgeVerdict =
+        result && !result.judgeErrorKind ? result.verdict : null;
+      if (!judgeVerdict || !JUDGE_VERDICT_VALUES.has(judgeVerdict)) {
+        excluded += 1;
+        continue;
+      }
+
+      comparable += 1;
+      if (judgeVerdict === annotation.correctness) {
+        agreements += 1;
+        continue;
+      }
+      disagreements.push({
+        caseId: annotation.caseId,
+        question: result?.case.question ?? null,
+        judgeVerdict,
+        humanCorrectness: annotation.correctness as string,
+        judgeReason: result?.reason ?? null,
+        humanComment: annotation.comment ?? '',
+        labelerId: annotation.labelerId,
+      });
+    }
+
+    if (comparable < CALIBRATION_MIN_SAMPLE) {
+      return {
+        ...base,
+        status: 'insufficientSample',
+        n: comparable,
+        excluded,
+        disagreements,
+        note: `样本不足（${comparable}/${CALIBRATION_MIN_SAMPLE}）：不下结论，仅列出分歧明细供人工判断。`,
+      };
+    }
+
+    return {
+      ...base,
+      status: 'ok',
+      n: comparable,
+      excluded,
+      disagreements,
+      agreements,
+      agreementRate: Math.round((agreements / comparable) * 1000) / 10,
+      note: '一致率只用于评估判官口径，不进入任何指标或发布证据。',
+    };
+  }
+
+  /** 运行属于哪个指标族：显式 summary 优先，老数据按 mode 兜底。 */
+  private metricFamilyOf(run: {
+    summary?: unknown;
+    mode?: string | null;
+  }): string {
+    const summary = (run.summary ?? {}) as Record<string, unknown>;
+    if (typeof summary.metricFamily === 'string') {
+      return summary.metricFamily;
+    }
+    return run.mode === 'EXTERNAL'
+      ? EXTERNAL_METRIC_FAMILY
+      : INTERNAL_METRIC_FAMILY;
+  }
+
+  /** 抽出差异页要展示的元数据；缺字段保留 null，交给调用方区分缺失/不一致。 */
+  private runMetaOf(
+    run: {
+      id: string;
+      mode?: string | null;
+      status?: string | null;
+      scope?: string | null;
+      judgeSpecVersion?: string | null;
+      datasetSnapshot?: unknown;
+      summary?: unknown;
+      startedAt?: Date | null;
+    },
+    family: string,
+  ): RunMetaSnapshot {
+    const summary = (run.summary ?? {}) as Record<string, unknown>;
+    const hash = (run.datasetSnapshot as { hash?: unknown } | null)?.hash;
+    return {
+      id: run.id,
+      mode: run.mode ?? null,
+      status: run.status ?? null,
+      scope: typeof run.scope === 'string' ? run.scope : null,
+      metricFamily: family,
+      metricSpecVersion:
+        typeof summary.metricSpecVersion === 'string'
+          ? summary.metricSpecVersion
+          : null,
+      judgeSpecVersion:
+        typeof run.judgeSpecVersion === 'string'
+          ? run.judgeSpecVersion
+          : null,
+      datasetHash:
+        typeof hash === 'string' && hash.trim() !== '' ? hash : null,
+      startedAt: run.startedAt ?? null,
+    };
+  }
+
+  /**
+   * 不可比原因只列「两边都有值且不一致」，以及非 COMPLETED 的过程快照；
+   * 缺失由 traceabilityWarnings 降级处理（历史 run 缺新字段是常态）。
+   */
+  private incomparabilityReasons(
+    a: RunMetaSnapshot,
+    b: RunMetaSnapshot,
+  ): string[] {
+    if (a.metricFamily !== b.metricFamily) {
+      return [
+        `cross-family comparison: ${a.metricFamily} vs ${b.metricFamily}`,
+      ];
+    }
+    const reasons: string[] = [];
+    for (const [label, meta] of [
+      ['current', a],
+      ['baseline', b],
+    ] as const) {
+      if (meta.status && meta.status !== 'COMPLETED') {
+        reasons.push(`${label} run status ${meta.status} is not COMPLETED`);
+      }
+    }
+    if (
+      a.metricSpecVersion &&
+      b.metricSpecVersion &&
+      a.metricSpecVersion !== b.metricSpecVersion
+    ) {
+      reasons.push('metricSpecVersion mismatch');
+    }
+    if (
+      a.judgeSpecVersion &&
+      b.judgeSpecVersion &&
+      a.judgeSpecVersion !== b.judgeSpecVersion
+    ) {
+      reasons.push('judgeSpecVersion mismatch');
+    }
+    if (a.datasetHash && b.datasetHash && a.datasetHash !== b.datasetHash) {
+      reasons.push('datasetSnapshot.hash mismatch');
+    }
+    if (a.scope && b.scope && a.scope !== b.scope) {
+      reasons.push('scope mismatch');
+    }
+    if (a.mode && b.mode && a.mode !== b.mode) {
+      reasons.push('mode mismatch');
+    }
+    return reasons;
+  }
+
+  /** 两端溯源字段缺失只提示，不阻断比较。 */
+  private traceabilityWarnings(
+    a: RunMetaSnapshot,
+    b: RunMetaSnapshot,
+  ): string[] {
+    const view = (meta: RunMetaSnapshot): RunTrace => ({
+      id: meta.id,
+      metricFamily: meta.metricFamily,
+      metricSpecVersion: meta.metricSpecVersion,
+      judgeSpecVersion: meta.judgeSpecVersion,
+      datasetSnapshot: { hash: meta.datasetHash },
+      scope: meta.scope,
+    });
+    return [
+      ...runTraceabilityIssues(view(a)).map((item) => `a: ${item}`),
+      ...runTraceabilityIssues(view(b)).map((item) => `b: ${item}`),
+    ];
+  }
+
+  /** 判定归一；judgeErrorKind 有值说明判官没给出结论，不能算失败。 */
+  private outcomeOfResult(
+    result: {
+      verdict?: string | null;
+      answerVerdict?: string | null;
+      judgeErrorKind?: string | null;
+    } | null,
+    family: string,
+  ): CaseOutcome {
+    if (!result || result.judgeErrorKind) return 'undecided';
+    return family === EXTERNAL_METRIC_FAMILY
+      ? outcomeFromAnswerVerdict(result.answerVerdict)
+      : outcomeFromVerdict(result.verdict);
+  }
+
+  private rawVerdictOf(
+    result: { verdict?: string | null; answerVerdict?: string | null },
+    family: string,
+  ): string | null {
+    return family === EXTERNAL_METRIC_FAMILY
+      ? (result.answerVerdict ?? null)
+      : (result.verdict ?? null);
+  }
+
+  /** 基线之前，这些用例里哪些失败过（用于区分首次失败与回退）。 */
+  private async loadEarlierFailures(
+    datasetId: string,
+    before: Date,
+    caseIds: string[],
+    family: string,
+  ): Promise<Set<string>> {
+    const failed = new Set<string>();
+    if (caseIds.length === 0) return failed;
+    const earlierRuns = await this.prisma.aiEvalRun.findMany({
+      where: {
+        datasetId,
+        startedAt: { lt: before },
+        results: { some: { caseId: { in: caseIds } } },
+      },
+      select: {
+        results: {
+          where: { caseId: { in: caseIds } },
+          select: {
+            caseId: true,
+            verdict: true,
+            answerVerdict: true,
+            judgeErrorKind: true,
+          },
+        },
+      },
+    });
+    for (const earlier of earlierRuns) {
+      for (const item of earlier.results) {
+        if (this.outcomeOfResult(item, family) === 'fail') {
+          failed.add(item.caseId);
+        }
+      }
+    }
+    return failed;
+  }
+
+  /**
+   * 待验用例（FIXED_PENDING_VERIFY）由运行结果自动推进：
+   * - 判定通过 → CLOSED；
+   * - 判定失败 → 打回 OPEN 并记 regressedAt；
+   * - 判官没给出结论 → 不动，等下一轮。
+   *
+   * 只改 resolution 仍是 FIXED_PENDING_VERIFY 的行，人工在此期间改判不会被覆盖。
+   */
+  async advancePendingVerification(
+    runId: string,
+    /** 收尾路径已知道指标族时直接传入，省一次 run 查询。 */
+    knownFamily?: string,
+  ): Promise<{ closed: number; regressed: number }> {
+    let family = knownFamily;
+    if (!family) {
+      const run = await this.prisma.aiEvalRun.findUnique({
+        where: { id: runId },
+        select: { id: true, mode: true, summary: true },
+      });
+      if (!run) return { closed: 0, regressed: 0 };
+      family = this.metricFamilyOf(run);
+    }
+
+    const results = await this.prisma.aiEvalResult.findMany({
+      where: { runId },
+      select: {
+        caseId: true,
+        verdict: true,
+        answerVerdict: true,
+        judgeErrorKind: true,
+      },
+    });
+    if (results.length === 0) return { closed: 0, regressed: 0 };
+
+    const passCaseIds: string[] = [];
+    const failCaseIds: string[] = [];
+    for (const item of results) {
+      const outcome = this.outcomeOfResult(item, family);
+      if (outcome === 'pass') passCaseIds.push(item.caseId);
+      else if (outcome === 'fail') failCaseIds.push(item.caseId);
+    }
+    if (passCaseIds.length === 0 && failCaseIds.length === 0) {
+      return { closed: 0, regressed: 0 };
+    }
+
+    const caseIds = [...passCaseIds, ...failCaseIds];
+    // 正向：用例记录来源反馈；反向：老数据只写了 feedback.linkedEvalCaseId。
+    const feedbackIdByCase = new Map<string, string>();
+    const cases = await this.prisma.aiEvalCase.findMany({
+      where: { id: { in: caseIds } },
+      select: { id: true, sourceFeedbackId: true },
+    });
+    for (const item of cases) {
+      if (item.sourceFeedbackId) {
+        feedbackIdByCase.set(item.id, item.sourceFeedbackId);
+      }
+    }
+    const linked = await this.prisma.aiAnswerFeedback.findMany({
+      where: { linkedEvalCaseId: { in: caseIds } },
+      select: { id: true, linkedEvalCaseId: true },
+    });
+    for (const item of linked) {
+      if (
+        item.linkedEvalCaseId &&
+        !feedbackIdByCase.has(item.linkedEvalCaseId)
+      ) {
+        feedbackIdByCase.set(item.linkedEvalCaseId, item.id);
+      }
+    }
+
+    const feedbackIdsOf = (ids: string[]) => [
+      ...new Set(
+        ids
+          .map((caseId) => feedbackIdByCase.get(caseId))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const passFeedbackIds = feedbackIdsOf(passCaseIds);
+    const failFeedbackIds = feedbackIdsOf(failCaseIds);
+
+    let closed = 0;
+    let regressed = 0;
+    if (passFeedbackIds.length > 0) {
+      const updated = await this.prisma.aiAnswerFeedback.updateMany({
+        where: {
+          id: { in: passFeedbackIds },
+          resolution: 'FIXED_PENDING_VERIFY',
+        },
+        data: {
+          resolution: 'CLOSED',
+          reviewStatus: 'REVIEWED',
+          reviewedAt: new Date(),
+          regressedAt: null,
+        },
+      });
+      closed = updated.count;
+    }
+    if (failFeedbackIds.length > 0) {
+      const updated = await this.prisma.aiAnswerFeedback.updateMany({
+        where: {
+          id: { in: failFeedbackIds },
+          resolution: 'FIXED_PENDING_VERIFY',
+        },
+        data: {
+          resolution: 'OPEN',
+          reviewStatus: 'PENDING',
+          reviewedBy: null,
+          reviewedAt: null,
+          regressedAt: new Date(),
+        },
+      });
+      regressed = updated.count;
+    }
+    if (closed > 0 || regressed > 0) {
+      this.logger.log(
+        `[eval] pending verification advanced for run ${runId}: closed=${closed} regressed=${regressed}`,
+      );
+    }
+    return { closed, regressed };
+  }
+
+  /** 状态推进失败不能把已落盘的结果判成运行失败，只告警留痕。 */
+  private async advancePendingVerificationSafe(
+    runId: string,
+    knownFamily?: string,
+  ): Promise<void> {
+    try {
+      await this.advancePendingVerification(runId, knownFamily);
+    } catch (err: any) {
+      this.logger.warn(
+        `[eval] pending verification advance failed for run ${runId}: ${err?.message ?? err}`,
+      );
+    }
   }
 
   /**
@@ -942,36 +2220,71 @@ export class AiEvalDatasetService {
       };
     });
 
-    // run 创建后可能才 promote 基线；收尾时再回退一次，保证对比用的是当前基线。
-    const baselineRunId =
-      run.baselineRunId ?? (await this.findBaselineRunId(run.datasetId));
+    // 对比对象在创建时就定了：baselineRunId 为空表示「不对比」，
+    // 收尾时不得回退到中途 promote 的基线（那会让 delta 的来源不可复现）。
+    const baselineRunId = run.baselineRunId ?? null;
     const summary = await this.buildExternalSummary(
       { ...run, baselineRunId },
       results,
     );
 
-    await this.prisma.$transaction(async (tx) => {
-      const current = await tx.aiEvalRun.findUnique({
-        where: { id: runId },
-        select: { status: true },
-      });
-      if (current?.status !== 'RUNNING') {
-        throw new BadRequestException(
-          `Run is ${current?.status ?? 'missing'}; external results are immutable`,
-        );
-      }
-      await tx.aiEvalResult.createMany({ data: rows });
-      await tx.aiEvalRun.update({
-        where: { id: runId },
-        data: {
-          status: 'COMPLETED',
-          finishedAt: new Date(),
-          summary: summary as any,
-          baselineRunId,
-          knowledgeSnapshot: knowledgeSnapshot as any,
-        },
-      });
+    // 判官尝试明细按用例映射到库内 caseId；旧客户端没有该字段就不产生行。
+    const attemptRows = results.flatMap((item) => {
+      const caseId = caseIdByExternalId.get(item.caseId);
+      if (!caseId) return [];
+      return (item.judgeAttempts ?? []).map((attempt, index) =>
+        this.judgeAttemptRow({
+          runId,
+          caseId,
+          source: 'faithfulness',
+          attemptIndex: attempt.attemptIndex ?? index,
+          outcome: attempt.outcome,
+          verdict: attempt.verdict ?? null,
+          score: attempt.score ?? null,
+          errorKind: attempt.errorKind ?? null,
+          rawOutput: attempt.rawOutput ?? null,
+          rawTruncated: attempt.rawTruncated ?? false,
+          judgeVersion: attempt.judgeVersion ?? run.judgeSpecVersion,
+          judgeInputHash: attempt.judgeInputHash ?? item.judgeInputHash ?? null,
+        }),
+      );
     });
+
+    await this.writeWithAttempts(
+      `external run ${runId}`,
+      attemptRows,
+      async (tx, includeAttempts) => {
+        const current = await tx.aiEvalRun.findUnique({
+          where: { id: runId },
+          select: { status: true },
+        });
+        if (current?.status !== 'RUNNING') {
+          throw new BadRequestException(
+            `Run is ${current?.status ?? 'missing'}; external results are immutable`,
+          );
+        }
+        await tx.aiEvalResult.createMany({ data: rows });
+        if (includeAttempts && attemptRows.length > 0) {
+          await tx.aiEvalJudgeAttempt.createMany({ data: attemptRows });
+        }
+        await tx.aiEvalRun.update({
+          where: { id: runId },
+          data: {
+            status: 'COMPLETED',
+            finishedAt: new Date(),
+            summary: summary as any,
+            baselineRunId,
+            knowledgeSnapshot: knowledgeSnapshot as any,
+          },
+        });
+      },
+    );
+
+    // 结果已落盘、运行已 COMPLETED：待验用例在这里按本轮判定推进。
+    await this.advancePendingVerificationSafe(
+      runId,
+      this.metricFamilyOf({ summary, mode: 'EXTERNAL' }),
+    );
 
     return this.getRun(runId);
   }
@@ -1124,6 +2437,11 @@ export class AiEvalDatasetService {
     const judged = counts.correct + counts.incorrect;
     const accuracy =
       judged > 0 ? Number((counts.correct / judged).toFixed(4)) : null;
+    // 覆盖率：分母是本次入库条数（含跳过与不适用），零条时无定义 → null。
+    const coverage =
+      results.length > 0
+        ? Number((judged / results.length).toFixed(4))
+        : null;
     // 与 METRICS.md 一致：分母是实际调用过判官的判定；0 次调用时无定义。
     const judgeErrorRate =
       judgeAttempted > 0
@@ -1133,11 +2451,16 @@ export class AiEvalDatasetService {
 
     const summary: Record<string, any> = {
       mode: 'EXTERNAL',
+      // 族随数字走：消费方按它拒绝跨族相减，不用猜 accuracy 与 passRate 谁是谁。
+      metricFamily: EXTERNAL_METRIC_FAMILY,
       total: results.length,
       correct: counts.correct,
       incorrect: counts.incorrect,
       judgeError: counts.judge_error,
       accuracy,
+      // 已判条数 + 覆盖率：未判/跳过同样计入 total，避免「准确率很高但其实大半没判」。
+      judgedCases: judged,
+      coverage,
       judgeErrorRate,
       judgeErrorKinds,
       judgeAgreement,
@@ -1182,6 +2505,18 @@ export class AiEvalDatasetService {
       verdictByCase.set(item.caseId, item.answerVerdict);
     }
     const summary = (baseline.summary ?? {}) as Record<string, any>;
+    // 跨族对比会拿两套指标相减（accuracy 减 passRate），宁可不算。
+    // 老 run 没有 metricFamily 字段，但 accuracy 语义从未变过，仍可对比。
+    if (
+      typeof summary.metricFamily === 'string' &&
+      summary.metricFamily !== EXTERNAL_METRIC_FAMILY
+    ) {
+      this.logger.warn(
+        `[eval] baseline ${runId} belongs to metric family ${summary.metricFamily}; ` +
+          'skip cross-family answer comparison',
+      );
+      return null;
+    }
     return {
       accuracy: typeof summary.accuracy === 'number' ? summary.accuracy : null,
       verdictByCase,
@@ -1192,11 +2527,16 @@ export class AiEvalDatasetService {
     results: ExternalEvalResultDto[],
     baseline: AnswerBaselineSnapshot,
   ): Record<string, any> {
+    // 只有「判过」的两端才有可比性：judge_error / null 既不是通过也不是失败，
+    // 拿来对比会把判官故障记成回归（或修复），污染 newFailures/fixed。
+    const isDecided = (verdict: string | null | undefined): boolean =>
+      verdict === 'correct' || verdict === 'incorrect';
+
     let newFailures = 0;
     let fixed = 0;
     for (const item of results) {
       const previous = baseline.verdictByCase.get(item.caseId);
-      if (previous === undefined) continue;
+      if (!isDecided(previous) || !isDecided(item.answerVerdict)) continue;
       const wasCorrect = previous === 'correct';
       const isCorrect = item.answerVerdict === 'correct';
       if (wasCorrect && !isCorrect) newFailures += 1;
@@ -1238,18 +2578,9 @@ export class AiEvalDatasetService {
     if (run.status !== 'RUNNING') return;
 
     const mode: EvalMode = run.mode === 'LIVE' ? 'LIVE' : 'STORED';
-    // run 入队后才 promote 基线时，这里补一次回退并把实际基线写回 run。
-    const baselineRunId =
-      run.baselineRunId ?? (await this.findBaselineRunId(run.datasetId));
-    if (!run.baselineRunId && baselineRunId) {
-      await this.prisma.aiEvalRun
-        .update({ where: { id: runId }, data: { baselineRunId } })
-        .catch((err) =>
-          this.logger.warn(
-            `[eval] run ${runId} baseline write-back failed: ${err?.message ?? err}`,
-          ),
-        );
-    }
+    // 对比对象在 startRun 时就写进了 run（含显式 null = 不对比）；
+    // 执行期不得回退到后来 promote 的基线，否则同一 run 的 delta 不可复现。
+    const baselineRunId = run.baselineRunId ?? null;
     const baseline = baselineRunId
       ? await this.loadBaseline(baselineRunId)
       : null;
@@ -1258,8 +2589,16 @@ export class AiEvalDatasetService {
     let partial = 0;
     let unsolved = 0;
     let budgetExceeded = false;
+    // 判官失败与「回答错误」分账：失败条数单独累计，不落进 unsolved 分母。
+    let judgeErrors = 0;
+    const judgeErrorKinds: Record<string, number> = {};
+    // 执行失败（LIVE 链路自身挂了）同理单独累计，类别只有 live_call。
+    let executionErrors = 0;
+    const executionErrorKinds: Record<string, number> = {};
+    let consecutiveJudgeFailures = 0;
+    const judgeFailureCircuit = resolveJudgeFailureCircuit();
     const caseVerdicts: CaseVerdict[] = [];
-    const usage = this.createUsageAccumulator();
+    const usage = this.createUsageAccumulator(run.judgeModel);
     try {
       for (const item of run.dataset.cases) {
         // 进入下一条用例前先看状态：取消后不再发起新的 AI/judge 调用。
@@ -1268,9 +2607,15 @@ export class AiEvalDatasetService {
         // 预算护栏：用「题目 + 历史回答 + 固定 prompt 开销」预估本条成本。
         // LIVE 模式跑之前拿不到实际回答，只能用用例里保存的回答做代理。
         const caseEstimate = estimateEvalCaseTokens(item.question, item.answer);
+        // 预算检查只在用例边界执行：不打断跑到一半的用例，避免半条结果。
+        // 有真实样本后用移动平均预测，没有则回退本条估算。
+        const nextCaseTokens = this.predictNextCaseTokens(
+          usage,
+          caseEstimate.totalTokens,
+        );
         if (
           usage.budget > 0 &&
-          usage.estimatedTokens + caseEstimate.totalTokens > usage.budget
+          usage.estimatedTokens + nextCaseTokens > usage.budget
         ) {
           budgetExceeded = true;
           this.logger.warn(
@@ -1290,55 +2635,182 @@ export class AiEvalDatasetService {
         let traceId: string | null = null;
         let liveError: string | null = null;
 
+        // 采集器按用例创建：本条实测值要作为下一条预算预测的样本。
+        // 建在 try 外面：调用抛错时也要把「调过但不可得」记进账本。
+        const chatUsage = mode === 'LIVE' ? new LlmUsageCollector('chat') : null;
+
         if (mode === 'LIVE') {
           try {
-            const live = await this.runLiveCase(runId, item.id, item.question);
+            const live = await this.runLiveCase(
+              runId,
+              item.id,
+              item.question,
+              chatUsage!,
+            );
             answer = live.answer;
             actualAnswer = live.answer;
             pendingConfirm = live.pendingConfirm;
             // eval 不再伪造 traceId：testChat 不写 trace，留 null 比悬空 id 诚实。
             traceId = null;
           } catch (err: any) {
-            // 单条用例的 AI 故障不拖垮整次评测：记 unsolved 并继续下一条。
+            // 单条用例的 AI 故障不拖垮整次评测：执行错误单独记账并继续下一条。
             liveError = String(err?.message ?? err).slice(0, 200);
             this.logger.warn(
               `[eval] live case ${item.id} failed in run ${runId}: ${liveError}`,
             );
           }
+          addUsageSnapshot(usage.real.chat, chatUsage!.snapshot());
         }
 
-        const verdict = liveError
-          ? {
-              verdict: 'unsolved' as const,
-              score: 0,
-              reason: `live_failed: ${liveError}`,
-              judgeModel: null,
-              judgeVendor: null,
-              vendorIndependent: null,
-            }
-          : await this.judge.judge({
+        let verdict: {
+          verdict: TaskJudgeResult['verdict'];
+          score: number;
+          reason: string;
+          judgeModel: string | null;
+          judgeVendor: string | null;
+          vendorIndependent: boolean | null;
+          rawOutput?: string | null;
+          rawTruncated?: boolean;
+          usage?: LlmUsageSnapshot;
+        } | null = null;
+        let judgeError: {
+          kind: JudgeErrorKind;
+          message: string;
+          rawOutput: string | null;
+          rawTruncated: boolean;
+        } | null = null;
+
+        // 执行失败的有没拿到回答，判官没东西可判：跳过判官，直接留痕。
+        if (!liveError) {
+          try {
+            verdict = await this.judge.judge({
               question: item.question,
               answer,
               expectTask: expectTask as any,
               pendingConfirm,
             });
+            consecutiveJudgeFailures = 0;
+            addUsageSnapshot(usage.real.judge, verdict?.usage);
+          } catch (err) {
+            // 原始输出只挂在异常字段上（不进 message/日志），这里原样取出，
+            // 由落库入口统一截断与脱敏。
+            const failure =
+              err instanceof JudgeFailureError ? err.rawOutput ?? null : null;
+            judgeError = {
+              kind: this.judgeErrorKindOf(err),
+              message: String((err as any)?.message ?? err).slice(0, 200),
+              rawOutput: failure,
+              rawTruncated:
+                err instanceof JudgeFailureError
+                  ? Boolean(err.rawTruncated)
+                  : false,
+            };
+            this.logger.warn(
+              `[eval] judge failed for case ${item.id} in run ${runId} (${judgeError.kind}): ${judgeError.message}`,
+            );
+          }
+        }
 
         // 已经发生的 AI/judge 调用要计入本 run；LIVE 用实际回答修正估算。
         this.addUsage(
           usage,
           estimateEvalCaseTokens(item.question, actualAnswer ?? answer),
         );
+        // 本条实测值作为后续预算预测的样本；没有真实用量就不更新平均值。
+        this.recordRealSample(
+          usage,
+          (chatUsage?.snapshot().totalTokens ?? 0) +
+            (verdict?.usage?.totalTokens ?? 0),
+        );
 
         // 判分期间可能已被取消：取消后丢弃这条结果，不再写库。
         if (!(await this.ensureRunning(runId, usage))) return;
+
+        if (liveError) {
+          executionErrors += 1;
+          executionErrorKinds.live_call =
+            (executionErrorKinds.live_call ?? 0) + 1;
+          // 执行失败既不进 unsolved，也不写 AiScore：这是系统故障，不是回答错了。
+          await this.prisma.aiEvalResult.create({
+            data: {
+              runId,
+              caseId: item.id,
+              verdict: null,
+              score: null,
+              reason: `execution_error: live_call: ${liveError}`.slice(0, 300),
+              actualAnswer,
+              judgeModel: null,
+              judgeVendor: null,
+              vendorIndependent: null,
+              traceId,
+              latencyMs: Date.now() - started,
+            },
+          });
+          continue;
+        }
+
+        if (judgeError) {
+          judgeErrors += 1;
+          judgeErrorKinds[judgeError.kind] =
+            (judgeErrorKinds[judgeError.kind] ?? 0) + 1;
+          consecutiveJudgeFailures += 1;
+          // 留痕但不判分：verdict/score 留空，不写 AiScore，
+          // 否则判官故障会被当成一次「回答错了」进准确率分母。
+          await this.writeResultWithAttempts(
+            {
+              runId,
+              caseId: item.id,
+              verdict: null,
+              score: null,
+              reason: `judge_error: ${judgeError.message}`.slice(0, 300),
+              judgeErrorKind: judgeError.kind,
+              actualAnswer,
+              judgeModel: null,
+              judgeVendor: null,
+              vendorIndependent: null,
+              traceId,
+              latencyMs: Date.now() - started,
+            },
+            [
+              this.judgeAttemptRow({
+                runId,
+                caseId: item.id,
+                source: 'task',
+                attemptIndex: 0,
+                // 有输出但解析不出才是 parse_failed；调用/网络失败没有原文。
+                outcome:
+                  judgeError.kind === 'output_format'
+                    ? 'parse_failed'
+                    : 'call_error',
+                errorKind: judgeError.kind,
+                rawOutput: judgeError.rawOutput,
+                rawTruncated: judgeError.rawTruncated,
+                judgeVersion: run.judgeSpecVersion,
+              }),
+            ],
+          );
+          if (consecutiveJudgeFailures >= judgeFailureCircuit) {
+            throw new JudgeCircuitOpenError(
+              consecutiveJudgeFailures,
+              judgeError.message,
+            );
+          }
+          continue;
+        }
+        if (!verdict) {
+          // 两种失败都已 continue；走到这里还没有判定，说明分支写漏了。
+          throw new Error(
+            `eval case ${item.id} produced neither verdict nor error`,
+          );
+        }
 
         if (verdict.verdict === 'solved') solved += 1;
         else if (verdict.verdict === 'partial') partial += 1;
         else unsolved += 1;
         caseVerdicts.push({ caseId: item.id, verdict: verdict.verdict });
 
-        const result = await this.prisma.aiEvalResult.create({
-          data: {
+        const result = await this.writeResultWithAttempts(
+          {
             runId,
             caseId: item.id,
             verdict: verdict.verdict,
@@ -1351,7 +2823,21 @@ export class AiEvalDatasetService {
             traceId,
             latencyMs: Date.now() - started,
           },
-        });
+          [
+            this.judgeAttemptRow({
+              runId,
+              caseId: item.id,
+              source: 'task',
+              attemptIndex: 0,
+              outcome: 'success',
+              verdict: verdict.verdict,
+              score: verdict.score,
+              rawOutput: verdict.rawOutput,
+              rawTruncated: verdict.rawTruncated,
+              judgeVersion: run.judgeSpecVersion,
+            }),
+          ],
+        );
 
         // 统一评分：评测结果同时落一条 AiScore，供 trace 详情和质量趋势复用。
         await this.prisma.aiScore
@@ -1361,6 +2847,8 @@ export class AiEvalDatasetService {
               conversationId: null,
               messageId: null,
               source: 'LLM',
+              // 评测分是 0..1 连续分；分诊分是 0/1 判定，两者不能混读。
+              valueKind: 'graded',
               value: verdict.score,
               stringValue: verdict.verdict,
               comment: verdict.reason.slice(0, 500),
@@ -1392,6 +2880,16 @@ export class AiEvalDatasetService {
               mode,
               baselineRunId,
               error: 'token budget exceeded',
+              failureCategory: 'budget',
+              // 预算中断同样是「跑到一半停」，已判分与失败条数要一起留下。
+              total: run.dataset.cases.length,
+              solved,
+              partial,
+              unsolved,
+              judgeErrors,
+              judgeErrorKinds,
+              executionError: executionErrors,
+              executionErrorKinds,
               usage: this.buildUsageSummary(usage),
             },
           },
@@ -1408,6 +2906,14 @@ export class AiEvalDatasetService {
         data: {
           status: 'COMPLETED',
           finishedAt: new Date(),
+          // 内部 run 也留快照：没有它，两次内部运行的分数无法归因到同一套题。
+          datasetSnapshot: {
+            hash: snapshotHashOfCaseIds(run.dataset.cases.map((c) => c.id)),
+            cases: [...run.dataset.cases.map((c) => c.id)].sort(),
+          },
+          codeVersion: resolveEvalCodeVersion(),
+          // 有执行失败才写类别；COMPLETED 但仍可据此筛出「带系统故障的运行」。
+          executionErrorKind: executionErrors > 0 ? 'live_call' : null,
           summary: this.buildSummary({
             mode,
             baselineRunId,
@@ -1415,6 +2921,10 @@ export class AiEvalDatasetService {
             solved,
             partial,
             unsolved,
+            judgeErrors,
+            judgeErrorKinds,
+            executionErrors,
+            executionErrorKinds,
             passRate,
             caseVerdicts,
             baseline,
@@ -1423,6 +2933,10 @@ export class AiEvalDatasetService {
         },
       });
       if (completed.count === 0) await this.ensureRunning(runId, usage);
+      else await this.advancePendingVerificationSafe(
+        runId,
+        INTERNAL_METRIC_FAMILY,
+      );
     } catch (err: any) {
       // 条件更新：取消优先于失败，避免把 CANCELLED 覆盖成 FAILED。
       await this.prisma.aiEvalRun
@@ -1431,11 +2945,33 @@ export class AiEvalDatasetService {
           data: {
             status: 'FAILED',
             finishedAt: new Date(),
+            // 失败也要说清「已经判了多少」：只剩一行 error 时，
+            // 没人分得出是开跑就挂还是跑到一半崩的。
             summary: {
-              mode,
-              baselineRunId,
+              ...this.buildSummary({
+                mode,
+                baselineRunId,
+                total: run.dataset.cases.length,
+                solved,
+                partial,
+                unsolved,
+                judgeErrors,
+                judgeErrorKinds,
+                executionErrors,
+                executionErrorKinds,
+                passRate:
+                  run.dataset.cases.length > 0
+                    ? Number((solved / run.dataset.cases.length).toFixed(3))
+                    : 0,
+                caseVerdicts,
+                baseline,
+                usage,
+                failureCategory:
+                  err instanceof JudgeCircuitOpenError
+                    ? 'judge_unavailable'
+                    : 'unhandled',
+              }),
               error: String(err?.message ?? err).slice(0, 300),
-              usage: this.buildUsageSummary(usage),
             },
           },
         })
@@ -1445,19 +2981,148 @@ export class AiEvalDatasetService {
           ),
         );
       throw err;
+    } finally {
+      // 运行结束（完成/取消/失败）即释放节流状态，避免 Map 随 run 累积。
+      this.lastHeartbeatAt.delete(runId);
     }
   }
 
   /**
-   * 读一次状态并返回是否还能继续。
+   * 构造一条判官尝试留痕行。所有落库路径都必须经过这里：
+   * 截断与脱敏只在入口做一次，避免某个写入点漏掉。
+   */
+  private judgeAttemptRow(input: {
+    runId: string;
+    caseId: string;
+    source: 'task' | 'faithfulness';
+    attemptIndex: number;
+    outcome: 'success' | 'parse_failed' | 'call_error';
+    verdict?: string | null;
+    score?: number | null;
+    errorKind?: string | null;
+    rawOutput?: string | null;
+    rawTruncated?: boolean;
+    judgeVersion?: string | null;
+    judgeInputHash?: string | null;
+  }) {
+    const raw = redactJudgeRawCapture(
+      input.rawOutput ?? '',
+      Boolean(input.rawTruncated),
+    );
+    return {
+      runId: input.runId,
+      caseId: input.caseId,
+      source: input.source,
+      attemptIndex: input.attemptIndex,
+      outcome: input.outcome,
+      verdict: input.verdict ?? null,
+      score: input.score ?? null,
+      errorKind: input.errorKind ?? null,
+      rawOutput: raw.rawOutput,
+      rawTruncated: raw.rawTruncated,
+      judgeVersion: input.judgeVersion ?? null,
+      judgeInputHash: input.judgeInputHash ?? null,
+    };
+  }
+
+  /**
+   * 在交互式事务里执行 `write`，允许该事务顺带写判官尝试。
+   *
+   * 留痕是辅助能力：尝试写入失败时重跑一次不带尝试的同一事务，
+   * 判分结果与运行状态保持不变。业务性错误（HttpException，如状态
+   * 已被并发收尾）不重试——那与留痕无关，重试只会重复报同一个错。
+   */
+  private async writeWithAttempts<T>(
+    label: string,
+    attempts: Array<Record<string, unknown>>,
+    write: (tx: any, includeAttempts: boolean) => Promise<T>,
+  ): Promise<T> {
+    const hasAttempts = attempts.length > 0;
+    const run = (includeAttempts: boolean) =>
+      this.prisma.$transaction(
+        (tx) => write(tx, includeAttempts),
+      ) as Promise<T>;
+    try {
+      return await run(true);
+    } catch (err) {
+      if (!hasAttempts || err instanceof HttpException) throw err;
+      this.logger.warn(
+        `[eval] judge attempt persistence failed for ${label}; retrying without attempts: ${
+          (err as Error)?.message ?? err
+        }`,
+      );
+      return run(false);
+    }
+  }
+
+  /** 结果行与判官尝试行同事务写入；尝试写入失败降级为只写结果。 */
+  private async writeResultWithAttempts(
+    data: Record<string, unknown>,
+    attempts: Array<Record<string, unknown>>,
+  ) {
+    return this.writeWithAttempts(
+      `case ${String(data.caseId)}`,
+      attempts,
+      async (tx, includeAttempts) => {
+        const result = await tx.aiEvalResult.create({ data });
+        if (includeAttempts && attempts.length > 0) {
+          await tx.aiEvalJudgeAttempt.createMany({ data: attempts });
+        }
+        return result;
+      },
+    );
+  }
+
+  /**
+   * 判官失败的归类，三层兜底：
+   * 1. `JudgeFailureError`（判官自己归的类，如 output_format）；
+   * 2. 503 结构化 body 的 `kind`（所有 key 都失败时的网关错误）；
+   * 3. 文本归类 `classifyJudgeError`（第三方/历史裸错误）。
+   * 与 rag 的判定端点共用第 3 层，避免两套分类规则漂移。
+   */
+  private judgeErrorKindOf(err: unknown): JudgeErrorKind {
+    if (err instanceof JudgeFailureError) return err.kind;
+    if (err instanceof HttpException) {
+      const body = err.getResponse();
+      if (body && typeof body === 'object' && 'kind' in body) {
+        const kind = (body as { kind?: unknown }).kind;
+        if (
+          typeof kind === 'string' &&
+          (JUDGE_ERROR_KINDS as readonly string[]).includes(kind)
+        ) {
+          return kind as JudgeErrorKind;
+        }
+      }
+    }
+    return classifyJudgeError(err);
+  }
+
+  /**
+   * 读一次状态并返回是否还能继续，顺带推进心跳。
    * - RUNNING：继续；
    * - CANCELLED：补齐 finishedAt/summary 后停止；
    * - 其他终态或行已不存在：静默停止（不覆盖已有终态）。
+   *
+   * 心跳每 ≥30s 写一次（条件 updateMany：只有仍 RUNNING 才命中）。
+   * 命中 count>0 就等于同时确认了存活，省掉一次读；未命中才回读状态，
+   * 用来区分 CANCELLED 与其他终态。心跳只在进程内节流，判活只认 DB 的
+   * heartbeatAt —— worker 被杀时进程内时间戳一起消失，DB 侧才看得出僵死。
    */
   private async ensureRunning(
     runId: string,
     usage?: EvalRunUsage,
   ): Promise<boolean> {
+    const now = Date.now();
+    const last = this.lastHeartbeatAt.get(runId) ?? 0;
+    if (now - last >= EVAL_HEARTBEAT_INTERVAL_MS) {
+      this.lastHeartbeatAt.set(runId, now);
+      const beat = await this.prisma.aiEvalRun.updateMany({
+        where: { id: runId, status: 'RUNNING' },
+        data: { heartbeatAt: new Date(now) },
+      });
+      if (beat.count > 0) return true;
+    }
+
     const current = await this.prisma.aiEvalRun.findUnique({
       where: { id: runId },
       select: { status: true },
@@ -1487,13 +3152,21 @@ export class AiEvalDatasetService {
     });
   }
 
-  private createUsageAccumulator(): EvalRunUsage {
+  private createUsageAccumulator(judgeModel?: string | null): EvalRunUsage {
     return {
       estimatedTokens: 0,
       promptTokens: 0,
       completionTokens: 0,
       budget: this.resolveTokenBudget(),
       exceeded: false,
+      real: {
+        chat: emptyUsageSnapshot('chat'),
+        judge: emptyUsageSnapshot('judge'),
+      },
+      judgeModel: judgeModel ?? null,
+      budgetBasis: 'estimated-v1',
+      realEwma: null,
+      realSamples: 0,
     };
   }
 
@@ -1504,6 +3177,35 @@ export class AiEvalDatasetService {
     return raw <= 0 ? 0 : Math.floor(raw);
   }
 
+  /**
+   * 下一条用例的预算用量：有真实样本时取「移动平均 × 安全系数」与估算的
+   * 较大值，没有样本时退回估算（首条必然走这一支）。
+   */
+  private predictNextCaseTokens(
+    usage: EvalRunUsage,
+    estimate: number,
+  ): number {
+    if (usage.realEwma === null) return estimate;
+    return Math.max(
+      estimate,
+      Math.ceil(usage.realEwma * EVAL_BUDGET_EWMA_SAFETY),
+    );
+  }
+
+  /** 把一条用例的真实总量并入移动平均；0 或不可得不参与。 */
+  private recordRealSample(usage: EvalRunUsage, tokens: number): void {
+    if (!Number.isFinite(tokens) || tokens <= 0) return;
+    usage.realEwma =
+      usage.realEwma === null
+        ? tokens
+        : Math.round(
+            EVAL_BUDGET_EWMA_ALPHA * tokens +
+              (1 - EVAL_BUDGET_EWMA_ALPHA) * usage.realEwma,
+          );
+    usage.realSamples += 1;
+    usage.budgetBasis = 'real-ewma-v1';
+  }
+
   private addUsage(usage: EvalRunUsage, estimate: EvalUsageEstimate): void {
     usage.estimatedTokens += estimate.totalTokens;
     usage.promptTokens += estimate.promptTokens;
@@ -1512,27 +3214,90 @@ export class AiEvalDatasetService {
 
   /**
    * 只写 run.summary.usage，不写 ai_usage_daily：评测没有真实用户，
-   * 记进用户用量会污染运营报表。价格未配置时 costConfigured=false。
+   * 记进用户用量会污染运营报表。
+   *
+   * 成本按价目表（model-pricing）计算：真实用量按角色各自的模型取价，
+   * 一次真实用量都没有时退回估算账本 + 全局价（历史口径）。
+   * 缺模型价格或币种缺汇率时 costConfigured=false，绝不写 0 冒充已配置。
    */
   private buildUsageSummary(usage: EvalRunUsage): Record<string, any> {
-    const inputPer1M = this.numberEnv('AI_PRICE_INPUT_PER_1M', 0);
-    const outputPer1M = this.numberEnv('AI_PRICE_OUTPUT_PER_1M', 0);
-    const costConfigured = inputPer1M > 0 || outputPer1M > 0;
-    const cost =
-      (usage.promptTokens / 1_000_000) * inputPer1M +
-      (usage.completionTokens / 1_000_000) * outputPer1M;
+    const { chat, judge } = usage.real;
+    const measuredCalls = chat.measuredCalls + judge.measuredCalls;
+    const unavailableCalls = chat.unavailableCalls + judge.unavailableCalls;
+    // 三档来源：全部拿到真实用量 = real；既有真实又有不可得 = mixed；
+    // 一次都没拿到（含本地 Ollama）= estimated，绝不把缺数据写成 0 token。
+    const source =
+      measuredCalls > 0
+        ? unavailableCalls > 0
+          ? 'mixed'
+          : 'real'
+        : 'estimated';
+    const cost = this.estimateUsageCost(usage);
     return {
       estimatedTokens: usage.estimatedTokens,
       budget: usage.budget,
+      // 停跑依据随账本走：真实样本出现前是估算，之后是真实移动平均。
+      budgetBasis: usage.budgetBasis ?? 'estimated-v1',
       exceeded: usage.exceeded,
-      estimatedCostUsd: costConfigured ? Number(cost.toFixed(6)) : 0,
-      costConfigured,
+      source,
+      unavailableCalls,
+      byRole: {
+        chat: { ...chat },
+        judge: { ...judge },
+      },
+      estimatedCostUsd: cost.configured ? Number(cost.cost.toFixed(6)) : 0,
+      costConfigured: cost.configured,
     };
   }
 
-  private numberEnv(key: string, fallback: number): number {
-    const value = Number(process.env[key]);
-    return Number.isFinite(value) ? value : fallback;
+  /** 按真实账本取价；没有真实用量时用估算账本 + 全局价（model=null）。 */
+  private estimateUsageCost(usage: EvalRunUsage): {
+    cost: number;
+    configured: boolean;
+  } {
+    const { chat, judge } = usage.real;
+    const usages: CostedUsage[] = [];
+    if (chat.promptTokens > 0 || chat.completionTokens > 0) {
+      usages.push({
+        model: this.resolveChatModel(),
+        promptTokens: chat.promptTokens,
+        completionTokens: chat.completionTokens,
+      });
+    }
+    if (judge.promptTokens > 0 || judge.completionTokens > 0) {
+      usages.push({
+        model: usage.judgeModel ?? null,
+        promptTokens: judge.promptTokens,
+        completionTokens: judge.completionTokens,
+      });
+    }
+    if (usages.length === 0) {
+      // 估算账本不区分角色，只能走全局回退价；没有全局价即未配置。
+      usages.push({
+        model: null,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+      });
+    }
+    const estimate = estimateRunCost(loadPriceTable(process.env), usages);
+    return { cost: estimate.cost, configured: estimate.configured };
+  }
+
+  /**
+   * 聊天模型名与 ai-customer 的解析保持一致（OLLAMA_MODEL 优先；
+   * 有 DEEPSEEK_API_KEY 默认 online）。只用于选择价目条目，不参与调用。
+   */
+  private resolveChatModel(): string {
+    const explicitType = process.env.AI_LLM_TYPE;
+    const type =
+      explicitType === 'local' || explicitType === 'online'
+        ? explicitType
+        : process.env.DEEPSEEK_API_KEY
+          ? 'online'
+          : 'local';
+    const configured = process.env.OLLAMA_MODEL?.trim();
+    if (configured) return configured;
+    return type === 'online' ? 'deepseek-chat' : 'qwen3.5:0.8b';
   }
 
   /**
@@ -1570,6 +3335,7 @@ export class AiEvalDatasetService {
     runId: string,
     caseId: string,
     question: string,
+    usageCollector: LlmUsageCollector,
   ): Promise<{
     answer: string;
     pendingConfirm: Record<string, any> | null;
@@ -1580,7 +3346,9 @@ export class AiEvalDatasetService {
     }
     const sessionId = `eval-${runId}-${caseId}`;
     const result = await runWithContext({ userId }, () =>
-      this.aiCustomer.testChat(question, userId, false, sessionId),
+      this.aiCustomer.testChat(question, userId, false, sessionId, {
+        usageCollector,
+      }),
     );
     const answer =
       typeof result?.agentOutput === 'string' ? result.agentOutput : '';
@@ -1593,7 +3361,7 @@ export class AiEvalDatasetService {
     };
   }
 
-  private async loadBaseline(runId: string): Promise<BaselineSnapshot> {
+  private async loadBaseline(runId: string): Promise<BaselineSnapshot | null> {
     const baseline = await this.prisma.aiEvalRun.findUnique({
       where: { id: runId },
       select: {
@@ -1601,14 +3369,25 @@ export class AiEvalDatasetService {
         results: { select: { caseId: true, verdict: true } },
       },
     });
-    if (!baseline) {
-      return { passRate: 0, verdictByCase: new Map() };
+    // 基线在读的时候消失/被删，就当作没有对比对象，而不是算出一个假的 0。
+    if (!baseline) return null;
+    const summary = (baseline.summary ?? {}) as Record<string, any>;
+    // EXTERNAL 的 summary 存 accuracy，没有 verdicts；跨族相减只会产出假 delta。
+    // 老 run 没有 metricFamily 字段，但 passRate 语义从未变过，仍可对比。
+    if (
+      typeof summary.metricFamily === 'string' &&
+      summary.metricFamily !== INTERNAL_METRIC_FAMILY
+    ) {
+      this.logger.warn(
+        `[eval] baseline ${runId} belongs to metric family ${summary.metricFamily}; ` +
+          'skip cross-family pass-rate comparison',
+      );
+      return null;
     }
     const verdictByCase = new Map<string, string | null>();
     for (const item of baseline.results) {
       verdictByCase.set(item.caseId, item.verdict);
     }
-    const summary = (baseline.summary ?? {}) as Record<string, any>;
     const solved = baseline.results.filter(
       (item) => item.verdict === 'solved',
     ).length;
@@ -1628,17 +3407,48 @@ export class AiEvalDatasetService {
     solved: number;
     partial: number;
     unsolved: number;
+    judgeErrors: number;
+    judgeErrorKinds: Record<string, number>;
+    executionErrors: number;
+    executionErrorKinds: Record<string, number>;
     passRate: number;
     caseVerdicts: CaseVerdict[];
     baseline: BaselineSnapshot | null;
     usage: EvalRunUsage;
+    failureCategory?: EvalFailureCategory;
   }): Record<string, any> {
+    // 三个分母各管各的（口径见 122 需求总纲 §5）：
+    // - passRate        = solved / total        （语义不变，历史可比）
+    // - validPassRate   = solved / judged       （judged = solved + partial + unsolved，真正判过的）
+    // - judgeErrorRate / executionErrorRate = 失败数 / total
+    const judged = input.solved + input.partial + input.unsolved;
+    const processed = judged + input.judgeErrors + input.executionErrors;
+    const total = input.total;
     const summary: Record<string, any> = {
-      total: input.total,
+      total,
+      processed,
+      judged,
       solved: input.solved,
       partial: input.partial,
       unsolved: input.unsolved,
+      // 判官失败数：不进 unsolved，也不进 passRate 分子/分母（回答准确性只看判过的）。
+      judgeErrors: input.judgeErrors,
+      judgeErrorKinds: input.judgeErrorKinds,
+      // 执行失败数（LIVE 链路挂了）同样不进 unsolved，只能靠这里看出来。
+      executionError: input.executionErrors,
+      executionErrorKinds: input.executionErrorKinds,
       passRate: input.passRate,
+      validPassRate:
+        judged > 0 ? Number((input.solved / judged).toFixed(3)) : 0,
+      judgeErrorRate:
+        total > 0 ? Number((input.judgeErrors / total).toFixed(3)) : 0,
+      executionErrorRate:
+        total > 0 ? Number((input.executionErrors / total).toFixed(3)) : 0,
+      // run 级失败类别；COMPLETED 的运行没有失败类别，显式 null 而不是缺字段。
+      failureCategory: input.failureCategory ?? null,
+      // 族与版本随数字走，消费方不用猜这组 key 是 verdict3 还是 answer_accuracy。
+      metricFamily: INTERNAL_METRIC_FAMILY,
+      metricSpecVersion: INTERNAL_METRIC_SPEC_VERSION,
       mode: input.mode,
       baselineRunId: input.baselineRunId,
       usage: this.buildUsageSummary(input.usage),

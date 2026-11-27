@@ -29,6 +29,7 @@ import { QueryRewriteService } from '@api/client/ai-customer/knowledge/query-rew
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
+import { LlmUsageCollector } from '@api/common/ai/usage-collector';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { isOtpCode, isShortAffirmation } from './confirmation-intent';
 import {
@@ -3005,6 +3006,11 @@ export class AiCustomerService implements OnModuleDestroy {
     userId: string,
     debug = false,
     sessionId?: string,
+    /**
+     * 评测专用：传入用量采集器后，图上的每次模型调用都会记一次用量。
+     * 不传时调用配置与返回值与改造前完全一致（线上调试链路不受影响）。
+     */
+    options?: { usageCollector?: LlmUsageCollector },
   ) {
     this.logger.log(`Testing chat classification: "${message}"`);
     if (!this.compiledGraph) {
@@ -3026,6 +3032,10 @@ export class AiCustomerService implements OnModuleDestroy {
           configurable: {
             thread_id: threadId,
           },
+          // 只在图调用这一处挂回调：每个节点的模型调用各记一次，模型级与链级不会重复。
+          callbacks: options?.usageCollector
+            ? [options.usageCollector]
+            : undefined,
         },
       ),
     );

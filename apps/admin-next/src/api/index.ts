@@ -69,6 +69,7 @@ import {
   QueryLuckyDrawResultsParams,
   KnowledgeDocument,
   DocumentChunk,
+  DocumentChunkDiff,
   CreateKnowledgeDocPayload,
   UpdateKnowledgeDocPayload,
   QueryKnowledgeDocParams,
@@ -1240,6 +1241,11 @@ export const knowledgeApi = {
   /** Get chunks for a document */
   getChunks: (documentId: string) =>
     http.get<DocumentChunk[]>(`/v1/admin/rag/documents/${documentId}/chunks`),
+  /** Server-side diff of the two latest chunk versions */
+  getChunksDiff: (documentId: string) =>
+    http.get<DocumentChunkDiff>(
+      `/v1/admin/rag/documents/${documentId}/chunks/diff`,
+    ),
 
   /** Re-chunk and re-embed a document */
   reindex: (documentId: string) =>
@@ -1289,6 +1295,19 @@ export const knowledgeApi = {
         fair: number;
         suspicious: number;
       };
+      /** 解析质量口径：只统计有四项检查明细的文档，其余如实标为未采集。 */
+      parseQuality: {
+        collected: number;
+        passed: number;
+        failed: number;
+        notCollected: number;
+      };
+      /** 有效性（检索命中与引用正确）尚未采集，不伪造 0 或百分比。 */
+      effectiveness: {
+        status: 'pendingMetric';
+        collected: boolean;
+        note: string;
+      };
       recentFlags: Array<{
         documentId: string;
         title: string;
@@ -1301,7 +1320,17 @@ export const knowledgeApi = {
         title: string;
         score: number | null;
         flags: string | null;
+        /** 生效版本（正在对外服务） */
         activeVersion: number;
+        /** 最新写入版本（可能尚未激活） */
+        version: number;
+        /** 四项检查明细；null = 旧数据，未采集 */
+        parseChecks: Partial<
+          Record<
+            'truncation' | 'retentionRate' | 'encoding' | 'emptyContent',
+            { passed: boolean; detail?: string; rate?: number }
+          >
+        > | null;
         updatedAt: string;
       }>;
     }>('/v1/admin/rag/documents/quality-stats'),
@@ -1581,11 +1610,18 @@ export const aiOpsApi = {
     caseId: string,
     turn: number,
     labels: import('@/type/types').AiAnnotationLabels,
+    worksheet?: string,
   ) =>
     http.patch<import('@/type/types').AiAnnotationRow>(
       `/v1/admin/ai-eval/annotations/${encodeURIComponent(caseId)}/${turn}`,
       labels,
+      worksheet ? { params: { worksheet } } : undefined,
     ),
+  /** GET /v1/admin/ai-eval/annotations/export — 导出 JSONL（兼容离线脚本） */
+  exportAnnotations: (worksheet?: string) =>
+    http.get<{ jsonl: string }>('/v1/admin/ai-eval/annotations/export', {
+      ...(worksheet ? { worksheet } : {}),
+    }),
   /** GET /v1/admin/ai-eval/reports — 定时评测报告 */
   getEvalReports: (limit = 20) =>
     http.get<import('@/type/types').AiEvalReportSummary[]>(
@@ -1767,20 +1803,27 @@ export const aiOpsApi = {
       params,
     ),
 
-  getTraces: (params?: {
-    conversationId?: string;
-    intent?: string;
-    page?: number;
-    pageSize?: number;
-  }) =>
+  getTraces: (
+    params?: {
+      conversationId?: string;
+      intent?: string;
+      page?: number;
+      pageSize?: number;
+    },
+    config?: { showError?: boolean },
+  ) =>
     http.get<{
       list: import('@/type/types').AiTraceRow[];
       total: number;
       page: number;
       pageSize: number;
-    }>('/v1/admin/ai-traces', params),
-  getTrace: (id: string) =>
-    http.get<import('@/type/types').AiTraceDetail>(`/v1/admin/ai-traces/${id}`),
+    }>('/v1/admin/ai-traces', params, config),
+  getTrace: (id: string, config?: { showError?: boolean }) =>
+    http.get<import('@/type/types').AiTraceDetail>(
+      `/v1/admin/ai-traces/${id}`,
+      undefined,
+      config,
+    ),
 
   getMemoryUser: (userId: string) =>
     http.get<{
@@ -1810,8 +1853,34 @@ export const aiQualityApi = {
       note?: string;
       ownerAdminId?: string;
       linkedEvalCaseId?: string;
+      /** 前端读到的版本；不一致说明别人先改了，服务端返回 409 */
+      expectedVersion?: number;
+      /** 已被他人认领时显式接手 */
+      takeOver?: boolean;
     },
   ) => http.patch(`/v1/admin/ai-feedback/${id}`, data),
+
+  /**
+   * 把一条反馈沉淀为回归用例：服务端在同一事务里建用例、回写 linkedEvalCaseId，
+   * 幂等（已存在则 created=false）。前端不再按题干反查用例。
+   */
+  createRegressionCase: (
+    feedbackId: string,
+    data: { datasetId: string; expected: string; expectedVersion?: number },
+  ) =>
+    http.post<{
+      created: boolean;
+      linkedEvalCaseId: string;
+      datasetId: string;
+      feedbackId: string;
+    }>(`/v1/admin/ai-feedback/${feedbackId}/regression-case`, data),
+
+  /** 批量排除：服务端逐条校验，返回成功 ids 与跳过原因，不再并发 PATCH。 */
+  batchExcludeFeedback: (ids: string[]) =>
+    http.patch<{
+      succeeded: string[];
+      skipped: Array<{ id: string; reason: string }>;
+    }>('/v1/admin/ai-feedback/batch-exclude', { ids }),
 
   listDatasets: () =>
     http.get<import('@/type/types').EvalDataset[]>(
@@ -1822,14 +1891,17 @@ export const aiQualityApi = {
       '/v1/admin/ai-eval/datasets',
       data,
     ),
-  getDataset: (id: string) =>
+  getDataset: (id: string, params?: { page?: number; pageSize?: number }) =>
     http.get<
       import('@/type/types').EvalDataset & {
         cases: import('@/type/types').EvalCase[];
         runs: import('@/type/types').EvalRun[];
         _count?: { cases: number; runs: number };
+        casesTotal?: number;
+        page?: number;
+        pageSize?: number;
       }
-    >(`/v1/admin/ai-eval/datasets/${id}`),
+    >(`/v1/admin/ai-eval/datasets/${id}`, params),
   addCases: (
     id: string,
     data: {
@@ -1844,7 +1916,11 @@ export const aiQualityApi = {
         tags?: string[];
       }>;
     },
-  ) => http.post(`/v1/admin/ai-eval/datasets/${id}/cases`, data),
+  ) =>
+    http.post<{
+      created?: number;
+      skipped?: Array<{ question: string; reason: string }>;
+    }>(`/v1/admin/ai-eval/datasets/${id}/cases`, data),
   updateCase: (
     id: string,
     caseId: string,
@@ -1867,8 +1943,11 @@ export const aiQualityApi = {
       `/v1/admin/ai-eval/datasets/${id}/runs`,
       data ?? {},
     ),
-  getRun: (id: string) =>
-    http.get<import('@/type/types').EvalRun>(`/v1/admin/ai-eval/runs/${id}`),
+  getRun: (id: string, params?: { page?: number; pageSize?: number }) =>
+    http.get<import('@/type/types').EvalRun>(
+      `/v1/admin/ai-eval/runs/${id}`,
+      params,
+    ),
   kbRegressionStatus: () =>
     http.get<import('@/type/types').KbRegressionStatus>(
       '/v1/admin/ai-eval/kb-regression/status',
@@ -1876,6 +1955,20 @@ export const aiQualityApi = {
   getRunEvidence: (id: string) =>
     http.get<import('@/type/types').RunEvidence>(
       `/v1/admin/ai-eval/runs/${id}/evidence`,
+    ),
+  getRunDiff: (id: string, baselineRunId?: string) =>
+    http.get<import('@/type/types').EvalRunDiff>(
+      `/v1/admin/ai-eval/runs/${id}/diff`,
+      baselineRunId ? { baselineRunId } : undefined,
+    ),
+  getCaseHistory: (id: string, caseId: string) =>
+    http.get<import('@/type/types').EvalCaseHistory>(
+      `/v1/admin/ai-eval/runs/${id}/history`,
+      { caseId },
+    ),
+  getRunCalibration: (id: string) =>
+    http.get<import('@/type/types').RunCalibration>(
+      `/v1/admin/ai-eval/runs/${id}/calibration`,
     ),
   cancelRun: (id: string) =>
     http.post<import('@/type/types').EvalRun>(

@@ -139,7 +139,18 @@ export function applyGrounding(cases, groundingByMessageId) {
 
     let goldenAgreement;
     if (kind === "kb") {
-      goldenAgreement = { ...(item.judge.goldenAgreement ?? {}), applicable: true };
+      // 没有期望命中文档（负样本）时判官从未判过 golden，不能伪造「适用」，
+      // 否则下游会把它当成「判官没给结论」而记成判官故障。
+      const hasGoldenDocs = (item.expectedDocIds ?? []).length > 0;
+      goldenAgreement = hasGoldenDocs
+        ? { ...(item.judge.goldenAgreement ?? {}), applicable: true }
+        : {
+            applicable: false,
+            faithful: null,
+            score: null,
+            reason: "no_golden_documents",
+            tools: trace.tools,
+          };
     } else {
       goldenAgreement = {
         applicable: false,

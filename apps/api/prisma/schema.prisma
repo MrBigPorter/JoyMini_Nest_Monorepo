@@ -1309,6 +1309,9 @@ model ChatMessage {
   hiddenByUsers ChatMessageHide[]
 
   @@unique([conversationId, seqId], map: "idx_chat_message_conv_seq") // 会话内序号唯一
+  // 反馈分诊列表按会话 + 时间回查上下文（固定次数一次查询），这两条索引让它走索引扫描。
+  @@index([conversationId, createdAt], map: "idx_chat_message_conv_created")
+  @@index([conversationId, source, createdAt], map: "idx_chat_message_conv_source_created")
 }
 
 model ChatMessageHide {
@@ -2018,6 +2021,8 @@ model KnowledgeDocument {
   qualityScore          Int?            @map("quality_score") @db.SmallInt
   /// 质量标记（逗号分隔，如 "truncation,encoding_issue"）
   qualityFlags          String?         @map("quality_flags") @db.VarChar(200)
+  /// 解析质量四项检查明细快照；null=未采集（旧数据），页面显示「未采集」而非 0
+  parseChecks           Json?           @map("parse_checks")
   /// 版本号（每次更新 +1）
   version               Int             @default(1) @map("version") @db.SmallInt
   /// 当前对外服务的版本。新版本 chunk 写入后，只有 activeVersion 那一版被检索。
@@ -2391,15 +2396,15 @@ model AiScoreConfig {
   @@map("ai_score_configs")
 }
 
-/// 统一评分：人工 / LLM / 代码 / API。
+/// 统一评分：人工 / LLM（代码与 API 评分无产出路径，未接入）。
 model AiScore {
   id             String   @id @default(cuid()) @db.VarChar(32)
-  configId       String?  @map("config_id") @db.VarChar(32)
   traceId        String?  @map("trace_id") @db.VarChar(32)
-  spanId         String?  @map("span_id") @db.VarChar(32)
   conversationId String?  @map("conversation_id") @db.VarChar(64)
   messageId      String?  @map("message_id") @db.VarChar(64)
   source         String   @db.VarChar(16)
+  /// 量纲：binary=0/1 判定；graded=0..1 连续分
+  valueKind      String   @default("binary") @map("value_kind") @db.VarChar(16)
   value          Float?
   stringValue    String?  @map("string_value") @db.VarChar(500)
   comment        String?  @db.VarChar(500)
@@ -2409,7 +2414,6 @@ model AiScore {
 
   @@index([traceId, createdAt])
   @@index([conversationId, createdAt])
-  @@index([configId, createdAt])
   @@map("ai_scores")
 }
 
@@ -2444,8 +2448,15 @@ model AiAnswerFeedback {
   failureKind      String? @map("failure_kind") @db.VarChar(32)
   /// 处理结论：OPEN | CONFIRMED | EXCLUDED | ADDED_TO_EVAL | FIXED_PENDING_VERIFY | CLOSED
   resolution       String? @db.VarChar(24)
+  /// 待验用例被下一轮运行判失败的时间；随后验证通过关闭时清空
+  regressedAt      DateTime? @map("regressed_at")
   /// 当前负责人
   ownerAdminId     String? @map("owner_admin_id") @db.VarChar(32)
+  /// 认领者与认领时间：与处理完成正交，认领不改 reviewStatus
+  claimedBy        String?   @map("claimed_by") @db.VarChar(32)
+  claimedAt        DateTime? @map("claimed_at")
+  /// 乐观锁版本：每次分诊写入 +1；并发提交用版本条件更新检测冲突
+  version          Int       @default(0)
   /// 已转成的评测用例
   linkedEvalCaseId String? @map("linked_eval_case_id") @db.VarChar(32)
   /// 关联的 trace（Phase 2 启用）
@@ -2502,45 +2513,95 @@ model AiEvalCase {
 }
 
 model AiEvalRun {
-  id            String    @id @default(cuid()) @db.VarChar(32)
-  datasetId     String    @map("dataset_id") @db.VarChar(32)
+  id                   String    @id @default(cuid()) @db.VarChar(32)
+  datasetId            String    @map("dataset_id") @db.VarChar(32)
   /// RUNNING | COMPLETED | FAILED | CANCELLED
-  status        String    @default("RUNNING") @db.VarChar(16)
+  status               String    @default("RUNNING") @db.VarChar(16)
   /**
    * STORED | LIVE | EXTERNAL
    * EXTERNAL 由 tools/eval/e2e harness 分两段写入结果，不走队列。
    */
-  mode          String    @default("STORED") @db.VarChar(16)
-  baselineRunId String?   @map("baseline_run_id") @db.VarChar(32)
-  createdBy     String?   @map("created_by") @db.VarChar(32)
-  /** 运行开始时的用例快照：{ hash, cases: [{ caseId, kind, question, expectedDocIds, lang }] } */
-  datasetSnapshot Json?   @map("dataset_snapshot")
+  mode                 String    @default("STORED") @db.VarChar(16)
+  baselineRunId        String?   @map("baseline_run_id") @db.VarChar(32)
+  createdBy            String?   @map("created_by") @db.VarChar(32)
+  /**
+   * 运行开始时的用例快照：{ hash, cases: [{ caseId, kind, question, expectedDocIds, lang }] }
+   */
+  datasetSnapshot      Json?     @map("dataset_snapshot")
   /// 代码版本（git sha）
-  codeVersion   String?   @map("code_version") @db.VarChar(64)
+  codeVersion          String?   @map("code_version") @db.VarChar(64)
   /// 依据门禁模式（例如 enforce / shadow / off）
-  gateMode      String?   @map("gate_mode") @db.VarChar(32)
+  gateMode             String?   @map("gate_mode") @db.VarChar(32)
   /// 判官输入规范版本（judge-input-spec）
-  judgeSpecVersion String? @map("judge_spec_version") @db.VarChar(32)
+  judgeSpecVersion     String?   @map("judge_spec_version") @db.VarChar(32)
+  /// 判官 prompt 的内容指纹（sha256，来自 judge-spec.ts）
+  judgePromptHash      String?   @map("judge_prompt_hash") @db.VarChar(64)
+  /// 本次运行实际使用的判官模型与供应商（运行时配置解析结果）
+  judgeModel           String?   @map("judge_model") @db.VarChar(100)
+  judgeVendor          String?   @map("judge_vendor") @db.VarChar(32)
   /// 指标定义版本（tools/eval/e2e/metrics-spec）
-  metricSpecVersion String? @map("metric_spec_version") @db.VarChar(32)
+  metricSpecVersion    String?   @map("metric_spec_version") @db.VarChar(32)
   /// 运行开始时的知识库语料指纹（只覆盖 activeVersion 正在服务的内容）
-  knowledgeFingerprint String? @map("knowledge_fingerprint") @db.VarChar(64)
+  knowledgeFingerprint String?   @map("knowledge_fingerprint") @db.VarChar(64)
   /// 语料快照：{ fingerprint, docs, pendingActivation, before, after, stable, stableReason }
-  knowledgeSnapshot Json? @map("knowledge_snapshot")
+  knowledgeSnapshot    Json?     @map("knowledge_snapshot")
   /// full | subset；子集运行不得 promote
-  scope         String?   @db.VarChar(8)
-  /// 当前基线：全局至多一条，由 promote 接口维护
-  isBaseline    Boolean   @default(false) @map("is_baseline")
-  summary       Json?
-  startedAt     DateTime  @default(now()) @map("started_at")
-  finishedAt    DateTime? @map("finished_at")
+  scope                String?   @db.VarChar(8)
+  /// 运行心跳：执行期每条用例开始时更新（≥30s 节流），清扫据此判活
+  heartbeatAt          DateTime? @map("heartbeat_at")
+  /// 执行失败类别（如 live_call）；与 unsolved、judge_error 分账
+  executionErrorKind   String?   @map("execution_error_kind") @db.VarChar(32)
+  /// 判官采样次数（内部运行默认 1，显式声明，不冒充合规基线）
+  judgeSampleCount     Int?      @map("judge_sample_count")
+  /// 指标族：内部 verdict3 / 外部 answer_accuracy
+  metricFamily         String?   @map("metric_family") @db.VarChar(32)
+  /// 当前基线：按数据集至多一条，由 promote 接口维护
+  isBaseline           Boolean   @default(false) @map("is_baseline")
+  summary              Json?
+  startedAt            DateTime  @default(now()) @map("started_at")
+  finishedAt           DateTime? @map("finished_at")
 
   dataset AiEvalDataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   results AiEvalResult[]
+  judgeAttempts AiEvalJudgeAttempt[]
 
   @@index([datasetId, startedAt])
   @@index([isBaseline])
   @@map("ai_eval_runs")
+}
+
+/**
+ * 判官尝试留痕（eval-ingestion-hardening D3）。
+ *
+ * 独立成表而不是给 ai_eval_results 加列：结果行会被 getRun() 无差别
+ * 返回给所有角色，且按保留期清理只能逐行置空。这里按时间批量删除。
+ */
+model AiEvalJudgeAttempt {
+  id             String   @id @default(cuid()) @db.VarChar(32)
+  runId          String   @map("run_id") @db.VarChar(32)
+  /// 快照用例 id；无法归到具体用例时为空（例如服务级失败）
+  caseId         String?  @map("case_id") @db.VarChar(64)
+  /// task | faithfulness | golden
+  source         String   @db.VarChar(16)
+  attemptIndex   Int      @map("attempt_index")
+  /// success | parse_failed | call_error
+  outcome        String   @db.VarChar(16)
+  verdict        String?  @db.VarChar(16)
+  score          Float?
+  errorKind      String?  @map("error_kind") @db.VarChar(32)
+  /// 截断后的原始输出；空输出为 null
+  rawOutput      String?  @map("raw_output") @db.Text
+  rawTruncated   Boolean  @default(false) @map("raw_truncated")
+  /// 判官版本（prompt / spec 的组合标识）
+  judgeVersion   String?  @map("judge_version") @db.VarChar(64)
+  judgeInputHash String?  @map("judge_input_hash") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  run AiEvalRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, caseId])
+  @@index([createdAt])
+  @@map("ai_eval_judge_attempts")
 }
 
 model AiEvalResult {
@@ -2577,6 +2638,31 @@ model AiEvalResult {
 
   @@index([runId])
   @@map("ai_eval_results")
+}
+
+/// 人工/预标注结果。只用于校准判官，不进入任何质量指标。
+/// `runId` 是作用域：评测运行写真实 run id，离线工作表写 `worksheet:<文件名>`。
+model AiEvalAnnotation {
+  id               String   @id @default(cuid()) @db.VarChar(32)
+  runId            String   @map("run_id") @db.VarChar(128)
+  caseId           String   @map("case_id") @db.VarChar(64)
+  /// 工作表按轮标注；运行级标注固定 0
+  turn             Int      @default(0)
+  /// 管理员 id；预标注固定为 "prelabel"
+  labelerId        String   @map("labeler_id") @db.VarChar(64)
+  correctness      String?  @db.VarChar(16)
+  comment          String   @default("") @db.VarChar(500)
+  guidelineVersion String   @map("guideline_version") @db.VarChar(64)
+  /// human | prelabel
+  source           String   @default("human") @db.VarChar(16)
+  /// 预标注置信度；人工标注为空
+  confidence       Float?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([runId, caseId, turn, labelerId], map: "uniq_ai_eval_annotation_scope_case_turn_labeler")
+  @@index([runId, caseId])
+  @@map("ai_eval_annotations")
 }
 
 /// 标准化问题事件（119 Phase 1）。不存原文，只存 ID 与脱敏摘要。

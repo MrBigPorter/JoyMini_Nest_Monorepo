@@ -301,6 +301,44 @@ test("applyGrounding：优先用 trace metadata 的分型，缺失时回退推�
   assert.equal(inferred.judge.grounding.source, "inferred");
 });
 
+test("applyGrounding：无 golden 文档的负样本不得伪造判官适用", () => {
+  const item = {
+    ...knowledgeCase("neg", {
+      messageId: "m1",
+      content: "今天天气怎么样",
+      sources: [{ docId: "doc-x" }],
+      golden: null,
+    }),
+    kind: "negative",
+    expectedDocIds: [],
+  };
+  const [result] = applyGrounding(
+    [item],
+    new Map([["m1", { intent: "rag", ragSourceCount: 3, tools: [] }]]),
+  );
+
+  assert.equal(result.judge.grounding.kind, "kb");
+  assert.equal(result.judge.goldenAgreement.applicable, false);
+  assert.equal(result.judge.goldenAgreement.faithful, null);
+  assert.equal(result.judge.goldenAgreement.reason, "no_golden_documents");
+});
+
+test("applyGrounding：有 golden 文档的 kb 仍重开适用供补判", () => {
+  const item = knowledgeCase("kb", {
+    messageId: "m1",
+    content: "TLS 1.3",
+    golden: { applicable: false, reason: "no_grounding" },
+  });
+  const [result] = applyGrounding(
+    [item],
+    new Map([["m1", { intent: "rag", ragSourceCount: 2, tools: [] }]]),
+  );
+
+  assert.equal(result.judge.grounding.kind, "kb");
+  assert.equal(result.judge.goldenAgreement.applicable, true);
+  assert.equal(result.judge.goldenAgreement.reason, "no_grounding");
+});
+
 test("annotateJudgeError：只给判官失败补 errorKind", () => {
   assert.equal(annotateJudgeError(null), null);
   assert.deepEqual(annotateJudgeError({ faithful: true }), { faithful: true });

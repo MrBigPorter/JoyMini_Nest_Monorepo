@@ -15,17 +15,29 @@ import {
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 const mockUseRequest = vi.hoisted(() => vi.fn());
+const mockGetFeatures = vi.hoisted(() => vi.fn());
 const mockGetFeedbackList = vi.hoisted(() => vi.fn());
 const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockUpdateFeedback = vi.hoisted(() => vi.fn());
+const mockCreateRegressionCase = vi.hoisted(() => vi.fn());
+const mockBatchExcludeFeedback = vi.hoisted(() => vi.fn());
 const mockListDatasets = vi.hoisted(() => vi.fn());
 const mockAddCases = vi.hoisted(() => vi.fn());
+const mockUpdateCase = vi.hoisted(() => vi.fn());
+const mockGetDataset = vi.hoisted(() => vi.fn());
+const mockGetRun = vi.hoisted(() => vi.fn());
+const mockGetRunDiff = vi.hoisted(() => vi.fn());
+const mockGetCaseHistory = vi.hoisted(() => vi.fn());
+const mockGetRunCalibration = vi.hoisted(() => vi.fn());
 const mockStartRun = vi.hoisted(() => vi.fn());
 const mockCancelRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
+const mockGetChunksDiff = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
 const mockKbStatus = vi.hoisted(() => vi.fn());
+const mockGetTraces = vi.hoisted(() => vi.fn());
+const mockGetTrace = vi.hoisted(() => vi.fn());
 const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
 const mockAdminId = vi.hoisted(() => ({ current: 'admin-1' }));
 
@@ -35,9 +47,9 @@ vi.mock('ahooks', () => ({
 
 vi.mock('@/api', () => ({
   aiOpsApi: {
-    getFeatures: vi
-      .fn()
-      .mockResolvedValue({ feedbackUiEnabled: true, evalEnabled: true }),
+    getFeatures: mockGetFeatures,
+    getTraces: (...args: unknown[]) => mockGetTraces(...args),
+    getTrace: (...args: unknown[]) => mockGetTrace(...args),
   },
   chatApi: {
     getFeedbackList: (...args: unknown[]) => mockGetFeedbackList(...args),
@@ -45,18 +57,27 @@ vi.mock('@/api', () => ({
   },
   aiQualityApi: {
     updateFeedback: (...args: unknown[]) => mockUpdateFeedback(...args),
+    createRegressionCase: (...args: unknown[]) =>
+      mockCreateRegressionCase(...args),
+    batchExcludeFeedback: (...args: unknown[]) =>
+      mockBatchExcludeFeedback(...args),
     listDatasets: (...args: unknown[]) => mockListDatasets(...args),
-    getDataset: vi.fn(),
+    getDataset: (...args: unknown[]) => mockGetDataset(...args),
     createDataset: vi.fn(),
     addCases: (...args: unknown[]) => mockAddCases(...args),
+    updateCase: (...args: unknown[]) => mockUpdateCase(...args),
     startRun: (...args: unknown[]) => mockStartRun(...args),
-    getRun: vi.fn(),
+    getRun: (...args: unknown[]) => mockGetRun(...args),
+    getRunDiff: (...args: unknown[]) => mockGetRunDiff(...args),
+    getCaseHistory: (...args: unknown[]) => mockGetCaseHistory(...args),
+    getRunCalibration: (...args: unknown[]) => mockGetRunCalibration(...args),
     cancelRun: (...args: unknown[]) => mockCancelRun(...args),
     ragSearch: (...args: unknown[]) => mockRagSearch(...args),
     kbRegressionStatus: mockKbStatus,
   },
   knowledgeApi: {
     qualityStats: (...args: unknown[]) => mockQualityStats(...args),
+    getChunksDiff: (...args: unknown[]) => mockGetChunksDiff(...args),
   },
 }));
 
@@ -97,6 +118,9 @@ const feedback = {
   failureKind: 'UNEXPECTED_TRANSFER',
   resolution: 'OPEN',
   ownerAdminId: null,
+  claimedBy: null,
+  claimedAt: null,
+  version: 3,
   transferReason: 'ai_error',
   handlerId: 'awaiting_human',
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -111,6 +135,11 @@ const summary = {
     { failureKind: 'UNEXPECTED_TRANSFER', count: 3 },
   ],
   byResolution: [{ resolution: 'ADDED_TO_EVAL', count: 4 }],
+  byReviewStatus: [
+    { status: 'PENDING', count: 7 },
+    { status: 'REVIEWED', count: 4 },
+    { status: 'IGNORED', count: 1 },
+  ],
 };
 
 const stats = {
@@ -276,7 +305,9 @@ function wireFeedback(
     }
     if (slot === 1) {
       return {
-        ...makeUseRequest(options.summaryData ?? summary),
+        ...makeUseRequest(
+          options.summaryData !== undefined ? options.summaryData : summary,
+        ),
         ...(options.summaryError ? { error: options.summaryError } : {}),
         refresh,
         refreshAsync: refresh,
@@ -304,7 +335,8 @@ function openTab(name: string) {
 }
 
 /**
- * EvalPanel 每轮渲染固定注册 4 个 useRequest（列表 / 详情 / 运行 / 证据），
+ * EvalPanel 每轮渲染注册 7 个 useRequest（开关 / 列表 / 详情 / 运行 / 证据 / 差异 / 校准），
+ * 其中开关按 service 身份识别、不占数据槽位（6 个数据槽位）；
  * 反馈页 4 个槽位（features/summary/list/datasets）；
  * 回归状态卡片单独按 service 身份识别，不参与槽位计数。
  * 返回的函数在打开页签前调用。
@@ -314,18 +346,26 @@ function wireEvalTab(
   runData: unknown = null,
   datasetsData: unknown = datasets,
   kbStatusData: unknown = kbRegressionStatus,
+  diffData: unknown = null,
+  calibrationData: unknown = null,
+  features: { feedbackUiEnabled: boolean; evalEnabled: boolean } = {
+    feedbackUiEnabled: true,
+    evalEnabled: true,
+  },
 ) {
   let index = 0;
   let inEval = false;
   mockUseRequest.mockImplementation((service: unknown) => {
     if (service === mockKbStatus) return makeUseRequest(kbStatusData);
     if (typeof service === 'function') void (service as () => unknown)();
-    const slot = index % 4;
-    index += 1;
+    // 评测页的开关 hook 按所属页面识别：它先于六个数据 hook 注册，但不占数据槽位。
+    if (inEval && service === mockGetFeatures) return makeUseRequest(features);
     if (!inEval) {
+      const slot = index % 4;
+      index += 1;
       if (slot === 0)
         return {
-          ...makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true }),
+          ...makeUseRequest(features),
           refreshAsync: vi.fn(),
         };
       if (slot === 1)
@@ -337,14 +377,59 @@ function wireEvalTab(
         };
       return { ...makeUseRequest(datasets), refreshAsync: vi.fn() };
     }
+    const slot = index % 6;
+    index += 1;
     if (slot === 0) return makeUseRequest(datasetsData);
     if (slot === 1) return makeUseRequest(detail);
     if (slot === 2) return makeUseRequest(runData);
-    return makeUseRequest(null);
+    if (slot === 3) return makeUseRequest(null);
+    if (slot === 4) return makeUseRequest(diffData);
+    return makeUseRequest(calibrationData);
   });
   return () => {
     inEval = true;
     // 反馈页卸载后，评测页从自己的第一个 hook 重新计数。
+    index = 0;
+  };
+}
+
+/**
+ * 运行状态会随轮询/取消变化：run hook 返回 getter 的当前值，
+ * 数据集列表与数据集详情各挂一个 refresh spy，用来数「终态刷新」次数。
+ */
+function wireEvalTransitions(
+  detail: unknown,
+  getRunData: () => unknown,
+  refreshDataset: () => void,
+  refreshDatasets: () => void,
+) {
+  let index = 0;
+  let inEval = false;
+  mockUseRequest.mockImplementation((service: unknown) => {
+    if (service === mockKbStatus) return makeUseRequest(kbRegressionStatus);
+    if (typeof service === 'function') void (service as () => unknown)();
+    if (inEval && service === mockGetFeatures)
+      return makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true });
+    if (!inEval) {
+      const slot = index % 4;
+      index += 1;
+      if (slot === 0)
+        return makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true });
+      if (slot === 1) return makeUseRequest(summary);
+      if (slot === 2) return makeUseRequest({ list: [feedback], total: 1 });
+      return makeUseRequest(datasets);
+    }
+    const slot = index % 6;
+    index += 1;
+    if (slot === 0)
+      return { ...makeUseRequest(datasets), refresh: refreshDatasets };
+    if (slot === 1)
+      return { ...makeUseRequest(detail), refresh: refreshDataset };
+    if (slot === 2) return makeUseRequest(getRunData());
+    return makeUseRequest(null);
+  });
+  return () => {
+    inEval = true;
     index = 0;
   };
 }
@@ -365,8 +450,35 @@ describe('AiQualityPage', () => {
     });
     mockCanTriage.mockReturnValue(true);
     mockRole.current = 'ADMIN';
+    mockGetFeatures.mockResolvedValue({
+      feedbackUiEnabled: true,
+      evalEnabled: true,
+    });
     mockUpdateFeedback.mockResolvedValue({});
+    mockCreateRegressionCase.mockResolvedValue({
+      created: true,
+      linkedEvalCaseId: 'case-new',
+      datasetId: 'ds-1',
+      feedbackId: 'fb-1',
+    });
+    mockBatchExcludeFeedback.mockResolvedValue({
+      succeeded: [],
+      skipped: [],
+    });
     mockGetFeedbackList.mockResolvedValue({ list: [feedback], total: 1 });
+    // 默认：会话没有可保留的链路 → 证据已过期，不伪造其他链路。
+    mockGetTraces.mockResolvedValue({
+      list: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+    });
+    mockGetTrace.mockResolvedValue({
+      id: 'trace-1',
+      conversationId: 'conv-1',
+      status: 'SUCCESS',
+      spans: [],
+    });
     mockGetFeedbackSummary.mockResolvedValue(summary);
     mockListDatasets.mockResolvedValue(datasets);
     mockAddCases.mockResolvedValue({ id: 'ds-1', cases: [] });
@@ -421,6 +533,25 @@ describe('AiQualityPage', () => {
     );
   });
 
+  it('把 URL 的日期转成本地日界 ISO 区间后请求', () => {
+    (useSearchParams as any).mockReturnValue(
+      new URLSearchParams('from=2026-11-24&to=2026-11-25'),
+    );
+
+    render(<AiQualityPage />);
+
+    const expected = {
+      from: new Date(2026, 10, 24, 0, 0, 0, 0).toISOString(),
+      to: new Date(
+        new Date(2026, 10, 26, 0, 0, 0, 0).getTime() - 1,
+      ).toISOString(),
+    };
+    expect(mockGetFeedbackList).toHaveBeenCalledWith(
+      expect.objectContaining(expected),
+    );
+    expect(mockGetFeedbackSummary).toHaveBeenCalledWith(expected);
+  });
+
   it('KPI cards link to the matching filtered list', () => {
     render(<AiQualityPage />);
 
@@ -452,6 +583,10 @@ describe('AiQualityPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
     fireEvent.click(screen.getByRole('button', { name: '回答正确' }));
+    fireEvent.change(screen.getByLabelText('备注'), {
+      target: { value: '已确认是模型答非所问' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '提交判断' }));
 
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
@@ -459,8 +594,149 @@ describe('AiQualityPage', () => {
         resolution: 'NO_ISSUE',
         verdict: 'correct',
         note: '已确认是模型答非所问',
+        expectedVersion: 3,
       }),
     );
+  });
+
+  it('证据按 messageId 精确匹配失败 span 并给出推断归因', async () => {
+    mockGetTraces.mockResolvedValue({
+      list: [
+        {
+          id: 'trace-exact',
+          conversationId: 'conv-1',
+          aiMessageId: 'msg-1',
+          triggerMessageId: 'msg-0',
+          status: 'ERROR',
+          createdAt: '2026-11-25T08:00:00.000Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+    mockGetTrace.mockResolvedValue({
+      id: 'trace-exact',
+      conversationId: 'conv-1',
+      status: 'ERROR',
+      spans: [
+        {
+          id: 'span-1',
+          traceId: 'trace-exact',
+          type: 'llm',
+          name: 'deepseek-chat',
+          status: 'ERROR',
+          input: null,
+          output: null,
+          error: 'upstream timeout',
+          startedAt: '2026-11-25T08:00:00.000Z',
+          endedAt: null,
+          durationMs: 30000,
+          metadata: null,
+        },
+      ],
+    });
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+
+    const panel = await screen.findByLabelText('证据面板');
+    await waitFor(() =>
+      expect(within(panel).getByText(/upstream timeout/)).toBeTruthy(),
+    );
+    expect(within(panel).getByText('证据 · 精确匹配')).toBeTruthy();
+    expect(within(panel).queryByText(/近似/)).toBeNull();
+    expect(within(panel).getByText(/建议归因：模型生成/)).toBeTruthy();
+    expect(within(panel).getByText('推断')).toBeTruthy();
+  });
+
+  it('证据只能回退会话最新链路时标注近似', async () => {
+    mockGetTraces.mockResolvedValue({
+      list: [
+        {
+          id: 'trace-latest',
+          conversationId: 'conv-1',
+          aiMessageId: 'msg-other',
+          triggerMessageId: 'msg-x',
+          status: 'SUCCESS',
+          createdAt: '2026-11-25T08:05:00.000Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+
+    const panel = await screen.findByLabelText('证据面板');
+    await waitFor(() =>
+      expect(within(panel).getByText('证据 · 近似')).toBeTruthy(),
+    );
+    expect(
+      within(panel).getByText(/会话最新链路，可能与本条不对应/),
+    ).toBeTruthy();
+  });
+
+  it('无链路时标证据已过期且不展示其他链路', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+
+    const panel = await screen.findByLabelText('证据面板');
+    await waitFor(() =>
+      expect(within(panel).getByText(/证据已过期/)).toBeTruthy(),
+    );
+    expect(within(panel).queryByText(/失败步骤/)).toBeNull();
+    expect(mockGetTrace).not.toHaveBeenCalled();
+  });
+
+  it('双击提交或连按 Enter 只发一次分诊请求', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    fireEvent.click(screen.getByRole('button', { name: '回答正确' }));
+    const submit = screen.getByRole('button', { name: '提交判断' });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    await waitFor(() => expect(mockUpdateFeedback).toHaveBeenCalledTimes(1));
+  });
+
+  it('取消备注不提交分诊', () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    fireEvent.click(within(card).getByRole('button', { name: '确认问题' }));
+    fireEvent.change(screen.getByLabelText('备注'), {
+      target: { value: '写到一半不想提交' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '取消备注' }));
+
+    expect(screen.queryByLabelText('备注')).toBeNull();
+    expect(mockUpdateFeedback).not.toHaveBeenCalled();
+  });
+
+  it('备注可以不填，提交时不带 note 字段', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    fireEvent.click(screen.getByRole('button', { name: '回答正确' }));
+    fireEvent.click(screen.getByRole('button', { name: '提交判断' }));
+
+    await waitFor(() => expect(mockUpdateFeedback).toHaveBeenCalledTimes(1));
+    const payload = mockUpdateFeedback.mock.calls[0][1];
+    expect(payload).not.toHaveProperty('note');
   });
 
   it('writes filter changes to the URL and clears them', () => {
@@ -516,6 +792,10 @@ describe('AiQualityPage', () => {
       target: { value: 'MODEL_ERROR' },
     });
     fireEvent.click(within(card).getByRole('button', { name: '确认问题' }));
+    fireEvent.change(within(card).getByLabelText('备注'), {
+      target: { value: '已确认是模型答非所问' },
+    });
+    fireEvent.click(within(card).getByRole('button', { name: '提交判断' }));
 
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
@@ -524,9 +804,69 @@ describe('AiQualityPage', () => {
         failureKind: 'MODEL_ERROR',
         verdict: 'incorrect',
         note: '已确认是模型答非所问',
+        expectedVersion: 3,
       }),
     );
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it('跳过只移动游标，不回队首', () => {
+    const second = {
+      ...feedback,
+      id: 'fb-2',
+      messageId: 'msg-2',
+      version: 4,
+      input: '第二个问题',
+      failureKind: 'MODEL_ERROR',
+    };
+    wireFeedback({ listData: { list: [feedback, second], total: 2 } });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    expect(screen.getByText('质检 1 / 2')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '跳过' }));
+    expect(screen.getByText('质检 2 / 2')).toBeTruthy();
+    const card = screen.getByText('质检 2 / 2').closest('section')!;
+    expect(within(card).getByText('第二个问题')).toBeTruthy();
+  });
+
+  it('按归因筛选进入质检时，筛选值作为归因初值', () => {
+    (useSearchParams as any).mockReturnValue(
+      new URLSearchParams('failureKind=MODEL_ERROR'),
+    );
+    wireFeedback({
+      listData: { list: [{ ...feedback, failureKind: null }], total: 1 },
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+
+    expect((screen.getByLabelText('主要原因') as HTMLSelectElement).value).toBe(
+      'MODEL_ERROR',
+    );
+  });
+
+  it('切到下一条时归因初值重置为该条自身归因', () => {
+    const second = {
+      ...feedback,
+      id: 'fb-2',
+      messageId: 'msg-2',
+      version: 4,
+      input: '第二个问题',
+      failureKind: 'MODEL_ERROR',
+    };
+    wireFeedback({ listData: { list: [feedback, second], total: 2 } });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const cause = () => screen.getByLabelText('主要原因') as HTMLSelectElement;
+    expect(cause().value).toBe('UNEXPECTED_TRANSFER');
+
+    // 人工改过归因后切条，下一条不能继承上一条的手动值。
+    fireEvent.change(cause(), { target: { value: 'PROMPT' } });
+    fireEvent.click(screen.getByRole('button', { name: '跳过' }));
+    expect(cause().value).toBe('MODEL_ERROR');
   });
 
   it('sends IGNORED + EXCLUDED from the row quick action', async () => {
@@ -540,7 +880,7 @@ describe('AiQualityPage', () => {
         reviewStatus: 'IGNORED',
         resolution: 'EXCLUDED',
         failureKind: 'UNEXPECTED_TRANSFER',
-        note: '已确认是模型答非所问',
+        expectedVersion: 3,
       }),
     );
   });
@@ -566,6 +906,7 @@ describe('AiQualityPage', () => {
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-confirmed', {
         resolution: 'FIXED_PENDING_VERIFY',
+        expectedVersion: 3,
       }),
     );
 
@@ -573,6 +914,7 @@ describe('AiQualityPage', () => {
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-confirmed', {
         resolution: 'CLOSED',
+        expectedVersion: 3,
       }),
     );
   });
@@ -590,9 +932,231 @@ describe('AiQualityPage', () => {
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
         ownerAdminId: 'admin-1',
+        expectedVersion: 3,
       }),
     );
     expect(screen.getByText('已认领，负责人是你')).toBeTruthy();
+  });
+
+  it('takes over a row claimed by another admin with takeOver=true', async () => {
+    wireFeedback({
+      listData: {
+        list: [{ ...feedback, claimedBy: 'admin-2', ownerAdminId: 'admin-2' }],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    expect(within(card).getByText('负责人：管理员（admin-2）')).toBeTruthy();
+
+    fireEvent.click(within(card).getByRole('button', { name: '接手' }));
+
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
+        ownerAdminId: 'admin-1',
+        expectedVersion: 3,
+        takeOver: true,
+      }),
+    );
+    expect(screen.getByText('已接手，负责人是你')).toBeTruthy();
+  });
+
+  it('disables the claim button when the current admin already owns the row', () => {
+    wireFeedback({
+      listData: {
+        list: [{ ...feedback, claimedBy: 'admin-1', ownerAdminId: 'admin-1' }],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    const claim = within(card).getByRole('button', {
+      name: '已认领',
+    }) as HTMLButtonElement;
+    expect(claim.disabled).toBe(true);
+  });
+
+  it('shows a claimed-but-unreviewed row as 已认领 without changing pending counts', () => {
+    wireFeedback({
+      listData: {
+        list: [
+          {
+            ...feedback,
+            claimedBy: 'admin-2',
+            ownerAdminId: 'admin-2',
+            claimedAt: '2026-01-02T00:00:00.000Z',
+          },
+        ],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    const row = screen.getByText('我的券怎么还不发').closest('tr')!;
+    // 认领是分派，不是处理完成；状态列必须与「待处理」区分开。
+    expect(within(row).getByText('已认领')).toBeTruthy();
+    expect(within(row).queryByText('待处理')).toBeNull();
+    // 未处理的记录仍计入待处理筛选，计数不因展示口径变化。
+    expect(
+      (screen.getByLabelText('反馈分诊状态') as HTMLSelectElement).textContent,
+    ).toContain('待处理（7）');
+
+    // 卡片同样把认领与处理结果分开：负责人有名字，处理结果仍标已认领。
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    expect(within(card).getByText('处理结果：已认领')).toBeTruthy();
+    expect(within(card).getByText('负责人：管理员（admin-2）')).toBeTruthy();
+  });
+
+  it('refreshes and explains when triage hits a version conflict', async () => {
+    mockUpdateFeedback.mockRejectedValueOnce({
+      status: 409,
+      message: 'Feedback changed since it was loaded',
+    });
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    const listCallsBefore = mockGetFeedbackList.mock.calls.length;
+    fireEvent.click(within(card).getByRole('button', { name: '确认问题' }));
+    fireEvent.click(within(card).getByRole('button', { name: '提交判断' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('这条反馈刚被他人更新，列表已刷新，请重试'),
+      ).toBeTruthy(),
+    );
+    // 冲突后必须重新拉列表，拿新版本再让用户重试
+    expect(mockGetFeedbackList.mock.calls.length).toBeGreaterThan(
+      listCallsBefore,
+    );
+  });
+
+  it('falls back to the last page when the current page is emptied', async () => {
+    let totalCount = 41;
+    const rowsFor = (page: number) => {
+      const start = (page - 1) * 20;
+      const count = Math.min(20, Math.max(0, totalCount - start));
+      return Array.from({ length: count }, (_, i) => ({
+        ...feedback,
+        id: `fb-${start + i + 1}`,
+        input: `问题${start + i + 1}`,
+      }));
+    };
+    const refresh = vi.fn();
+    mockUseRequest.mockImplementation((service: unknown) => {
+      if (service === mockGetFeatures) {
+        return makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true });
+      }
+      const before = {
+        list: mockGetFeedbackList.mock.calls.length,
+        summary: mockGetFeedbackSummary.mock.calls.length,
+        datasets: mockListDatasets.mock.calls.length,
+      };
+      if (typeof service === 'function') void (service as () => unknown)();
+      if (mockGetFeedbackList.mock.calls.length > before.list) {
+        const calls = mockGetFeedbackList.mock.calls;
+        const page = calls[calls.length - 1][0].page;
+        return {
+          ...makeUseRequest({ list: rowsFor(page), total: totalCount }),
+          refresh,
+          refreshAsync: async () => {
+            // 处理掉这一页最后一条：总数缩水，当前页变成越界页。
+            totalCount = 40;
+            refresh();
+          },
+        };
+      }
+      if (mockGetFeedbackSummary.mock.calls.length > before.summary) {
+        return { ...makeUseRequest(summary), refresh, refreshAsync: refresh };
+      }
+      return { ...makeUseRequest(datasets), refresh, refreshAsync: refresh };
+    });
+
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(screen.getByText('问题41')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '排除' }));
+
+    // 第 3 页只剩 1 条，处理完总数为 40：必须回退到第 2 页并重取，而不是停在空页。
+    await waitFor(() => expect(screen.getByText('问题21')).toBeTruthy());
+    expect(screen.queryByText('暂无反馈')).toBeNull();
+    const calls = mockGetFeedbackList.mock.calls;
+    expect(calls[calls.length - 1][0].page).toBe(2);
+    expect(
+      (screen.getByRole('button', { name: '下一页' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it('shows the specific outcome for REVIEWED rows instead of a generic confirmed label', () => {
+    wireFeedback({
+      listData: {
+        list: [
+          {
+            ...feedback,
+            id: 'fb-closed',
+            reviewStatus: 'REVIEWED',
+            resolution: 'CLOSED',
+          },
+          {
+            ...feedback,
+            id: 'fb-eval',
+            reviewStatus: 'REVIEWED',
+            resolution: 'ADDED_TO_EVAL',
+          },
+        ],
+        total: 2,
+      },
+    });
+    render(<AiQualityPage />);
+
+    const closed = screen.getByText('已关闭').closest('tr')!;
+    expect(within(closed).queryByText('已确认')).toBeNull();
+    expect(screen.getAllByText('已进回归').length).toBeGreaterThan(0);
+  });
+
+  it('shows claim as a separate column from the completion outcome', () => {
+    wireFeedback({
+      listData: {
+        list: [
+          {
+            ...feedback,
+            id: 'fb-claimed',
+            reviewStatus: 'PENDING',
+            resolution: 'OPEN',
+            claimedBy: 'admin-1',
+            ownerAdminId: 'admin-1',
+          },
+        ],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    const row = within(screen.getByRole('table'))
+      .getByText('已认领')
+      .closest('tr')!;
+    // 认领不等于处理完成：状态标已认领，负责人单独展示，不冒充已确认。
+    expect(within(row).queryByText('待处理')).toBeNull();
+    expect(within(row).queryByText('已确认')).toBeNull();
+    expect(within(row).getByText('我')).toBeTruthy();
+  });
+
+  it('shows counts on the triage and resolution filters', () => {
+    render(<AiQualityPage />);
+
+    expect(screen.getByRole('option', { name: '待处理（7）' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: '已确认（4）' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: '已进回归（4）' })).toBeTruthy();
   });
 
   it('supports J/K, 1/2/3, Enter and Esc shortcuts in review mode', async () => {
@@ -631,6 +1195,10 @@ describe('AiQualityPage', () => {
   });
 
   it('batch-excludes only current-page service errors after showing the count', async () => {
+    mockBatchExcludeFeedback.mockResolvedValue({
+      succeeded: ['fb-svc-1', 'fb-svc-2'],
+      skipped: [],
+    });
     wireFeedback({
       listData: {
         list: [
@@ -648,25 +1216,41 @@ describe('AiQualityPage', () => {
     expect(button.textContent).toContain('2');
     fireEvent.click(button);
 
-    await waitFor(() => expect(mockUpdateFeedback).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(mockBatchExcludeFeedback).toHaveBeenCalledWith([
+        'fb-svc-1',
+        'fb-svc-2',
+      ]),
+    );
     expect(confirmSpy).toHaveBeenCalledWith(
       expect.stringContaining('2 条服务故障'),
     );
-    expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-svc-1', {
-      reviewStatus: 'IGNORED',
-      resolution: 'EXCLUDED',
-      failureKind: 'SERVICE_ERROR',
-    });
-    expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-svc-2', {
-      reviewStatus: 'IGNORED',
-      resolution: 'EXCLUDED',
-      failureKind: 'SERVICE_ERROR',
-    });
-    expect(mockUpdateFeedback).not.toHaveBeenCalledWith(
-      'fb-model',
-      expect.anything(),
-    );
+    // 逐条语义收口到服务端：前端不再并发发 PATCH，模型答错不会进数组。
+    expect(mockUpdateFeedback).not.toHaveBeenCalled();
     expect(screen.getByText('已批量排除 2 条服务故障')).toBeTruthy();
+  });
+
+  it('batch exclude surfaces per-item skipped reasons', async () => {
+    mockBatchExcludeFeedback.mockResolvedValue({
+      succeeded: ['fb-svc-1'],
+      skipped: [{ id: 'fb-svc-2', reason: 'VERSION_CONFLICT' }],
+    });
+    wireFeedback({
+      listData: {
+        list: [
+          { ...feedback, id: 'fb-svc-1', failureKind: 'SERVICE_ERROR' },
+          { ...feedback, id: 'fb-svc-2', failureKind: 'SERVICE_ERROR' },
+        ],
+        total: 2,
+      },
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /批量排除服务故障/ }));
+
+    await waitFor(() => expect(screen.getByText(/1 条跳过/)).toBeTruthy());
+    expect(screen.getByText(/已被他人更新/)).toBeTruthy();
   });
 
   it('does not offer batch exclusion when the page only has model errors', () => {
@@ -705,29 +1289,6 @@ describe('AiQualityPage', () => {
 
   it('creates a regression case and links it back to the feedback', async () => {
     const refresh = wireFeedback();
-    mockAddCases.mockResolvedValue({
-      id: 'ds-1',
-      cases: [
-        {
-          id: 'case-old',
-          datasetId: 'ds-1',
-          question: feedback.input,
-          answer: '旧用例',
-          expect: {},
-          tags: [],
-          createdAt: '2026-01-01T00:00:00.000Z',
-        },
-        {
-          id: 'case-new',
-          datasetId: 'ds-1',
-          question: feedback.input,
-          answer: feedback.answer,
-          expect: {},
-          tags: ['from-feedback', 'UNEXPECTED_TRANSFER'],
-          createdAt: '2026-01-02T00:00:00.000Z',
-        },
-      ],
-    });
     render(<AiQualityPage />);
 
     fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
@@ -736,28 +1297,35 @@ describe('AiQualityPage', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '确认加入回归' }));
 
+    // 专用接口：服务端在同一事务里建用例并回链，前端不再按题干反查。
     await waitFor(() =>
-      expect(mockAddCases).toHaveBeenCalledWith('ds-1', {
-        cases: [
-          {
-            question: feedback.input,
-            answer: feedback.answer,
-            expect: { mustMention: ['已确认是模型答非所问'] },
-            expected: '已确认是模型答非所问',
-            sourceFeedbackId: 'fb-1',
-            source: 'feedback',
-            tags: ['from-feedback', 'UNEXPECTED_TRANSFER'],
-          },
-        ],
+      expect(mockCreateRegressionCase).toHaveBeenCalledWith('fb-1', {
+        datasetId: 'ds-1',
+        expected: '已确认是模型答非所问',
+        expectedVersion: 3,
       }),
     );
-    await waitFor(() =>
-      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
-        linkedEvalCaseId: 'case-new',
-        resolution: 'ADDED_TO_EVAL',
-      }),
-    );
+    expect(mockAddCases).not.toHaveBeenCalled();
+    expect(mockUpdateFeedback).not.toHaveBeenCalled();
+    expect(screen.getByText('已加入回归评测集')).toBeTruthy();
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it('加入回归幂等返回已有用例时说明已在评测集中', async () => {
+    mockCreateRegressionCase.mockResolvedValue({
+      created: false,
+      linkedEvalCaseId: 'case-1',
+      datasetId: 'ds-1',
+      feedbackId: 'fb-1',
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认加入回归' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('这条反馈已在回归评测集中')).toBeTruthy(),
+    );
   });
 
   it('refuses to create a regression case without an expectation', async () => {
@@ -775,7 +1343,35 @@ describe('AiQualityPage', () => {
         screen.getByText('回归用例必须填写期望答案，否则无法证明修复有效'),
       ).toBeTruthy(),
     );
-    expect(mockAddCases).not.toHaveBeenCalled();
+    expect(mockCreateRegressionCase).not.toHaveBeenCalled();
+  });
+
+  it('does not offer harness read-only datasets when adding to regression', () => {
+    wireFeedback({
+      datasetsData: [
+        { ...datasets[0], id: 'ds-e2e', name: 'e2e:feedback-20260101' },
+        datasets[0],
+      ],
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+
+    const select = screen.getByLabelText('选择回归评测集') as HTMLSelectElement;
+    // e2e: 数据集由 harness 物化，控制台写入会被覆盖。
+    expect(within(select).queryByText(/e2e:/)).toBeNull();
+    // 默认落到可写数据集，而不是列表里的第一个只读数据集。
+    expect(select.value).toBe('ds-1');
+  });
+
+  it('tells the operator the expectation is required when adding a regression case', () => {
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+
+    // 弹窗文案必须与提交校验一致：期望答案必填，不是「稍后补充」。
+    expect(screen.getByText(/期望答案必填/)).toBeTruthy();
+    expect(screen.queryByText(/稍后可补充/)).toBeNull();
   });
 
   it('routes to the eval tab when no regression dataset exists', () => {
@@ -785,7 +1381,12 @@ describe('AiQualityPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
     expect(screen.getByText('先创建评测集')).toBeTruthy();
 
-    mockUseRequest.mockReturnValue(makeUseRequest([]));
+    // 评测页的写入口依赖开关；其余请求仍按空数据返回。
+    mockUseRequest.mockImplementation((service: unknown) =>
+      service === mockGetFeatures
+        ? makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true })
+        : makeUseRequest([]),
+    );
     fireEvent.click(screen.getByRole('button', { name: '去创建评测集' }));
 
     expect(screen.getByRole('button', { name: '创建评测集' })).toBeTruthy();
@@ -865,6 +1466,18 @@ describe('AiQualityPage', () => {
     expect(screen.getByText('反馈汇总加载失败，请重试')).toBeTruthy();
   });
 
+  it('汇总请求失败时 KPI 显示未知，不用破折号或 0 冒充', () => {
+    wireFeedback({
+      summaryData: null,
+      summaryError: new Error('summary down'),
+    });
+    render(<AiQualityPage />);
+
+    const pending = screen.getByRole('link', { name: '待处理，查看对应反馈' });
+    expect(within(pending).getByText('未知')).toBeTruthy();
+    expect(within(pending).queryByText('—')).toBeNull();
+  });
+
   it('shows the empty state only when the request has no error', () => {
     wireFeedback({ listData: { list: [], total: 0 } });
     render(<AiQualityPage />);
@@ -873,7 +1486,11 @@ describe('AiQualityPage', () => {
   });
 
   it('keeps the JSON import behind a collapsed advanced-mode toggle', () => {
-    mockUseRequest.mockReturnValue(makeUseRequest(datasets));
+    mockUseRequest.mockImplementation((service: unknown) =>
+      service === mockGetFeatures
+        ? makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true })
+        : makeUseRequest(datasets),
+    );
     render(<AiQualityPage />);
     openTab('回归测试');
 
@@ -884,6 +1501,285 @@ describe('AiQualityPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '高级模式' }));
 
     expect(screen.getByLabelText('评测用例 JSON')).toBeTruthy();
+  });
+
+  it('用例总数取 casesTotal，而不是当前页数组长度', () => {
+    const enterEval = wireEvalTab({
+      ...evalDatasetDetail,
+      casesTotal: 120,
+      _count: { cases: 120, runs: 2 },
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    expect(screen.getByText('用例（120）')).toBeTruthy();
+    expect(screen.getAllByText('120').length).toBeGreaterThan(0);
+  });
+
+  it('导入用例按 created 与 skipped 报数', async () => {
+    mockAddCases.mockResolvedValue({
+      id: 'ds-1',
+      cases: [],
+      created: 1,
+      skipped: [{ question: '重复问题', reason: 'DUPLICATE_IN_DATASET' }],
+    });
+    const enterEval = wireEvalTab(evalDatasetDetail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '高级模式' }));
+    fireEvent.change(screen.getByLabelText('评测用例 JSON'), {
+      target: {
+        value: JSON.stringify([
+          { question: '新问题', answer: 'a' },
+          { question: '重复问题', answer: 'b' },
+        ]),
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '导入用例' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('已添加 1 条用例，跳过 1 条重复')).toBeTruthy(),
+    );
+  });
+
+  it('用例编辑以 expect 为准，expected 只做只读展示', () => {
+    const detail = {
+      ...evalDatasetDetail,
+      cases: [
+        {
+          id: 'case-expect',
+          datasetId: 'ds-1',
+          question: '退款多久到账',
+          answer: '客服回答',
+          expect: {
+            mustMention: ['3 个工作日', '原路退回'],
+            confirmAction: 'order.refund',
+            forbidExecution: true,
+            intent: 'refund',
+          },
+          expected: '旧的期望答案',
+          tags: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+    const enterEval = wireEvalTab(detail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    expect(
+      screen.getByText(/判分条件（expect）：3 个工作日；原路退回/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('确认动作：order.refund · 禁止执行：是 · 意图：refund'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('兼容字段 expected（只读）：旧的期望答案'),
+    ).toBeTruthy();
+  });
+
+  it('行内编辑器按行展示 mustMention，并带 DTO 同口径 maxLength', () => {
+    const detail = {
+      ...evalDatasetDetail,
+      cases: [
+        {
+          ...evalDatasetDetail.cases[0],
+          id: 'case-edit',
+          expect: { mustMention: ['3 个工作日', '原路退回'] },
+        },
+      ],
+    };
+    const enterEval = wireEvalTab(detail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑期望' }));
+
+    const textarea = screen.getByLabelText('必含关键词');
+    expect((textarea as HTMLTextAreaElement).value).toBe(
+      '3 个工作日\n原路退回',
+    );
+    expect((textarea as HTMLTextAreaElement).maxLength).toBe(20 * 501);
+  });
+
+  it('保存判分条件只提交 expect，并保留非文本条件', async () => {
+    mockUpdateCase.mockResolvedValue({});
+    const detail = {
+      ...evalDatasetDetail,
+      cases: [
+        {
+          ...evalDatasetDetail.cases[0],
+          id: 'case-save',
+          expect: {
+            mustMention: ['3 个工作日'],
+            confirmAction: 'order.refund',
+            intent: 'refund',
+          },
+          expected: '旧回答',
+        },
+      ],
+    };
+    const enterEval = wireEvalTab(detail);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑期望' }));
+    fireEvent.change(screen.getByLabelText('必含关键词'), {
+      target: { value: '3 个工作日\n新的要点' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存判分条件' }));
+
+    await waitFor(() => expect(mockUpdateCase).toHaveBeenCalled());
+    const payload = mockUpdateCase.mock.calls[0][2];
+    expect(mockUpdateCase.mock.calls[0].slice(0, 2)).toEqual([
+      'ds-1',
+      'case-save',
+    ]);
+    expect(payload).toEqual({
+      expect: {
+        mustMention: ['3 个工作日', '新的要点'],
+        confirmAction: 'order.refund',
+        intent: 'refund',
+      },
+    });
+    expect('expected' in payload).toBe(false);
+  });
+
+  it('超过 20 条必含关键词时在本地拦截，不打接口', () => {
+    const enterEval = wireEvalTab({
+      ...evalDatasetDetail,
+      cases: [{ ...evalDatasetDetail.cases[0], id: 'case-too-many' }],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑期望' }));
+    fireEvent.change(screen.getByLabelText('必含关键词'), {
+      target: {
+        value: Array.from({ length: 21 }, (_, i) => `要点${i}`).join('\n'),
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存判分条件' }));
+
+    expect(screen.getByText('最多 20 条必含关键词')).toBeTruthy();
+    expect(mockUpdateCase).not.toHaveBeenCalled();
+  });
+
+  it('用例列表分页：下一页请求第 2 页', () => {
+    const enterEval = wireEvalTab({
+      ...evalDatasetDetail,
+      casesTotal: 120,
+      page: 1,
+      pageSize: 50,
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    expect(screen.getByText('第 1 / 3 页')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+
+    expect(mockGetDataset).toHaveBeenCalledWith('ds-1', { page: 2 });
+  });
+
+  it('终态运行的结果可以翻页', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      createdBy: 'admin',
+      summary: { total: 120 },
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: '2026-01-01T01:00:00.000Z',
+      resultsTotal: 120,
+      page: 1,
+      pageSize: 50,
+      results: [
+        {
+          id: 'r-1',
+          verdict: 'solved',
+          score: 1,
+          reason: 'ok',
+          latencyMs: 10,
+          case: evalDatasetDetail.cases[0],
+        },
+      ],
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStartRun.mockResolvedValueOnce({ id: 'run-1', status: 'RUNNING' });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+
+    await waitFor(() =>
+      expect(mockGetRun).toHaveBeenCalledWith('run-1', { page: 2 }),
+    );
+  });
+
+  it('运行中只取第 1 页，且不提供结果翻页', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-1',
+      datasetId: 'ds-1',
+      status: 'RUNNING',
+      mode: 'LIVE',
+      createdBy: 'admin',
+      summary: { total: 200, processed: 60 },
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: null,
+      resultsTotal: 200,
+      page: 1,
+      pageSize: 50,
+      results: [],
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStartRun.mockResolvedValueOnce({ id: 'run-1', status: 'RUNNING' });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+
+    await waitFor(() =>
+      expect(mockGetRun).toHaveBeenCalledWith('run-1', { page: 1 }),
+    );
+    expect(screen.queryByRole('button', { name: '下一页' })).toBeNull();
   });
 
   it('shows accuracy instead of pass rate for an EXTERNAL run', () => {
@@ -1019,6 +1915,256 @@ describe('AiQualityPage', () => {
     );
   });
 
+  it('双击启动只调用一次接口', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    let resolveStart: (value: unknown) => void = () => {};
+    mockStartRun.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    const button = screen.getByRole('button', { name: '启动批量评测' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(mockStartRun).toHaveBeenCalledTimes(1));
+    resolveStart({ id: 'run-new', status: 'RUNNING' });
+  });
+
+  it('启动撞上已有运行时显示「已有运行」而不是原始 409', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStartRun.mockRejectedValueOnce({
+      response: {
+        status: 409,
+        data: {
+          message: 'This dataset already has a run in progress',
+          runId: 'run-existing',
+        },
+      },
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+
+    expect(await screen.findByText(/已有运行/)).toBeTruthy();
+    expect(screen.queryByText(/request failed/i)).toBeNull();
+  });
+
+  it('运行卡展示运行标识、范围、指标族、进度与失败类别', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-detail-1',
+      datasetId: 'ds-1',
+      status: 'FAILED',
+      mode: 'STORED',
+      scope: 'full',
+      metricFamily: 'verdict3',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: {
+        total: 20,
+        processed: 18,
+        judged: 16,
+        failureCategory: 'judge_unavailable',
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+
+    expect(screen.getByText(/运行 ID：run-detail-1/)).toBeTruthy();
+    expect(screen.getByText(/运行范围：全量/)).toBeTruthy();
+    expect(screen.getByText(/指标族：verdict3/)).toBeTruthy();
+    expect(screen.getByText(/已处理 18 \/ 共 20/)).toBeTruthy();
+    expect(screen.getByText(/失败类别：judge_unavailable/)).toBeTruthy();
+  });
+
+  it('汇总缺字段时显示未记录，不用 0 冒充未知', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-gap-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { total: 3 },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+
+    expect(
+      screen.getByText(/正确 未记录 · 错误 未记录 · 判官失败 未记录/),
+    ).toBeTruthy();
+  });
+
+  it('未采集依据分型的结果标未检查', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-gap-2',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { total: 1, correct: 1 },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [
+        {
+          id: 'r-ground-1',
+          answerVerdict: 'correct',
+          answerScore: 0.9,
+          grounding: null,
+          reason: 'ok',
+          latencyMs: 12,
+          case: evalDatasetDetail.cases[0],
+        },
+      ],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    expect(screen.getByText(/依据分型：未检查/)).toBeTruthy();
+  });
+
+  it('推断出的行诊断标注推断', () => {
+    render(<AiQualityPage />);
+
+    // 默认列表行没有 traceId，诊断是推断出来的，必须与已核实结论区分。
+    expect(screen.getByText(/无链路 · 推断/)).toBeTruthy();
+  });
+
+  it('外部运行摘要行展示已判条数与覆盖率', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-ext-cov',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: {
+        total: 3,
+        correct: 2,
+        incorrect: 1,
+        judgeError: 0,
+        accuracy: 0.6667,
+        judgedCases: 3,
+        coverage: 1,
+        metricFamily: 'answer_accuracy-v3',
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    expect(screen.getByText(/已判 3 条 · 覆盖率 100\.0%/)).toBeTruthy();
+  });
+
+  it('外部运行缺覆盖率字段时显示未记录，不用 0 冒充', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-ext-old',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      // 改造前的运行：同一指标族，但没有覆盖率字段。
+      summary: { total: 3, correct: 2, incorrect: 1 },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    expect(screen.getByText(/覆盖率 未记录/)).toBeTruthy();
+  });
+
+  it('内部运行不展示覆盖率：那是另一种指标族的口径', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-live-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      baselineRunId: null,
+      createdBy: 'admin',
+      metricFamily: 'verdict3',
+      metricSpecVersion: 'verdict3-1',
+      summary: {
+        total: 4,
+        processed: 4,
+        judged: 4,
+        solved: 3,
+        partial: 0,
+        unsolved: 1,
+        judgeErrors: 0,
+        passRate: 0.75,
+        judgeErrorRate: 0,
+        metricFamily: 'verdict3',
+        metricSpecVersion: 'verdict3-1',
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    expect(screen.queryByText(/覆盖率/)).toBeNull();
+  });
+
   it('shows mode, baseline delta, new failures and fixed on the run card', () => {
     const enterEval = wireEvalTab(evalDatasetDetail, {
       id: 'run-1',
@@ -1066,6 +2212,103 @@ describe('AiQualityPage', () => {
     expect(screen.getByText('实际回答：实时回答：请点申请退款')).toBeTruthy();
   });
 
+  it('baseline dropdown reads accuracy for EXTERNAL runs and pass rate for internal runs', () => {
+    const detailWithMixedRuns = {
+      ...evalDatasetDetail,
+      runs: [
+        {
+          id: 'internal-run-1',
+          datasetId: 'ds-1',
+          status: 'COMPLETED',
+          mode: 'LIVE',
+          baselineRunId: null,
+          createdBy: 'admin',
+          summary: { passRate: 0.5, total: 2, solved: 1 },
+          startedAt: '2026-01-01T00:00:00.000Z',
+          finishedAt: '2026-01-01T01:00:00.000Z',
+        },
+        {
+          id: 'external-run-1',
+          datasetId: 'ds-1',
+          status: 'COMPLETED',
+          mode: 'EXTERNAL',
+          scope: 'full',
+          baselineRunId: null,
+          createdBy: 'admin',
+          summary: { accuracy: 0.9, total: 20, correct: 9 },
+          startedAt: '2026-01-02T00:00:00.000Z',
+          finishedAt: '2026-01-02T01:00:00.000Z',
+        },
+      ],
+    };
+    const enterEval = wireEvalTab(detailWithMixedRuns);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+
+    const select = screen.getByLabelText('对比基线') as HTMLSelectElement;
+    const options = Array.from(select.options).map((option) => option.text);
+    // 内部 run 读 passRate，EXTERNAL run 读 accuracy，同一 key 不跨族顶替。
+    expect(options).toContain('internal · 50.0%（通过率）');
+    expect(options).toContain('external · 90.0%（准确率）');
+  });
+
+  it('shows judge failure accounting, valid pass rate, sample count and run scope', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-judge-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      scope: 'full',
+      baselineRunId: null,
+      createdBy: 'admin',
+      metricFamily: 'verdict3',
+      metricSpecVersion: 'verdict3-1',
+      judgeSampleCount: 1,
+      executionErrorKind: null,
+      summary: {
+        total: 10,
+        processed: 10,
+        judged: 8,
+        solved: 6,
+        partial: 1,
+        unsolved: 1,
+        judgeErrors: 2,
+        // 内部运行存的是 Record<kind, count>，不是 EXTERNAL 的数组
+        judgeErrorKinds: { timeout: 2 },
+        executionErrors: 0,
+        passRate: 0.6,
+        validPassRate: 0.75,
+        judgeErrorRate: 0.2,
+        executionErrorRate: 0,
+        metricFamily: 'verdict3',
+        metricSpecVersion: 'verdict3-1',
+        failureCategory: null,
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    // 通过率的分母没有变（solved/total），另外单独给出判过才统计的口径
+    expect(screen.getByText('通过率 60.0%')).toBeTruthy();
+    expect(screen.getByText(/有效通过率 75\.0%/)).toBeTruthy();
+    expect(screen.getByText(/已处理 10 \/ 共 10/)).toBeTruthy();
+    expect(screen.getByText(/已判定 8/)).toBeTruthy();
+    expect(screen.getByText(/判官失败率 20\.0%/)).toBeTruthy();
+    expect(screen.getByText(/判官失败类型 timeout 2/)).toBeTruthy();
+    expect(screen.getByText(/运行范围：全量/)).toBeTruthy();
+    expect(screen.getByText(/运行 ID：run-judge-1/)).toBeTruthy();
+    expect(screen.getByText(/判官采样 1 次\/条/)).toBeTruthy();
+  });
+
   it('cancels a RUNNING run from the run card', async () => {
     const enterEval = wireEvalTab(evalDatasetDetail, {
       id: 'running-run',
@@ -1090,6 +2333,109 @@ describe('AiQualityPage', () => {
       expect(mockCancelRun).toHaveBeenCalledWith('running-run'),
     );
     expect(screen.getByText('已取消本次运行')).toBeTruthy();
+  });
+
+  const runningRun = {
+    id: 'run-1',
+    datasetId: 'ds-1',
+    status: 'RUNNING',
+    mode: 'LIVE',
+    baselineRunId: null,
+    createdBy: 'admin',
+    summary: { total: 10 },
+    startedAt: '2026-01-02T00:00:00.000Z',
+    finishedAt: null,
+    results: [],
+  };
+
+  it('运行进入终态后刷新数据集与基线下拉各一次', async () => {
+    const refreshDataset = vi.fn();
+    const refreshDatasets = vi.fn();
+    let currentRun: any = { ...runningRun };
+    const enterEval = wireEvalTransitions(
+      evalDatasetDetail,
+      () => currentRun,
+      refreshDataset,
+      refreshDatasets,
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStartRun.mockResolvedValueOnce({ id: 'run-1', status: 'RUNNING' });
+
+    const { rerender } = render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+
+    currentRun = {
+      ...currentRun,
+      status: 'COMPLETED',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+    };
+    rerender(<AiQualityPage />);
+
+    await waitFor(() => expect(refreshDataset).toHaveBeenCalledTimes(1));
+    expect(refreshDatasets).toHaveBeenCalledTimes(1);
+  });
+
+  it('打开历史终态运行不触发刷新', async () => {
+    const refreshDataset = vi.fn();
+    const refreshDatasets = vi.fn();
+    const enterEval = wireEvalTransitions(
+      evalDatasetDetail,
+      () => ({
+        ...runningRun,
+        id: 'base-run-1',
+        status: 'COMPLETED',
+        finishedAt: '2026-01-01T01:00:00.000Z',
+      }),
+      refreshDataset,
+      refreshDatasets,
+    );
+
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+
+    await waitFor(() =>
+      expect(mockGetRun).toHaveBeenCalledWith('base-run-1', { page: 1 }),
+    );
+    expect(refreshDataset).not.toHaveBeenCalled();
+    expect(refreshDatasets).not.toHaveBeenCalled();
+  });
+
+  it('取消成功也刷新数据集与基线下拉各一次', async () => {
+    const refreshDataset = vi.fn();
+    const refreshDatasets = vi.fn();
+    const enterEval = wireEvalTransitions(
+      evalDatasetDetail,
+      () => ({ ...runningRun, id: 'running-run' }),
+      refreshDataset,
+      refreshDatasets,
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockCancelRun.mockResolvedValueOnce({
+      id: 'running-run',
+      status: 'CANCELLED',
+    });
+
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '取消运行' }));
+
+    await waitFor(() => expect(refreshDataset).toHaveBeenCalledTimes(1));
+    expect(refreshDatasets).toHaveBeenCalledTimes(1);
   });
 
   it('shows the CANCELLED label and cancellation note on a run card', () => {
@@ -1158,6 +2504,60 @@ describe('AiQualityPage', () => {
     expect(screen.queryByText(/secret/)).toBeNull();
   });
 
+  it('分块对比调用服务端 diff 并展示新增/删除/修改', async () => {
+    const diff = {
+      currentVersion: 2,
+      previousVersion: 1,
+      summary: { added: 1, removed: 1, modified: 1, unchanged: 0 },
+      changes: [
+        {
+          chunkIndex: 0,
+          change: 'modified',
+          previous: { content: '改前' },
+          current: { content: '改后' },
+        },
+        {
+          chunkIndex: 1,
+          change: 'added',
+          previous: null,
+          current: { content: '新增内容' },
+        },
+        {
+          chunkIndex: 2,
+          change: 'removed',
+          previous: { content: '已删内容' },
+          current: null,
+        },
+      ],
+    };
+    mockGetChunksDiff.mockResolvedValue(diff);
+    mockUseRequest.mockImplementation((service: unknown) => {
+      if (typeof service === 'function') {
+        const before = mockGetChunksDiff.mock.calls.length;
+        void (service as () => unknown)();
+        if (mockGetChunksDiff.mock.calls.length > before) {
+          return makeUseRequest(diff);
+        }
+      }
+      return makeUseRequest(stats);
+    });
+    render(<AiQualityPage />);
+    openTab('知识质量');
+
+    fireEvent.click(screen.getByRole('button', { name: '新旧分块' }));
+
+    await waitFor(() =>
+      expect(mockGetChunksDiff).toHaveBeenCalledWith('doc-1'),
+    );
+    expect(screen.getByText(/新增 1/)).toBeTruthy();
+    expect(screen.getByText(/删除 1/)).toBeTruthy();
+    expect(screen.getByText(/修改 1/)).toBeTruthy();
+    expect(screen.getByText('改前')).toBeTruthy();
+    expect(screen.getByText('改后')).toBeTruthy();
+    expect(screen.getByText('新增内容')).toBeTruthy();
+    expect(screen.getByText('已删内容')).toBeTruthy();
+  });
+
   it('shows a RAG stats error banner instead of an empty card set', () => {
     mockUseRequest.mockReturnValue({
       ...makeUseRequest(undefined),
@@ -1168,5 +2568,618 @@ describe('AiQualityPage', () => {
 
     expect(screen.getByText('知识质量统计加载失败，请重试')).toBeTruthy();
     expect(screen.queryByText('暂无知识库文档质量数据。')).toBeNull();
+    // 请求失败不能被读成「确实没有记录」。
+    expect(screen.queryByText('暂无更新记录')).toBeNull();
+    expect(screen.queryByText('暂无标记文档')).toBeNull();
+  });
+
+  it('知识统计字段缺失时显示未知，不用破折号冒充', () => {
+    mockQualityStats.mockResolvedValue({ total: 10 });
+    mockUseRequest.mockImplementation((service: unknown) => {
+      if (service === mockKbStatus) return makeUseRequest(kbRegressionStatus);
+      if (typeof service === 'function') void (service as () => unknown)();
+      return makeUseRequest({ total: 10 });
+    });
+    render(<AiQualityPage />);
+    openTab('知识质量');
+
+    const excellent = screen.getByText('优秀').parentElement;
+    expect(within(excellent as HTMLElement).getByText('未知')).toBeTruthy();
+    expect(within(excellent as HTMLElement).queryByText('—')).toBeNull();
+  });
+
+  describe('知识质量分区分解析质量与有效性', () => {
+    const parseChecks = {
+      truncation: { passed: true, detail: '结尾完整' },
+      retentionRate: { passed: false, rate: 62, detail: '保留率偏低' },
+      encoding: { passed: true, detail: '无乱码' },
+      emptyContent: { passed: true, detail: '内容非空' },
+    };
+
+    function renderKnowledgeTab() {
+      mockUseRequest.mockReturnValue(
+        makeUseRequest({
+          ...stats,
+          parseQuality: { collected: 1, passed: 0, failed: 1, notCollected: 1 },
+          effectiveness: {
+            status: 'pendingMetric',
+            collected: false,
+            note: '检索命中与引用正确率尚未采集，不参与评分。',
+          },
+          recentUpdated: [
+            {
+              documentId: 'doc-1',
+              title: '退换货政策',
+              score: 75,
+              flags: 'low_retention',
+              activeVersion: 2,
+              version: 3,
+              updatedAt: '2026-01-03T00:00:00.000Z',
+              parseChecks,
+            },
+            {
+              documentId: 'doc-2',
+              title: '旧文档',
+              score: null,
+              flags: null,
+              activeVersion: 0,
+              version: 1,
+              updatedAt: '2026-01-01T00:00:00.000Z',
+              parseChecks: null,
+            },
+          ],
+        }),
+      );
+      render(<AiQualityPage />);
+      openTab('知识质量');
+    }
+
+    it('展示解析通过与四项检查明细', () => {
+      renderKnowledgeTab();
+
+      expect(screen.getByText('解析通过')).toBeTruthy();
+      expect(screen.getByText('解析未通过')).toBeTruthy();
+      expect(screen.getByText('解析未采集')).toBeTruthy();
+      expect(
+        screen.getByTestId('parse-check-truncation').textContent,
+      ).toContain('截断');
+      expect(
+        screen.getByTestId('parse-check-retentionRate').textContent,
+      ).toContain('保留率');
+      expect(screen.getByTestId('parse-check-encoding').textContent).toContain(
+        '编码',
+      );
+      expect(
+        screen.getByTestId('parse-check-emptyContent').textContent,
+      ).toContain('内容');
+      expect(
+        screen.getByTestId('parse-check-retentionRate').textContent,
+      ).toContain('未通过');
+    });
+
+    it('版本区分生效版本与最新写入版本', () => {
+      renderKnowledgeTab();
+
+      expect(screen.getByText('生效 v2 · 最新 v3')).toBeTruthy();
+    });
+
+    it('有效性未采集时不显示 0 或百分比', () => {
+      renderKnowledgeTab();
+
+      expect(screen.getByText('有效性')).toBeTruthy();
+      // 有效性卡与无快照的旧文档都显示「未采集」，而不是 0/0%。
+      expect(screen.getAllByText('未采集').length).toBeGreaterThanOrEqual(2);
+      expect(screen.queryByText('0%')).toBeNull();
+      expect(screen.queryByText('有效性 0')).toBeNull();
+      expect(screen.getByText(/检索命中与引用正确率尚未采集/)).toBeTruthy();
+    });
+
+    it('检索调试展示 rerank 与相关性门卫结论', async () => {
+      mockQualityStats.mockResolvedValue(stats);
+      mockRagSearch.mockResolvedValue({
+        results: [
+          {
+            chunkId: 'c1',
+            title: '退款政策',
+            score: 0.91,
+            contentPreview: '7 天无理由',
+            domain: 'common',
+          },
+        ],
+        debug: {
+          rerank: true,
+          relevanceGate: {
+            applied: true,
+            threshold: 0.3,
+            floor: 0.2,
+            blocked: false,
+            reason: 'top score above floor',
+          },
+        },
+      });
+      render(<AiQualityPage />);
+      openTab('知识质量');
+
+      fireEvent.change(screen.getByPlaceholderText('检索问题'), {
+        target: { value: '退货怎么退' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: '检索' }));
+
+      expect(await screen.findByText(/rerank：开/)).toBeTruthy();
+      expect(screen.getByText(/相关性门卫：通过/)).toBeTruthy();
+      expect(screen.queryByText(/top score above floor/)).toBeNull();
+    });
+  });
+
+  describe('回归用例可解释', () => {
+    const runWithBaseline = {
+      id: 'run-diff-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      scope: 'full',
+      baselineRunId: 'base-run-1',
+      createdBy: 'admin',
+      summary: { total: 5, solved: 4, partial: 0, unsolved: 1 },
+      startedAt: '2026-01-03T00:00:00.000Z',
+      finishedAt: '2026-01-03T00:10:00.000Z',
+      results: [
+        {
+          id: 'res-h1',
+          verdict: 'solved',
+          score: 1,
+          reason: '关键信息齐全',
+          latencyMs: 5,
+          case: evalDatasetDetail.cases[0],
+        },
+      ],
+    };
+    const runDiff = {
+      runId: 'run-diff-1',
+      baselineRunId: 'base-run-1',
+      metricFamily: 'verdict3',
+      comparability: { compared: 5, undecided: 1, missingBaseline: 2 },
+      counts: { newFailure: 2, fixed: 1, regressed: 1, stillFailing: 3 },
+      classes: { newFailure: [], fixed: [], regressed: [], stillFailing: [] },
+      note: '描述性分类，不构成统计显著性结论；显著性由 compare.py 配对检验给出。',
+    };
+
+    function openWithBaselineRun(
+      runData: unknown,
+      diffData: unknown = runDiff,
+    ) {
+      const enterEval = wireEvalTab(
+        { ...evalDatasetDetail, runs: [runWithBaseline] },
+        runData,
+        datasets,
+        kbRegressionStatus,
+        diffData,
+      );
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+      fireEvent.change(screen.getByLabelText('选择评测集'), {
+        target: { value: 'ds-1' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /run-diff/ }));
+    }
+
+    it('运行卡展示与基线的四类差异与可比性，不声称显著', async () => {
+      openWithBaselineRun(runWithBaseline);
+
+      expect(await screen.findByText('与基线差异')).toBeTruthy();
+      expect(screen.getByText(/新增失败 2/)).toBeTruthy();
+      expect(screen.getByText(/修复 1/)).toBeTruthy();
+      expect(screen.getByText(/回退 1/)).toBeTruthy();
+      expect(screen.getByText(/仍失败 3/)).toBeTruthy();
+      expect(
+        screen.getByText(/可比对 5 条 · 判官未判定 1 条 · 基线缺少 2 条/),
+      ).toBeTruthy();
+      expect(screen.getByText(/不构成统计显著性结论/)).toBeTruthy();
+      await waitFor(() =>
+        expect(mockGetRunDiff).toHaveBeenCalledWith('run-diff-1', 'base-run-1'),
+      );
+    });
+
+    it('差异卡展示翻转率、方向与样本量，低样本明确不下结论', async () => {
+      openWithBaselineRun(runWithBaseline, {
+        ...runDiff,
+        comparable: true,
+        incomparableReasons: [],
+        warnings: [],
+        drift: {
+          sample: 6,
+          flips: 2,
+          flipRate: 0.3333,
+          direction: { improved: 1, worsened: 1 },
+          rawVerdictChanges: [
+            {
+              caseId: 'case-1',
+              baselineVerdict: 'solved',
+              currentVerdict: 'partial',
+            },
+          ],
+          lowSample: true,
+          sameInput: true,
+          judgeNondeterminismLikely: true,
+        },
+      });
+
+      expect(await screen.findByText('与基线差异')).toBeTruthy();
+      const drift = screen.getByTestId('diff-drift');
+      expect(within(drift).getByText(/样本 6 条/)).toBeTruthy();
+      expect(within(drift).getByText(/翻转 2 条（翻转率 33.3%）/)).toBeTruthy();
+      expect(within(drift).getByText(/方向 改善 1 · 变差 1/)).toBeTruthy();
+      expect(within(drift).getByText(/原始档位变化 1 条/)).toBeTruthy();
+      expect(within(drift).getByText(/样本不足/)).toBeTruthy();
+      expect(within(drift).getByText(/同输入翻转/)).toBeTruthy();
+      // 抖动与既有四类差异并存：分类计数不因新增卡片消失。
+      expect(screen.getByText(/新增失败 2/)).toBeTruthy();
+    });
+
+    it('旧差异缺少抖动字段时显示未记录，不显示 0', async () => {
+      openWithBaselineRun(runWithBaseline);
+
+      expect(await screen.findByText('与基线差异')).toBeTruthy();
+      expect(screen.getByText(/翻转率 未记录/)).toBeTruthy();
+      expect(screen.queryByText(/翻转 0 条/)).toBeNull();
+      expect(screen.queryByTestId('diff-drift')).toBeNull();
+    });
+
+    it('不可比时只展示原因，不渲染任何差异数字', async () => {
+      openWithBaselineRun(runWithBaseline, {
+        runId: 'run-diff-1',
+        baselineRunId: 'base-run-1',
+        metricFamily: 'verdict3',
+        comparable: false,
+        incomparableReasons: [
+          'datasetSnapshot.hash mismatch',
+          'judgeSpecVersion mismatch',
+        ],
+        warnings: [],
+        comparability: { compared: 0, undecided: 0, missingBaseline: 0 },
+        drift: null,
+        counts: null,
+        classes: null,
+        note: '两次运行不可比，未计算差异；可比性原因见 incomparableReasons。',
+      });
+
+      expect(await screen.findByText('与基线差异')).toBeTruthy();
+      const block = screen.getByTestId('diff-incomparable');
+      expect(within(block).getByText(/数据集快照不一致/)).toBeTruthy();
+      expect(within(block).getByText(/判官版本不一致/)).toBeTruthy();
+      expect(screen.queryByTestId('diff-newFailure')).toBeNull();
+      expect(screen.queryByTestId('diff-drift')).toBeNull();
+      expect(screen.queryByText(/可比对/)).toBeNull();
+      expect(screen.queryByText(/翻转率/)).toBeNull();
+    });
+
+    it('没有基线的运行不请求也不展示差异', async () => {
+      openWithBaselineRun({
+        ...runWithBaseline,
+        id: 'run-diff-1',
+        baselineRunId: null,
+      });
+
+      await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+      expect(screen.queryByText('与基线差异')).toBeNull();
+      expect(mockGetRunDiff).not.toHaveBeenCalled();
+    });
+
+    it('单条结果可展开时间线，逐次展示判定与未判定', async () => {
+      mockGetCaseHistory.mockResolvedValue({
+        caseId: 'case-1',
+        datasetId: 'ds-1',
+        case: {
+          id: 'case-1',
+          question: '怎么退款',
+          tags: null,
+          sourceFeedbackId: null,
+        },
+        timeline: [
+          {
+            runId: 'run-old',
+            status: 'COMPLETED',
+            mode: 'LIVE',
+            scope: 'full',
+            isBaseline: true,
+            startedAt: '2026-01-01T00:00:00.000Z',
+            verdict: 'unsolved',
+            answerVerdict: null,
+            judgeErrorKind: null,
+            score: 0,
+            answerScore: null,
+            outcome: 'fail',
+          },
+          {
+            runId: 'run-mid',
+            status: 'COMPLETED',
+            mode: 'LIVE',
+            scope: 'full',
+            isBaseline: false,
+            startedAt: '2026-01-02T00:00:00.000Z',
+            verdict: 'solved',
+            answerVerdict: null,
+            judgeErrorKind: null,
+            score: 1,
+            answerScore: null,
+            outcome: 'pass',
+          },
+          {
+            runId: 'run-judge',
+            status: 'COMPLETED',
+            mode: 'LIVE',
+            scope: 'full',
+            isBaseline: false,
+            startedAt: '2026-01-03T00:00:00.000Z',
+            verdict: null,
+            answerVerdict: null,
+            judgeErrorKind: 'timeout',
+            score: null,
+            answerScore: null,
+            outcome: 'undecided',
+          },
+        ],
+      });
+      openWithBaselineRun(runWithBaseline);
+
+      fireEvent.click(screen.getByRole('button', { name: '查看历史' }));
+
+      await waitFor(() =>
+        expect(mockGetCaseHistory).toHaveBeenCalledWith('run-diff-1', 'case-1'),
+      );
+      expect(screen.getByTestId('history-outcome-run-old').textContent).toBe(
+        '失败',
+      );
+      expect(screen.getByTestId('history-outcome-run-mid').textContent).toBe(
+        '通过',
+      );
+      expect(screen.getByTestId('history-outcome-run-judge').textContent).toBe(
+        '未判定',
+      );
+    });
+
+    it('待验反馈在列表展示待验徽标', () => {
+      wireFeedback({
+        listData: {
+          list: [
+            {
+              ...feedback,
+              reviewStatus: 'REVIEWED',
+              resolution: 'FIXED_PENDING_VERIFY',
+            },
+          ],
+          total: 1,
+        },
+      });
+      render(<AiQualityPage />);
+
+      expect(screen.getByText('已修复待验证')).toBeTruthy();
+      expect(screen.getByText('待验')).toBeTruthy();
+    });
+  });
+
+  describe('判官校准只读卡', () => {
+    const completedRun = {
+      id: 'run-cal-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      scope: 'full',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { total: 0, solved: 0, partial: 0, unsolved: 0 },
+      startedAt: '2026-01-03T00:00:00.000Z',
+      finishedAt: '2026-01-03T00:10:00.000Z',
+      results: [],
+    };
+
+    function openWithCalibration(calibration: unknown) {
+      const enterEval = wireEvalTab(
+        { ...evalDatasetDetail, runs: [completedRun] },
+        completedRun,
+        datasets,
+        kbRegressionStatus,
+        null,
+        calibration,
+      );
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+      fireEvent.change(screen.getByLabelText('选择评测集'), {
+        target: { value: 'ds-1' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /run-cal/ }));
+    }
+
+    it('样本不足时显示「样本不足」且不渲染任何百分比', async () => {
+      openWithCalibration({
+        runId: 'run-cal-1',
+        datasetId: 'ds-1',
+        metricFamily: 'verdict3',
+        status: 'insufficientSample',
+        threshold: 20,
+        n: 10,
+        excluded: 0,
+        disagreements: [
+          {
+            caseId: 'case-1',
+            question: '退货怎么退',
+            judgeVerdict: 'solved',
+            humanCorrectness: 'unsolved',
+            judgeReason: '判官认为已给出步骤',
+            humanComment: '实际没解决',
+            labelerId: 'admin-1',
+          },
+        ],
+        note: '样本不足（10/20）：不下结论，仅列出分歧明细供人工判断。',
+      });
+
+      const card = await screen.findByTestId('run-calibration');
+      expect(within(card).getByText(/需 ≥20 条/)).toBeTruthy();
+      expect(within(card).getByText(/样本不足（10\/20）/)).toBeTruthy();
+      // 样本不足不得出现一致率百分比。
+      expect(within(card).queryByText(/%/)).toBeNull();
+      expect(within(card).getByText(/实际没解决/)).toBeTruthy();
+    });
+
+    it('样本充足时显示一致率与未纳入条数', async () => {
+      openWithCalibration({
+        runId: 'run-cal-1',
+        datasetId: 'ds-1',
+        metricFamily: 'verdict3',
+        status: 'ok',
+        threshold: 20,
+        n: 22,
+        excluded: 2,
+        agreements: 17,
+        agreementRate: 77.3,
+        disagreements: [],
+        note: '一致率只用于评估判官口径，不进入任何指标或发布证据。',
+      });
+
+      const card = await screen.findByTestId('run-calibration');
+      expect(within(card).getByText(/一致率 77.3%/)).toBeTruthy();
+      expect(within(card).getByText(/未纳入比对 2 条/)).toBeTruthy();
+    });
+  });
+
+  describe('幽灵值与量纲', () => {
+    const baseRun = {
+      id: 'base-run-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      scope: 'full',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { total: 1, processed: 1, judged: 1 },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [],
+    };
+
+    function openRun(run: unknown) {
+      const enterEval = wireEvalTab(evalDatasetDetail, run);
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+      fireEvent.change(screen.getByLabelText('选择评测集'), {
+        target: { value: 'ds-1' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /base-run/ }));
+    }
+
+    it('不展示没有产出路径的 QUEUED 状态文案', async () => {
+      openRun({ ...baseRun, status: 'QUEUED' });
+
+      await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+      // 评测运行只会是 RUNNING/COMPLETED/FAILED/CANCELLED；
+      // 「排队中」是永不会出现的幽灵状态，不得出现在页面上。
+      expect(screen.queryByText(/排队中/)).toBeNull();
+    });
+
+    it('运行卡消费执行失败类别并给出中文说明', async () => {
+      openRun({ ...baseRun, executionErrorKind: 'live_call' });
+
+      await waitFor(() => expect(mockGetRun).toHaveBeenCalled());
+      expect(
+        screen.getByText(/执行错误：实时调用失败（live_call）/),
+      ).toBeTruthy();
+    });
+  });
+
+  describe('角色默认视图', () => {
+    const selectDataset = () =>
+      fireEvent.change(screen.getByLabelText('选择评测集'), {
+        target: { value: 'ds-1' },
+      });
+
+    it('运营、研发默认落在质量待办，可直接进入队列', () => {
+      for (const role of ['EDITOR', 'ADMIN', 'VIEWER']) {
+        mockRole.current = role;
+        wireFeedback();
+        const view = render(<AiQualityPage />);
+        expect(screen.getByRole('button', { name: '开始质检' })).toBeTruthy();
+        expect(screen.queryByLabelText('选择评测集')).toBeNull();
+        view.unmount();
+      }
+    });
+
+    it('管理者默认落在回归测试，先看运行与证据', () => {
+      mockRole.current = 'SUPER_ADMIN';
+      const enterEval = wireEvalTab(evalDatasetDetail);
+      enterEval();
+      render(<AiQualityPage />);
+
+      expect(screen.getByLabelText('选择评测集')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: '开始质检' })).toBeNull();
+    });
+
+    it('从不同视图进入同一 run，数字口径一致', () => {
+      // 运营从队列切到回归测试。
+      mockRole.current = 'ADMIN';
+      const enterFromQueue = wireEvalTab(evalDatasetDetail);
+      const first = render(<AiQualityPage />);
+      enterFromQueue();
+      openTab('回归测试');
+      selectDataset();
+      const viaQueue =
+        screen.getByText('最近一次通过率').parentElement?.textContent;
+      first.unmount();
+      expect(viaQueue).toContain('50.0%');
+
+      // 管理者直接落在回归测试。
+      mockRole.current = 'SUPER_ADMIN';
+      const enterDirect = wireEvalTab(evalDatasetDetail);
+      enterDirect();
+      render(<AiQualityPage />);
+      selectDataset();
+
+      expect(
+        screen.getByText('最近一次通过率').parentElement?.textContent,
+      ).toBe(viaQueue);
+    });
+  });
+
+  describe('写入口双重控制', () => {
+    it('VIEWER 不渲染创建评测集、导入用例与启动运行', () => {
+      mockRole.current = 'VIEWER';
+      const enterEval = wireEvalTab(evalDatasetDetail);
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+
+      expect(screen.queryByRole('button', { name: '创建评测集' })).toBeNull();
+      expect(screen.queryByRole('button', { name: '启动批量评测' })).toBeNull();
+      // 高级模式是导入用例的唯一入口，只读角色看不到。
+      expect(screen.queryByRole('button', { name: '高级模式' })).toBeNull();
+      expect(screen.queryByText('只读角色仅可查看结果')).toBeTruthy();
+    });
+
+    it('AI_EVAL_ENABLED 关闭时不渲染写入口，并说明原因', () => {
+      const enterEval = wireEvalTab(
+        evalDatasetDetail,
+        null,
+        datasets,
+        kbRegressionStatus,
+        null,
+        null,
+        {
+          feedbackUiEnabled: true,
+          evalEnabled: false,
+        },
+      );
+      render(<AiQualityPage />);
+      enterEval();
+      openTab('回归测试');
+
+      expect(
+        screen.getByText(/AI 评测未启用（AI_EVAL_ENABLED=false）/),
+      ).toBeTruthy();
+      expect(screen.queryByRole('button', { name: '创建评测集' })).toBeNull();
+      expect(screen.queryByRole('button', { name: '启动批量评测' })).toBeNull();
+      expect(screen.queryByRole('button', { name: '高级模式' })).toBeNull();
+    });
   });
 });

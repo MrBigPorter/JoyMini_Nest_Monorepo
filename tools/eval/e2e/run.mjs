@@ -24,7 +24,7 @@ import {
   REPO_ROOT,
   loadConfig,
 } from "./config.mjs";
-import { createHttpTransport, sleep } from "./http.mjs";
+import { createHttpTransport } from "./http.mjs";
 import {
   ensureAccounts,
   maskPhone,
@@ -45,11 +45,7 @@ import {
   pairMultiTurn,
   selectSubsetFromFullRun,
 } from "./cases.mjs";
-import {
-  prepareFixtures,
-  snapshotState,
-  verifyAction,
-} from "./fixtures.mjs";
+import { prepareFixtures } from "./fixtures.mjs";
 import {
   citedDocIdsFor,
   fingerprint,
@@ -78,7 +74,6 @@ import {
 } from "./external-sync.mjs";
 
 const CASE_DIR_NAME = "cases";
-const SETTLE_MS = 300;
 const MULTI_PAIR_DEFAULT = 20;
 
 /** 后端 AI 配额耗尽时的兜底话术（日配额 / 会话配额共用同一句）。 */
@@ -549,35 +544,15 @@ async function runActionCase(runtime, testCase, session) {
 
   result.rounds = rounds;
 
-  const before = await snapshotState(session);
-  let confirmOutcome = null;
-  let confirmError = null;
-  if (rawConfirm) {
-    try {
-      confirmOutcome = await session.confirm(rawConfirm);
-      await sleep(SETTLE_MS);
-    } catch (error) {
-      confirmError = error?.message ?? String(error);
-    }
-  }
-  const after = await snapshotState(session);
-  const verification = verifyAction(
-    testCase.verify,
-    before,
-    after,
-    fixture?.expected ?? {},
-  );
-
-  result.confirmOutcome = confirmOutcome
-    ? { http: confirmOutcome.result ?? null, event: confirmOutcome.outcome ?? null }
-    : null;
-  result.confirmError = confirmError;
+  // 写操作样本一律不执行（eval-run-integrity D8）：
+  // 拿到确认卡片就停，不调 session.confirm，也不做执行后的读接口核验。
+  // 通过与否只看卡片字段；需要真实执行验收时另立隔离环境 change。
+  result.confirmOutcome = null;
+  result.confirmError = null;
   result.judge = await judgeActionCase({
     admin: runtime.admin,
     testCase,
     rounds,
-    confirmOutcome,
-    verification,
   });
   return result;
 }

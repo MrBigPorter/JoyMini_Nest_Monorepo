@@ -88,53 +88,69 @@ function reasonOf(judge) {
   return String(judge?.reason ?? "").trim();
 }
 
+/**
+ * 判读一次答案判定的结果。
+ *
+ * 顺序固定，且必须穷尽：不适用 → 布尔结论 → 结构化失败类别 →
+ * 兼容旧文本前缀 → 不适用。
+ *
+ * 最后一步不能退回 `output_format`：判官调过、却既没给结论也没给失败
+ * 类别，说明没有失败证据；记成判官失败会把失败率推高（negative 空壳
+ * 被记成 output_format 就是这么来的）。
+ */
+function answerVerdictOf(base, judged, labels) {
+  if (judged.applicable === false) {
+    return notApplicable(base, reasonOf(judged) || labels.notApplicable);
+  }
+  if (judged.faithful === true) {
+    return verdict(base, reasonOf(judged) || labels.faithful, judged.score);
+  }
+  if (judged.faithful === false) {
+    return incorrect(base, reasonOf(judged) || labels.unfaithful, judged.score);
+  }
+  // 结构化失败类别：只要在既有枚举内就直接采用，不再从文本猜。
+  if (judged.errorKind === "not_applicable") {
+    return notApplicable(base, reasonOf(judged) || labels.notApplicable);
+  }
+  if (JUDGE_FAILURE_KINDS.includes(judged.errorKind)) {
+    return judgeError(
+      base,
+      judged.errorKind,
+      reasonOf(judged) || labels.judgeError,
+    );
+  }
+  // 旧数据只有自由文本 reason：只认明确的判官失败前缀。
+  const reason = reasonOf(judged);
+  if (/^judge_error\b/.test(reason)) {
+    return judgeError(base, classifyJudgeError(reason), reason);
+  }
+  return notApplicable(base, labels.inconclusive);
+}
+
 /** 知识类（knowledge / negative / multi）的答案准确性判定。 */
 function knowledgeVerdict(base, item) {
   const judge = item.judge ?? {};
   const golden = judge.goldenAgreement ?? null;
 
   if (golden) {
-    if (golden.applicable === false) {
-      return notApplicable(base, reasonOf(golden) || "golden_not_applicable");
-    }
-    if (golden.faithful === true) {
-      return verdict(base, reasonOf(golden) || "golden_faithful", golden.score);
-    }
-    if (golden.faithful === false) {
-      return incorrect(
-        base,
-        reasonOf(golden) || "golden_unfaithful",
-        golden.score,
-      );
-    }
-    return judgeError(
-      base,
-      classifyJudgeError(reasonOf(golden)),
-      reasonOf(golden) || "golden_judge_returned_null",
-    );
+    return answerVerdictOf(base, golden, {
+      notApplicable: "golden_not_applicable",
+      faithful: "golden_faithful",
+      unfaithful: "golden_unfaithful",
+      judgeError: "golden_judge_error",
+      inconclusive: "golden_judge_inconclusive",
+    });
   }
 
   const faithfulness = judge.faithfulness ?? null;
   if (faithfulness) {
-    if (faithfulness.faithful === true) {
-      return verdict(
-        base,
-        reasonOf(faithfulness) || "faithful",
-        faithfulness.score,
-      );
-    }
-    if (faithfulness.faithful === false) {
-      return incorrect(
-        base,
-        reasonOf(faithfulness) || "unfaithful",
-        faithfulness.score,
-      );
-    }
-    return judgeError(
-      base,
-      classifyJudgeError(reasonOf(faithfulness)),
-      reasonOf(faithfulness) || "judge_returned_null",
-    );
+    return answerVerdictOf(base, faithfulness, {
+      notApplicable: "judge_not_applicable",
+      faithful: "faithful",
+      unfaithful: "unfaithful",
+      judgeError: "judge_error",
+      inconclusive: "judge_inconclusive",
+    });
   }
 
   // 没有跑到任何答案判定：兜底话术不是回答，无依据/工具类不进准确率分母。
@@ -168,6 +184,43 @@ function agreementOf(item) {
   return out;
 }
 
+/**
+ * 逐次判官尝试 → 上送 DTO（服务端落 ai_eval_judge_attempts）。
+ *
+ * 原始输出在判官出口已截断并脱敏，harness 只做字段改名，不再加工内容。
+ * 旧判官响应没有 judgeAttempts 时不上送，保持向后兼容。
+ */
+function attemptsOf(item) {
+  const judge = item?.judge?.goldenAgreement;
+  const attempts = judge?.judgeAttempts;
+  if (!Array.isArray(attempts) || attempts.length === 0) return {};
+  return {
+    judgeAttempts: attempts.map((attempt, index) => ({
+      attemptIndex: index,
+      outcome:
+        attempt?.faithful === true || attempt?.faithful === false
+          ? "success"
+          : attempt?.errorKind === "output_format"
+            ? "parse_failed"
+            : "call_error",
+      ...(Number.isFinite(attempt?.score) ? { score: attempt.score } : {}),
+      ...(attempt?.errorKind ? { errorKind: attempt.errorKind } : {}),
+      ...(typeof attempt?.rawOutput === "string"
+        ? { rawOutput: attempt.rawOutput }
+        : {}),
+      ...(typeof attempt?.rawTruncated === "boolean"
+        ? { rawTruncated: attempt.rawTruncated }
+        : {}),
+      ...(judge?.judgeSpecVersion
+        ? { judgeVersion: judge.judgeSpecVersion }
+        : {}),
+      ...(judge?.judgeInputHash
+        ? { judgeInputHash: judge.judgeInputHash }
+        : {}),
+    })),
+  };
+}
+
 export function toExternalResult(item) {
   const last = lastRound(item);
   const grounding =
@@ -175,6 +228,7 @@ export function toExternalResult(item) {
   const base = {
     caseId: item.id,
     grounding,
+    ...attemptsOf(item),
     ...(Number.isFinite(last?.latencyMs)
       ? { latencyMs: Math.max(0, Math.round(last.latencyMs)) }
       : {}),
@@ -235,6 +289,7 @@ export function summarizeExternalResults(
     kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
   }
   const judged = counts.correct + counts.incorrect;
+  const total = results?.length ?? 0;
   // 判官稳定性：全票一致用例 / 有 ≥2 次成功判定的用例。
   const agreementRows = (results ?? []).filter(
     (item) => (item.judgeSuccessfulAttempts ?? 0) >= 2,
@@ -247,11 +302,15 @@ export function summarizeExternalResults(
     (item) => item.judgeDisagreement === true,
   ).length;
   return {
-    total: results?.length ?? 0,
+    total,
     correct: counts.correct,
     incorrect: counts.incorrect,
     judgeError: counts.judge_error,
     accuracy: judged > 0 ? round4(counts.correct / judged) : null,
+    // 覆盖率只看「有没有得到布尔判定」：分母是本次入库条数（含跳过与不适用），
+    // 零条时无定义，返回 null 而不是 0。
+    judgedCases: judged,
+    coverage: total > 0 ? round4(judged / total) : null,
     judgeErrorRate: attempted > 0 ? round4(failures / attempted) : null,
     judgeErrorKinds: [...kinds.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -277,6 +336,8 @@ export function compareSummaryWithRecord(local, record) {
     "incorrect",
     "judgeError",
     "accuracy",
+    "judgedCases",
+    "coverage",
     "judgeErrorRate",
     "judgeAgreement",
     "judgeAgreementMeasured",

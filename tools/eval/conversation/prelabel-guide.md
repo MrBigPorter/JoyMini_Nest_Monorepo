@@ -11,11 +11,11 @@ worksheet-<date>.jsonl（人工工作表，labels 为空）
       ├─ buildPrelabelMessages()  固定 rubric + JSON schema
       ├─ LLM judge                 temperature 0，不同厂商优先
       └─ parsePrelabelOutput()     非法输出不猜，记 invalid
-  → annotations-ai.jsonl（带 prelabel.source=LLM）
-  → 人工盲审
-      ├─ annotations-a.jsonl
-      └─ annotations-b.jsonl
-  → annotate.py score            只算 A/B 的人工 kappa
+  → ai_eval_annotations（labeler_id='prelabel'，带 confidence）
+  → annotations-ai.jsonl（导出副本，带 prelabel.source=LLM）
+  → 人工盲审（管理端写入 ai_eval_annotations，labeler_id=管理员）
+      └─ GET /admin/ai-eval/annotations/export 导出每人 JSONL
+  → annotate.py score            只算人工之间的 kappa
   → 另报 AI 与人工一致率         仅作 judge 可信度参考
 ```
 

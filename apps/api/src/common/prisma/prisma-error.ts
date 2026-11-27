@@ -17,3 +17,15 @@ export function isPrismaNotFoundError(error: unknown): boolean {
     (error as { code?: unknown }).code === 'P2025'
   );
 }
+
+/**
+ * P2002：唯一约束冲突。用于把并发写入翻译成 409，
+ * 而不是依赖应用层"先查后写"（两次请求都读到 null 时仍会撞库）。
+ */
+export function isPrismaUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'P2002'
+  );
+}

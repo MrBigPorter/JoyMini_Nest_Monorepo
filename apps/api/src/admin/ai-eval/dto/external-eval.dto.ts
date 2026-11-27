@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -13,6 +14,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { EVAL_CASE_LIMITS } from './eval-input.validators';
 
 export const ANSWER_VERDICTS = ['correct', 'incorrect', 'judge_error'] as const;
 export const GROUNDING_KINDS = [
@@ -50,9 +52,17 @@ export const JUDGE_FAILURE_KINDS = [
   'policy',
 ] as const;
 
+/** 判官尝试的三种结局：拿到判定 / 有输出但解析不出 / 调用本身失败。 */
+export const JUDGE_ATTEMPT_OUTCOMES = [
+  'success',
+  'parse_failed',
+  'call_error',
+] as const;
+
 export type AnswerVerdict = (typeof ANSWER_VERDICTS)[number];
 export type GroundingKind = (typeof GROUNDING_KINDS)[number];
 export type JudgeErrorKind = (typeof JUDGE_ERROR_KINDS)[number];
+export type JudgeAttemptOutcome = (typeof JUDGE_ATTEMPT_OUTCOMES)[number];
 
 /** 运行开始时的单条用例快照；只保留评测需要的字段。 */
 export class ExternalEvalCaseSnapshotDto {
@@ -93,6 +103,7 @@ export class CreateExternalRunDto {
   datasetFingerprint!: string;
 
   @IsArray()
+  @ArrayMaxSize(EVAL_CASE_LIMITS.resultBatch)
   @ValidateNested({ each: true })
   @Type(() => ExternalEvalCaseSnapshotDto)
   cases!: ExternalEvalCaseSnapshotDto[];
@@ -128,11 +139,67 @@ export class CreateExternalRunDto {
   @MaxLength(64)
   knowledgeFingerprintBefore?: string;
 
-  /** 可选对比基线：同一数据集内已完成的 run */
+  /**
+   * 可选对比基线：同一数据集内已完成的 run。
+   * 不传 = 回退到当前已登记基线；显式传 null = 本次不对比（不回退）。
+   */
   @IsOptional()
   @IsString()
   @MaxLength(32)
-  baselineRunId?: string;
+  baselineRunId?: string | null;
+}
+
+/**
+ * 单次判官尝试的留痕（可选字段：旧版 harness 不传，收录照常工作）。
+ *
+ * 原始输出由服务端再次截断与脱敏，客户端传长文本不会撑爆表；
+ * 上限 4000 字符是最终落库口径。
+ */
+export class ExternalJudgeAttemptDto {
+  /** 第几次尝试（从 0 起）；缺省按数组下标。 */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  attemptIndex?: number;
+
+  @IsIn(JUDGE_ATTEMPT_OUTCOMES as unknown as string[])
+  outcome!: JudgeAttemptOutcome;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  verdict?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  score?: number;
+
+  @IsOptional()
+  @IsIn(JUDGE_ERROR_KINDS as unknown as string[])
+  errorKind?: JudgeErrorKind;
+
+  /** 原始输出（可为超长文本，服务端截断到 4000）。 */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20000)
+  rawOutput?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  rawTruncated?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  judgeVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  judgeInputHash?: string;
 }
 
 export class ExternalEvalResultDto {
@@ -189,6 +256,14 @@ export class ExternalEvalResultDto {
   @IsBoolean()
   judgeDisagreement?: boolean;
 
+  /** 判官尝试明细（重复判定时多条）；旧客户端不传即不落尝试记录。 */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => ExternalJudgeAttemptDto)
+  judgeAttempts?: ExternalJudgeAttemptDto[];
+
   @IsOptional()
   @IsString()
   @MaxLength(32)
@@ -202,6 +277,7 @@ export class ExternalEvalResultDto {
 
 export class IngestExternalResultsDto {
   @IsArray()
+  @ArrayMaxSize(EVAL_CASE_LIMITS.resultBatch)
   @ValidateNested({ each: true })
   @Type(() => ExternalEvalResultDto)
   cases!: ExternalEvalResultDto[];

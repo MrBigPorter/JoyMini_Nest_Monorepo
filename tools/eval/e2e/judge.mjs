@@ -373,14 +373,35 @@ export async function judgeKnowledgeCase({
   return result;
 }
 
-/** 业务动作完成度：卡片出现 + 真实执行 + 读接口核验 + task judge。 */
-export async function judgeActionCase({
-  admin,
-  testCase,
-  rounds,
-  confirmOutcome,
-  verification,
-}) {
+/**
+ * 写操作场景下 key 参数的可断言字面量（来自用例的 verify 声明）。
+ * `expectedKey` 是 fixture 里的动态 key，不在这里做字面比对。
+ */
+export function expectedCardLiterals(verify) {
+  if (!verify || typeof verify !== "object") return [];
+  const literals = [];
+  if (typeof verify.city === "string" && verify.city) literals.push(verify.city);
+  if (typeof verify.label === "string" && verify.label) literals.push(verify.label);
+  if (typeof verify.name === "string" && verify.name) literals.push(verify.name);
+  if (verify.amount !== undefined && verify.amount !== null) {
+    literals.push(String(verify.amount));
+  }
+  return literals;
+}
+
+/**
+ * 业务动作完成度：只断言确认卡片字段，不执行写操作。
+ *
+ * 通过判据（eval-run-integrity D8）：
+ * - 卡片出现且 action 与用例一致
+ * - 有标题（二次确认标识）
+ * - verify 声明的关键参数出现在卡片字段里
+ * - 用例声明 needsOtp 时卡片也要声明
+ *
+ * 不调用 session.confirm：任何环境都不为了评测真实下单。
+ * 需要真实执行验收时另立隔离环境 change。
+ */
+export async function judgeActionCase({ admin, testCase, rounds }) {
   const confirmRound = rounds.find((round) => round.outcome === "confirm");
   const pendingConfirm = confirmRound?.confirm ?? null;
   const answer =
@@ -388,15 +409,26 @@ export async function judgeActionCase({
     rounds[rounds.length - 1]?.reply?.content ??
     "";
 
-  const result = {
+  const fieldsText = JSON.stringify(pendingConfirm?.fields ?? []);
+  const expectedLiterals = expectedCardLiterals(testCase.verify);
+  const missingFields = expectedLiterals.filter(
+    (item) => !fieldsText.includes(item),
+  );
+  const cardChecks = {
     cardShown: Boolean(pendingConfirm),
+    actionOk: Boolean(pendingConfirm) && pendingConfirm.action === testCase.action,
+    titleOk: Boolean(String(pendingConfirm?.title ?? "").trim()),
+    fieldsOk: missingFields.length === 0,
+    missingFields,
+    otpOk: testCase.needsOtp ? pendingConfirm?.needsOtp === true : true,
+  };
+
+  const result = {
+    cardShown: cardChecks.cardShown,
     confirmAction: pendingConfirm?.action ?? null,
-    httpConfirmOk: Boolean(confirmOutcome?.result?.success ?? confirmOutcome?.result),
-    actionResultSuccess:
-      confirmOutcome?.outcome?.success ??
-      confirmOutcome?.result?.success ??
-      null,
-    verification,
+    cardTitle: pendingConfirm?.title ?? null,
+    cardFields: pendingConfirm?.fields ?? null,
+    cardChecks,
     taskJudge: null,
     turnsSent: rounds.length,
   };
@@ -414,7 +446,8 @@ export async function judgeActionCase({
       answer,
       expectTask: {
         confirmAction: testCase.action,
-        forbidExecution: false, // 已确认后执行是预期行为
+        // 动作样本不落库：卡片存在、动作匹配即可，执行一律禁止。
+        forbidExecution: true,
       },
       pendingConfirm: pendingConfirm
         ? {
@@ -433,9 +466,11 @@ export async function judgeActionCase({
   }
 
   result.pass =
-    result.cardShown &&
-    result.confirmAction === testCase.action &&
-    result.verification?.pass === true;
+    cardChecks.cardShown &&
+    cardChecks.actionOk &&
+    cardChecks.titleOk &&
+    cardChecks.fieldsOk &&
+    cardChecks.otpOk;
   return result;
 }
 

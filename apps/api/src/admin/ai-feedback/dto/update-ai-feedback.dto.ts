@@ -1,4 +1,12 @@
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import {
   FEEDBACK_ERROR_TYPES,
   FEEDBACK_FAILURE_KINDS,
@@ -44,4 +52,15 @@ export class UpdateAiFeedbackDto {
   @IsString()
   @MaxLength(32)
   linkedEvalCaseId?: string;
+
+  /** 前端读到的 version；不一致说明别人先改了，服务端返回 409。 */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  expectedVersion?: number;
+
+  /** 已被他人认领时，显式接手才允许改写负责人。 */
+  @IsOptional()
+  @IsBoolean()
+  takeOver?: boolean;
 }

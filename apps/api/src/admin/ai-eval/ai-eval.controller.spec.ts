@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method -- 测试里把原型方法当值传给 Reflect.getMetadata，不存在 this 绑定风险 */
+import { ForbiddenException } from '@nestjs/common';
 import { Role } from '@lucky/shared';
 import { ROLES_KEY } from '../auth/roles.decorator';
 import { AiEvalController } from './ai-eval.controller';
@@ -62,10 +63,64 @@ function createController() {
     ],
   });
 
+  const history = () => ({
+    caseId: 'case-1',
+    datasetId: 'dataset-1',
+    case: {
+      id: 'case-1',
+      question: 'qa_eval_question_secret',
+      tags: ['refund'],
+      sourceFeedbackId: 'fb-1',
+    },
+    timeline: [
+      {
+        runId: 'run-1',
+        status: 'COMPLETED',
+        mode: 'STORED',
+        scope: 'full',
+        isBaseline: false,
+        startedAt: new Date('2026-11-21T00:00:00Z'),
+        verdict: 'unsolved',
+        answerVerdict: null,
+        judgeErrorKind: null,
+        score: 0,
+        answerScore: null,
+        outcome: 'fail',
+      },
+    ],
+  });
+
+  const diff = () => ({
+    runId: 'run-2',
+    baselineRunId: 'run-1',
+    metricFamily: 'verdict3',
+    comparability: { compared: 1, undecided: 0, missingBaseline: 0 },
+    counts: { newFailure: 0, fixed: 1, regressed: 0, stillFailing: 0 },
+    classes: {
+      newFailure: [],
+      fixed: [
+        {
+          caseId: 'case-1',
+          question: 'qa_eval_question_secret',
+          baselineVerdict: 'unsolved',
+          currentVerdict: 'solved',
+        },
+      ],
+      regressed: [],
+      stillFailing: [],
+    },
+    note: '描述性分类，不构成统计显著性结论；显著性由 compare.py 配对检验给出。',
+  });
+
   const datasetService = {
     // Return a fresh object on every call: redaction mutates in place.
     getDataset: jest.fn().mockImplementation(() => Promise.resolve(dataset())),
     getRun: jest.fn().mockImplementation(() => Promise.resolve(run())),
+    getCaseHistory: jest
+      .fn()
+      .mockImplementation(() => Promise.resolve(history())),
+    getRunDiff: jest.fn().mockImplementation(() => Promise.resolve(diff())),
+    getRunCalibration: jest.fn(),
     cancelRun: jest
       .fn()
       .mockResolvedValue({ id: 'run-1', status: 'CANCELLED' }),
@@ -83,12 +138,23 @@ function createController() {
       .mockResolvedValue({ id: 'run-ext-1', isBaseline: true }),
   };
   const judgeService = { judge: jest.fn() };
+  const attemptService = {
+    list: jest.fn().mockResolvedValue({
+      runId: 'run-1',
+      page: 1,
+      pageSize: 50,
+      total: 0,
+      items: [],
+    }),
+  };
 
   return {
     datasetService,
+    attemptService,
     controller: new AiEvalController(
       judgeService as any,
       datasetService as any,
+      attemptService as any,
     ),
   };
 }
@@ -211,7 +277,11 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('数据集详情：VIEWER 的用例原文与期望置空，保留 id/tags', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getDataset('dataset-1', Role.VIEWER);
+    const result: any = await controller.getDataset(
+      'dataset-1',
+      {},
+      Role.VIEWER,
+    );
 
     expect(result.cases[0]).toEqual({
       id: 'case-1',
@@ -231,7 +301,11 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('数据集详情：ADMIN 保留用例原文与期望', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getDataset('dataset-1', Role.ADMIN);
+    const result: any = await controller.getDataset(
+      'dataset-1',
+      {},
+      Role.ADMIN,
+    );
 
     expect(result.cases[0].question).toBe('qa_eval_question_secret');
     expect(result.cases[0].answer).toBe('qa_eval_answer_secret');
@@ -242,7 +316,7 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('运行结果：VIEWER 不返回实际回答/判分理由/用例原文，保留判分元信息', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getRun('run-1', Role.VIEWER);
+    const result: any = await controller.getRun('run-1', {}, Role.VIEWER);
 
     expect(result.results[0]).toEqual({
       id: 'result-1',
@@ -277,7 +351,7 @@ describe('AiEvalController VIEWER 脱敏', () => {
   it('运行结果：ADMIN 保留实际回答/判分理由/用例原文', async () => {
     const { controller } = createController();
 
-    const result: any = await controller.getRun('run-1', Role.ADMIN);
+    const result: any = await controller.getRun('run-1', {}, Role.ADMIN);
 
     expect(result.results[0].actualAnswer).toBe('qa_eval_actual_answer_secret');
     expect(result.results[0].reason).toBe('qa_eval_reason_secret');
@@ -334,7 +408,7 @@ describe('AiEvalController VIEWER 脱敏', () => {
       ],
     });
 
-    const result: any = await controller.getRun('run-ext-1', Role.VIEWER);
+    const result: any = await controller.getRun('run-ext-1', {}, Role.VIEWER);
 
     expect(result.mode).toBe('EXTERNAL');
     // 判官错误率与错误类型分布对 VIEWER 可见：这是质量信号，不是原文
@@ -355,5 +429,195 @@ describe('AiEvalController VIEWER 脱敏', () => {
       actualAnswer: null,
     });
     expect(result.results[0].case.question).toBeNull();
+  });
+});
+
+describe('AiEvalController 回归用例可解释', () => {
+  it('时间线与差异端点仍允许 VIEWER 读取', () => {
+    for (const method of [
+      AiEvalController.prototype.getCaseHistory,
+      AiEvalController.prototype.getRunDiff,
+    ]) {
+      const roles = Reflect.getMetadata(ROLES_KEY, method) as Role[];
+      expect(roles).toContain(Role.VIEWER);
+      expect(roles).toContain(Role.ADMIN);
+    }
+  });
+
+  it('用例时间线：VIEWER 看不到用例原文，ADMIN 可见', async () => {
+    const { controller, datasetService } = createController();
+
+    const viewer: any = await controller.getCaseHistory(
+      'run-1',
+      { caseId: 'case-1' },
+      Role.VIEWER,
+    );
+    expect(viewer.case.question).toBeNull();
+    expect(viewer.timeline[0].outcome).toBe('fail');
+    expect(datasetService.getCaseHistory).toHaveBeenCalledWith(
+      'run-1',
+      'case-1',
+    );
+
+    const admin: any = await controller.getCaseHistory(
+      'run-1',
+      { caseId: 'case-1' },
+      Role.ADMIN,
+    );
+    expect(admin.case.question).toBe('qa_eval_question_secret');
+  });
+
+  it('两次运行差异：VIEWER 看不到用例原文，admin 可见；基线参数原样转发', async () => {
+    const { controller, datasetService } = createController();
+
+    const viewer: any = await controller.getRunDiff(
+      'run-2',
+      { baselineRunId: 'run-1' },
+      Role.VIEWER,
+    );
+    expect(viewer.classes.fixed[0].question).toBeNull();
+    expect(viewer.counts.fixed).toBe(1);
+    expect(datasetService.getRunDiff).toHaveBeenCalledWith('run-2', {
+      baselineRunId: 'run-1',
+    });
+
+    const admin: any = await controller.getRunDiff(
+      'run-2',
+      {},
+      Role.ADMIN,
+    );
+    expect(admin.classes.fixed[0].question).toBe('qa_eval_question_secret');
+  });
+});
+
+describe('AiEvalController 判官尝试留痕', () => {
+  const originalEvalFlag = process.env.AI_EVAL_ENABLED;
+
+  beforeAll(() => {
+    process.env.AI_EVAL_ENABLED = 'true';
+  });
+
+  afterAll(() => {
+    if (originalEvalFlag === undefined) delete process.env.AI_EVAL_ENABLED;
+    else process.env.AI_EVAL_ENABLED = originalEvalFlag;
+  });
+
+  it('原始输出只对 SUPER_ADMIN / ADMIN 开放（VIEWER 403）', () => {
+    const roles = Reflect.getMetadata(
+      ROLES_KEY,
+      AiEvalController.prototype.getJudgeAttempts,
+    ) as Role[];
+
+    expect(roles).toEqual(
+      expect.arrayContaining([Role.SUPER_ADMIN, Role.ADMIN]),
+    );
+    expect(roles).not.toContain(Role.VIEWER);
+    expect(roles).not.toContain(Role.EDITOR);
+  });
+
+  it('评测开关关闭时拒绝读取，而不是照常返回留痕', async () => {
+    const { controller } = createController();
+    process.env.AI_EVAL_ENABLED = 'false';
+    try {
+      await expect(
+        controller.getJudgeAttempts('run-1', {}),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    } finally {
+      process.env.AI_EVAL_ENABLED = 'true';
+    }
+  });
+
+  it('分页与用例过滤参数原样转发', async () => {
+    const { controller, attemptService } = createController();
+
+    await controller.getJudgeAttempts('run-1', {
+      page: 2,
+      pageSize: 20,
+      caseId: 'case-1',
+    });
+
+    expect(attemptService.list).toHaveBeenCalledWith('run-1', {
+      page: 2,
+      pageSize: 20,
+      caseId: 'case-1',
+    });
+  });
+});
+
+describe('AiEvalController 判官校准', () => {
+  it('校准端点允许 VIEWER 读取', () => {
+    const roles = Reflect.getMetadata(
+      ROLES_KEY,
+      AiEvalController.prototype.getRunCalibration,
+    ) as Role[];
+
+    expect(roles).toContain(Role.VIEWER);
+    expect(roles).toContain(Role.ADMIN);
+  });
+
+  it('VIEWER 看不到判官理由、人工备注与题目原文，样本量保留', async () => {
+    const { controller, datasetService } = createController();
+    datasetService.getRunCalibration.mockResolvedValueOnce({
+      runId: 'run-1',
+      datasetId: 'ds-1',
+      metricFamily: 'verdict3',
+      status: 'ok',
+      threshold: 20,
+      n: 22,
+      excluded: 0,
+      agreements: 17,
+      agreementRate: 77.3,
+      disagreements: [
+        {
+          caseId: 'case-1',
+          question: 'qa_eval_question_secret',
+          judgeVerdict: 'solved',
+          humanCorrectness: 'unsolved',
+          judgeReason: 'judge_reason_secret',
+          humanComment: 'human_comment_secret',
+          labelerId: 'admin-1',
+        },
+      ],
+      note: '一致率只用于评估判官口径，不进入任何指标或发布证据。',
+    });
+
+    const viewer: any = await controller.getRunCalibration('run-1', Role.VIEWER);
+
+    expect(viewer.n).toBe(22);
+    expect(viewer.disagreements[0].question).toBeNull();
+    expect(viewer.disagreements[0].judgeReason).toBeNull();
+    expect(viewer.disagreements[0].humanComment).toBeNull();
+    expect(viewer.disagreements[0].judgeVerdict).toBe('solved');
+    expect(datasetService.getRunCalibration).toHaveBeenCalledWith('run-1');
+  });
+
+  it('ADMIN 保留分歧明细原文', async () => {
+    const { controller, datasetService } = createController();
+    datasetService.getRunCalibration.mockResolvedValueOnce({
+      runId: 'run-1',
+      datasetId: 'ds-1',
+      metricFamily: 'verdict3',
+      status: 'insufficientSample',
+      threshold: 20,
+      n: 10,
+      excluded: 0,
+      disagreements: [
+        {
+          caseId: 'case-1',
+          question: 'qa_eval_question_secret',
+          judgeVerdict: 'solved',
+          humanCorrectness: 'unsolved',
+          judgeReason: 'judge_reason_secret',
+          humanComment: 'human_comment_secret',
+          labelerId: 'admin-1',
+        },
+      ],
+      note: '样本不足（10/20）：不下结论，仅列出分歧明细供人工判断。',
+    });
+
+    const admin: any = await controller.getRunCalibration('run-1', Role.ADMIN);
+
+    expect(admin.disagreements[0].question).toBe('qa_eval_question_secret');
+    expect(admin.disagreements[0].judgeReason).toBe('judge_reason_secret');
   });
 });
