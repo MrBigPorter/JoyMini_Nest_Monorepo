@@ -1871,7 +1871,12 @@ export interface DocumentChunkDiff {
   currentVersion: number | null;
   previousVersion: number | null;
   changes: DocumentChunkDiffEntry[];
-  summary: { added: number; removed: number; modified: number; unchanged: number };
+  summary: {
+    added: number;
+    removed: number;
+    modified: number;
+    unchanged: number;
+  };
 }
 
 export interface CreateKnowledgeDocPayload {
@@ -2578,7 +2583,6 @@ export type RunCalibration =
       agreementRate: number;
     })
   | (RunCalibrationBase & { status: 'insufficientSample' });
-
 
 export interface EvalRun {
   id: string;

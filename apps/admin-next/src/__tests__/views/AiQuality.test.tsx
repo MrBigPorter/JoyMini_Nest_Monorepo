@@ -416,8 +416,7 @@ function wireEvalTransitions(
       if (slot === 0)
         return makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true });
       if (slot === 1) return makeUseRequest(summary);
-      if (slot === 2)
-        return makeUseRequest({ list: [feedback], total: 1 });
+      if (slot === 2) return makeUseRequest({ list: [feedback], total: 1 });
       return makeUseRequest(datasets);
     }
     const slot = index % 6;
@@ -553,7 +552,8 @@ describe('AiQualityPage', () => {
     expect(mockGetFeedbackSummary).toHaveBeenCalledWith(expected);
   });
 
-  it('KPI cards link to the matching filtered list', () => {    render(<AiQualityPage />);
+  it('KPI cards link to the matching filtered list', () => {
+    render(<AiQualityPage />);
 
     expect(
       screen
@@ -1154,15 +1154,9 @@ describe('AiQualityPage', () => {
   it('shows counts on the triage and resolution filters', () => {
     render(<AiQualityPage />);
 
-    expect(
-      screen.getByRole('option', { name: '待处理（7）' }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole('option', { name: '已确认（4）' }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole('option', { name: '已进回归（4）' }),
-    ).toBeTruthy();
+    expect(screen.getByRole('option', { name: '待处理（7）' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: '已确认（4）' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: '已进回归（4）' })).toBeTruthy();
   });
 
   it('supports J/K, 1/2/3, Enter and Esc shortcuts in review mode', async () => {
@@ -1255,9 +1249,7 @@ describe('AiQualityPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /批量排除服务故障/ }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/1 条跳过/)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/1 条跳过/)).toBeTruthy());
     expect(screen.getByText(/已被他人更新/)).toBeTruthy();
   });
 
@@ -1365,9 +1357,7 @@ describe('AiQualityPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
 
-    const select = screen.getByLabelText(
-      '选择回归评测集',
-    ) as HTMLSelectElement;
+    const select = screen.getByLabelText('选择回归评测集') as HTMLSelectElement;
     // e2e: 数据集由 harness 物化，控制台写入会被覆盖。
     expect(within(select).queryByText(/e2e:/)).toBeNull();
     // 默认落到可写数据集，而不是列表里的第一个只读数据集。
@@ -1477,7 +1467,10 @@ describe('AiQualityPage', () => {
   });
 
   it('汇总请求失败时 KPI 显示未知，不用破折号或 0 冒充', () => {
-    wireFeedback({ summaryData: null, summaryError: new Error('summary down') });
+    wireFeedback({
+      summaryData: null,
+      summaryError: new Error('summary down'),
+    });
     render(<AiQualityPage />);
 
     const pending = screen.getByRole('link', { name: '待处理，查看对应反馈' });
@@ -2428,7 +2421,10 @@ describe('AiQualityPage', () => {
       refreshDatasets,
     );
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    mockCancelRun.mockResolvedValueOnce({ id: 'running-run', status: 'CANCELLED' });
+    mockCancelRun.mockResolvedValueOnce({
+      id: 'running-run',
+      status: 'CANCELLED',
+    });
 
     render(<AiQualityPage />);
     enterEval();
@@ -2644,9 +2640,9 @@ describe('AiQualityPage', () => {
       expect(screen.getByText('解析通过')).toBeTruthy();
       expect(screen.getByText('解析未通过')).toBeTruthy();
       expect(screen.getByText('解析未采集')).toBeTruthy();
-      expect(screen.getByTestId('parse-check-truncation').textContent).toContain(
-        '截断',
-      );
+      expect(
+        screen.getByTestId('parse-check-truncation').textContent,
+      ).toContain('截断');
       expect(
         screen.getByTestId('parse-check-retentionRate').textContent,
       ).toContain('保留率');
@@ -2656,9 +2652,9 @@ describe('AiQualityPage', () => {
       expect(
         screen.getByTestId('parse-check-emptyContent').textContent,
       ).toContain('内容');
-      expect(screen.getByTestId('parse-check-retentionRate').textContent).toContain(
-        '未通过',
-      );
+      expect(
+        screen.getByTestId('parse-check-retentionRate').textContent,
+      ).toContain('未通过');
     });
 
     it('版本区分生效版本与最新写入版本', () => {
@@ -2797,7 +2793,11 @@ describe('AiQualityPage', () => {
           flipRate: 0.3333,
           direction: { improved: 1, worsened: 1 },
           rawVerdictChanges: [
-            { caseId: 'case-1', baselineVerdict: 'solved', currentVerdict: 'partial' },
+            {
+              caseId: 'case-1',
+              baselineVerdict: 'solved',
+              currentVerdict: 'partial',
+            },
           ],
           lowSample: true,
           sameInput: true,
@@ -2928,15 +2928,15 @@ describe('AiQualityPage', () => {
       await waitFor(() =>
         expect(mockGetCaseHistory).toHaveBeenCalledWith('run-diff-1', 'case-1'),
       );
-      expect(
-        screen.getByTestId('history-outcome-run-old').textContent,
-      ).toBe('失败');
-      expect(
-        screen.getByTestId('history-outcome-run-mid').textContent,
-      ).toBe('通过');
-      expect(
-        screen.getByTestId('history-outcome-run-judge').textContent,
-      ).toBe('未判定');
+      expect(screen.getByTestId('history-outcome-run-old').textContent).toBe(
+        '失败',
+      );
+      expect(screen.getByTestId('history-outcome-run-mid').textContent).toBe(
+        '通过',
+      );
+      expect(screen.getByTestId('history-outcome-run-judge').textContent).toBe(
+        '未判定',
+      );
     });
 
     it('待验反馈在列表展示待验徽标', () => {
@@ -3124,8 +3124,8 @@ describe('AiQualityPage', () => {
       enterFromQueue();
       openTab('回归测试');
       selectDataset();
-      const viaQueue = screen.getByText('最近一次通过率').parentElement
-        ?.textContent;
+      const viaQueue =
+        screen.getByText('最近一次通过率').parentElement?.textContent;
       first.unmount();
       expect(viaQueue).toContain('50.0%');
 
@@ -3158,15 +3158,25 @@ describe('AiQualityPage', () => {
     });
 
     it('AI_EVAL_ENABLED 关闭时不渲染写入口，并说明原因', () => {
-      const enterEval = wireEvalTab(evalDatasetDetail, null, datasets, kbRegressionStatus, null, null, {
-        feedbackUiEnabled: true,
-        evalEnabled: false,
-      });
+      const enterEval = wireEvalTab(
+        evalDatasetDetail,
+        null,
+        datasets,
+        kbRegressionStatus,
+        null,
+        null,
+        {
+          feedbackUiEnabled: true,
+          evalEnabled: false,
+        },
+      );
       render(<AiQualityPage />);
       enterEval();
       openTab('回归测试');
 
-      expect(screen.getByText(/AI 评测未启用（AI_EVAL_ENABLED=false）/)).toBeTruthy();
+      expect(
+        screen.getByText(/AI 评测未启用（AI_EVAL_ENABLED=false）/),
+      ).toBeTruthy();
       expect(screen.queryByRole('button', { name: '创建评测集' })).toBeNull();
       expect(screen.queryByRole('button', { name: '启动批量评测' })).toBeNull();
       expect(screen.queryByRole('button', { name: '高级模式' })).toBeNull();

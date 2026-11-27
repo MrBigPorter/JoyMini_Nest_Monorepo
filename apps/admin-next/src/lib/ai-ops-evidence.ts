@@ -30,8 +30,7 @@ export function pickTraceForMessage<T extends TraceCandidate>(
   if (messageId) {
     const exact = traces.find(
       (trace) =>
-        trace.aiMessageId === messageId ||
-        trace.triggerMessageId === messageId,
+        trace.aiMessageId === messageId || trace.triggerMessageId === messageId,
     );
     if (exact) return { trace: exact, match: 'exact' };
   }

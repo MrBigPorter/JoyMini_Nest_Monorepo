@@ -243,21 +243,19 @@ test.describe('AI Ops quality — 信任态', () => {
     await dismissDevOverlay(page);
     await page.getByRole('button', { name: '下一页' }).click();
 
-    await expect.poll(() => seenPages.includes(2), { timeout: 10_000 }).toBe(
-      true,
-    );
     await expect
-      .poll(
-        () => seenPages.lastIndexOf(1) > seenPages.indexOf(2),
-        { timeout: 10_000 },
-      )
+      .poll(() => seenPages.includes(2), { timeout: 10_000 })
+      .toBe(true);
+    await expect
+      .poll(() => seenPages.lastIndexOf(1) > seenPages.indexOf(2), {
+        timeout: 10_000,
+      })
       .toBe(true);
     await expect(
       page.getByText('How do I return an item?').first(),
     ).toBeVisible();
   });
 });
-
 
 test.describe('AI Ops support — queue & actions', () => {
   test('shows the SLA queue and can claim a mocked conversation', async ({

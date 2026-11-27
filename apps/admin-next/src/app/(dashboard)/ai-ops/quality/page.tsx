@@ -541,7 +541,9 @@ const formatDelta = evalDeltaText;
  * 内部 run 写 `Record<kind, count>`。展示层统一成有序列表，避免
  * 内部 run 的分布被 Array.isArray 静默吞掉。
  */
-function judgeKindEntries(raw: unknown): Array<{ kind: string; count: number }> {
+function judgeKindEntries(
+  raw: unknown,
+): Array<{ kind: string; count: number }> {
   if (Array.isArray(raw)) {
     return raw
       .filter(
@@ -582,7 +584,7 @@ function feedbackOutcomeLabel(item: {
 }): string {
   if (item.reviewStatus === 'IGNORED') return '已排除';
   if (item.reviewStatus !== 'REVIEWED') {
-    return item.claimedBy ?? item.ownerAdminId ? '已认领' : '待处理';
+    return (item.claimedBy ?? item.ownerAdminId) ? '已认领' : '待处理';
   }
   switch (item.resolution) {
     case 'NO_ISSUE':
@@ -772,10 +774,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     error: summaryError,
     refresh: refreshSummary,
     refreshAsync: refreshSummaryAsync,
-  } = useRequest(
-    () => chatApi.getFeedbackSummary(dayRange),
-    { refreshDeps: [fromDate, toDate] },
-  );
+  } = useRequest(() => chatApi.getFeedbackSummary(dayRange), {
+    refreshDeps: [fromDate, toDate],
+  });
 
   const {
     data,
@@ -822,7 +823,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const reviewStatusCount = (value: ReviewStatus) =>
     summary ? countByValue(summary.byReviewStatus, 'status', value) : undefined;
   const resolutionCount = (value: string) =>
-    summary ? countByValue(summary.byResolution, 'resolution', value) : undefined;
+    summary
+      ? countByValue(summary.byResolution, 'resolution', value)
+      : undefined;
   const list = ((data as any)?.list ?? []) as FeedbackRow[];
   const datasetList: EvalDataset[] = Array.isArray(datasetListData)
     ? (datasetListData as EvalDataset[])
@@ -1055,7 +1058,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     setAddDatasetId((current) =>
       writableDatasets.some((dataset) => dataset.id === current)
         ? current
-        : writableDatasets[0]?.id ?? '',
+        : (writableDatasets[0]?.id ?? ''),
     );
     setActionError('');
     setActionInfo('');
@@ -1569,7 +1572,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 <div>处理客服：{handlerLabel(current.handlerId)}</div>
                 <div>
                   负责人：
-                  {ownerLabel(current.claimedBy ?? current.ownerAdminId, adminId)}
+                  {ownerLabel(
+                    current.claimedBy ?? current.ownerAdminId,
+                    adminId,
+                  )}
                 </div>
                 <div>处理结果：{feedbackOutcomeLabel(current)}</div>
               </div>
@@ -1627,7 +1633,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                       ? '未获取到当前管理员身份'
                       : (current.claimedBy ?? current.ownerAdminId) === adminId
                         ? '你已经是这条反馈的负责人'
-                        : current.claimedBy ?? current.ownerAdminId
+                        : (current.claimedBy ?? current.ownerAdminId)
                           ? '从其他管理员手中接手'
                           : '把负责人设为当前管理员'
                   }
@@ -1635,7 +1641,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 >
                   {(current.claimedBy ?? current.ownerAdminId) === adminId
                     ? '已认领'
-                    : current.claimedBy ?? current.ownerAdminId
+                    : (current.claimedBy ?? current.ownerAdminId)
                       ? '接手'
                       : '认领'}
                 </Button>
@@ -1652,11 +1658,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 >
                   加入回归
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={skipReview}
-                >
+                <Button size="sm" variant="outline" onClick={skipReview}>
                   跳过
                 </Button>
               </div>
@@ -1858,13 +1860,13 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                               size="sm"
                               variant="outline"
                               title={
-                                item.claimedBy ?? item.ownerAdminId
+                                (item.claimedBy ?? item.ownerAdminId)
                                   ? '从其他管理员手中接手'
                                   : '把负责人设为当前管理员'
                               }
                               onClick={() => void claimOwner(item)}
                             >
-                              {item.claimedBy ?? item.ownerAdminId
+                              {(item.claimedBy ?? item.ownerAdminId)
                                 ? '接手'
                                 : '认领'}
                             </Button>
@@ -1888,7 +1890,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                                 size="sm"
                                 variant="outline"
                                 onClick={() =>
-                                  void applyResolution(item.id, 'CLOSED', item.version)
+                                  void applyResolution(
+                                    item.id,
+                                    'CLOSED',
+                                    item.version,
+                                  )
                                 }
                               >
                                 关闭
@@ -1937,8 +1943,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
           size="sm"
           variant="outline"
           disabled={
-            typeof total === 'number' &&
-            page * FEEDBACK_PAGE_SIZE >= total
+            typeof total === 'number' && page * FEEDBACK_PAGE_SIZE >= total
           }
           onClick={() => setPage((p) => p + 1)}
         >
@@ -2171,9 +2176,7 @@ function KbRegressionCard() {
                   ? '否（不可作为证据）'
                   : '未知'}
               {status.lastSubsetRun.summary
-                ? ` · 准确率 ${evalAccuracyText(
-                    status.lastSubsetRun.summary,
-                  )}`
+                ? ` · 准确率 ${evalAccuracyText(status.lastSubsetRun.summary)}`
                 : ''}
             </div>
           ) : null}
@@ -2293,7 +2296,9 @@ function EvalPanel() {
         ? aiQualityApi.getRunDiff(runId, current.baselineRunId)
         : Promise.resolve(null);
     },
-    { refreshDeps: [runId, (run as EvalRun | null | undefined)?.baselineRunId] },
+    {
+      refreshDeps: [runId, (run as EvalRun | null | undefined)?.baselineRunId],
+    },
   );
   // 判官校准：运行结束后才读；后端在样本 <20 时结构上不给百分比。
   const { data: calibration } = useRequest(
@@ -2308,8 +2313,7 @@ function EvalPanel() {
   // 只渲染真正的校准结果：老后端/异常返回没有 status 时不猜测、不崩。
   const calibrationCard =
     calibration &&
-    (calibration.status === 'ok' ||
-      calibration.status === 'insufficientSample')
+    (calibration.status === 'ok' || calibration.status === 'insufficientSample')
       ? calibration
       : null;
   const loadCaseHistory = async (caseId: string) => {
@@ -2423,7 +2427,9 @@ function EvalPanel() {
       setMessage(`最多 ${EVAL_INPUT_LIMITS.mustMention} 条必含关键词`);
       return;
     }
-    if (lines.some((line) => line.length > EVAL_INPUT_LIMITS.mustMentionLength)) {
+    if (
+      lines.some((line) => line.length > EVAL_INPUT_LIMITS.mustMentionLength)
+    ) {
       setMessage(
         `每条必含关键词最多 ${EVAL_INPUT_LIMITS.mustMentionLength} 字符`,
       );
@@ -2516,8 +2522,7 @@ function EvalPanel() {
   const runEvidence = evidence as RunEvidence | null | undefined;
   const list = Array.isArray(datasets) ? (datasets as EvalDataset[]) : [];
   const selectedMeta = list.find((item) => item.id === selectedId);
-  const harnessDataset =
-    isHarnessDataset(ds) || isHarnessDataset(selectedMeta);
+  const harnessDataset = isHarnessDataset(ds) || isHarnessDataset(selectedMeta);
   const lastRun = ds?.runs?.[0];
   const completedRuns = (ds?.runs ?? []).filter(
     (item) => item.status === 'COMPLETED',
@@ -2528,7 +2533,8 @@ function EvalPanel() {
       <KbRegressionCard />
       {featuresReady && !evalEnabled ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          AI 评测未启用（AI_EVAL_ENABLED=false）。当前只能查看历史结果，不能创建评测集、导入用例或启动运行。
+          AI
+          评测未启用（AI_EVAL_ENABLED=false）。当前只能查看历史结果，不能创建评测集、导入用例或启动运行。
         </div>
       ) : null}
       {featuresReady && evalEnabled && !canWriteEval ? (
@@ -2651,47 +2657,48 @@ function EvalPanel() {
           ) : null}
           {harnessDataset ? (
             <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs text-gray-600 dark:border-white/10 dark:bg-gray-800 dark:text-gray-300">
-              该数据集由 harness 生成，只读。回归验证请在仓库根目录执行子集命令，或走 CI。
+              该数据集由 harness
+              生成，只读。回归验证请在仓库根目录执行子集命令，或走 CI。
             </div>
           ) : (
             <div className="mt-3 flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1 text-xs text-gray-500">
-              评测模式
-              <select
-                aria-label="评测模式"
-                className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
-                value={mode}
-                onChange={(e) =>
-                  setMode(e.target.value === 'LIVE' ? 'LIVE' : 'STORED')
-                }
-              >
-                <option value="STORED">历史回答</option>
-                <option value="LIVE">实时跑 AI</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-gray-500">
-              对比基线（可选）
-              <select
-                aria-label="对比基线"
-                className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
-                value={baselineRunId}
-                onChange={(e) => setBaselineRunId(e.target.value)}
-              >
-                <option value="">不对比基线</option>
-                {completedRuns.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {/* 按族读数字：EXTERNAL 是准确率，内部是通过率，不能互相顶替。 */}
-                    {item.id.slice(0, 8)} · {evalRateText(item)}（
-                    {item.mode === 'EXTERNAL' ? '准确率' : '通过率'}）
-                  </option>
-                ))}
-              </select>
-            </label>
-            {canWriteEval ? (
-              <Button size="sm" onClick={start} disabled={starting}>
-                {starting ? '启动中…' : '启动批量评测'}
-              </Button>
-            ) : null}
+              <label className="flex flex-col gap-1 text-xs text-gray-500">
+                评测模式
+                <select
+                  aria-label="评测模式"
+                  className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                  value={mode}
+                  onChange={(e) =>
+                    setMode(e.target.value === 'LIVE' ? 'LIVE' : 'STORED')
+                  }
+                >
+                  <option value="STORED">历史回答</option>
+                  <option value="LIVE">实时跑 AI</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-gray-500">
+                对比基线（可选）
+                <select
+                  aria-label="对比基线"
+                  className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                  value={baselineRunId}
+                  onChange={(e) => setBaselineRunId(e.target.value)}
+                >
+                  <option value="">不对比基线</option>
+                  {completedRuns.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {/* 按族读数字：EXTERNAL 是准确率，内部是通过率，不能互相顶替。 */}
+                      {item.id.slice(0, 8)} · {evalRateText(item)}（
+                      {item.mode === 'EXTERNAL' ? '准确率' : '通过率'}）
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {canWriteEval ? (
+                <Button size="sm" onClick={start} disabled={starting}>
+                  {starting ? '启动中…' : '启动批量评测'}
+                </Button>
+              ) : null}
             </div>
           )}
         </div>
@@ -2846,8 +2853,7 @@ function EvalPanel() {
                 （只按已判定条目算）
               </span>
             ) : null}
-            {runData.mode !== 'EXTERNAL' &&
-            runData.summary?.total != null ? (
+            {runData.mode !== 'EXTERNAL' && runData.summary?.total != null ? (
               <span className="text-xs text-gray-500">
                 已判定 {runData.summary.judged ?? '未记录'}
               </span>
@@ -2877,9 +2883,7 @@ function EvalPanel() {
                   .join(' · ')}
               </span>
             ) : null}
-            <span className="text-xs text-gray-500">
-              运行 ID：{runData.id}
-            </span>
+            <span className="text-xs text-gray-500">运行 ID：{runData.id}</span>
             <span className="text-xs text-gray-500">
               运行范围：
               {runData.scope === 'full'
@@ -2900,7 +2904,11 @@ function EvalPanel() {
             </span>
             {runData.executionErrorKind ? (
               <span className="text-xs text-gray-500">
-                执行错误：{labeledCode(EXECUTION_ERROR_LABELS, runData.executionErrorKind)}
+                执行错误：
+                {labeledCode(
+                  EXECUTION_ERROR_LABELS,
+                  runData.executionErrorKind,
+                )}
               </span>
             ) : null}
             {runData.mode !== 'EXTERNAL' &&
@@ -3098,8 +3106,12 @@ function EvalPanel() {
                       / 人工{' '}
                       {RESULT_VERDICT_LABELS[item.humanCorrectness] ??
                         item.humanCorrectness}
-                      {item.judgeReason ? ` · 判官理由：${item.judgeReason}` : ''}
-                      {item.humanComment ? ` · 人工备注：${item.humanComment}` : ''}
+                      {item.judgeReason
+                        ? ` · 判官理由：${item.judgeReason}`
+                        : ''}
+                      {item.humanComment
+                        ? ` · 人工备注：${item.humanComment}`
+                        : ''}
                     </li>
                   ))}
                 </ul>
@@ -3239,7 +3251,9 @@ function EvalPanel() {
                           aria-expanded={historyCaseId === r.case.id}
                           onClick={() => toggleCaseHistory(r.case.id)}
                         >
-                          {historyCaseId === r.case.id ? '收起历史' : '查看历史'}
+                          {historyCaseId === r.case.id
+                            ? '收起历史'
+                            : '查看历史'}
                         </Button>
                         {historyCaseId === r.case.id ? (
                           <div className="mt-2 rounded border-l-2 border-gray-200 pl-2 dark:border-white/10">
@@ -3252,7 +3266,9 @@ function EvalPanel() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => void loadCaseHistory(r.case.id)}
+                                  onClick={() =>
+                                    void loadCaseHistory(r.case.id)
+                                  }
                                 >
                                   重试
                                 </Button>
@@ -3535,7 +3551,9 @@ function RagPanel() {
       </div>
 
       {stats?.effectiveness ? (
-        <p className="text-xs text-gray-500">有效性口径：{stats.effectiveness.note}</p>
+        <p className="text-xs text-gray-500">
+          有效性口径：{stats.effectiveness.note}
+        </p>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">

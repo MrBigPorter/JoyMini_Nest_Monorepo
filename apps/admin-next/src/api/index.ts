@@ -1891,10 +1891,7 @@ export const aiQualityApi = {
       '/v1/admin/ai-eval/datasets',
       data,
     ),
-  getDataset: (
-    id: string,
-    params?: { page?: number; pageSize?: number },
-  ) =>
+  getDataset: (id: string, params?: { page?: number; pageSize?: number }) =>
     http.get<
       import('@/type/types').EvalDataset & {
         cases: import('@/type/types').EvalCase[];

@@ -17,9 +17,9 @@ describe('resolveRenderState', () => {
   });
 
   it('加载中先于错误与空态', () => {
-    expect(resolveRenderState({ loading: true, error: new Error('x') })).toEqual(
-      { kind: 'loading' },
-    );
+    expect(
+      resolveRenderState({ loading: true, error: new Error('x') }),
+    ).toEqual({ kind: 'loading' });
   });
 
   it('请求失败给出可读原因', () => {
@@ -61,7 +61,9 @@ describe('formatKnownCount', () => {
   });
 
   it('请求失败时显示未知而不是旧值', () => {
-    expect(formatKnownCount(null, { kind: 'error', message: 'x' })).toBe('未知');
+    expect(formatKnownCount(null, { kind: 'error', message: 'x' })).toBe(
+      '未知',
+    );
   });
 
   it('加载中显示加载文案', () => {
