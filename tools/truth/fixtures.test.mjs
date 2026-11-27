@@ -5,11 +5,13 @@ import test from "node:test";
 import { compare } from "./compare.mjs";
 import { loadRegistry } from "./registry.mjs";
 
-const DEV_CHANNELS = [
+// 真值取生产 payment_channels：CI 的 truth job 打的就是生产。
+// 注意开发库的 PH_GCASH_WITHDRAW 仍是 0.0080，未与本组对齐。
+const PROD_CHANNELS = [
   { code: "PH_GCASH", name: "GCash", type: 1, minAmount: "50.00", maxAmount: "50000.00", feeRate: "0.0000", feeFixed: "0.00", status: 1 },
   { code: "PH_PAYMAYA", name: "PayMaya", type: 1, minAmount: "50.00", maxAmount: "50000.00", feeRate: "0.0000", feeFixed: "0.00", status: 1 },
   { code: "PH_BDO", name: "BDO Online", type: 1, minAmount: "100.00", maxAmount: "80000.00", feeRate: "0.0100", feeFixed: "0.00", status: 1 },
-  { code: "PH_GCASH_WITHDRAW", name: "GCash Withdraw", type: 2, minAmount: "100.00", maxAmount: "50000.00", feeRate: "0.0080", feeFixed: "5.00", status: 1 },
+  { code: "PH_GCASH_WITHDRAW", name: "GCash Withdraw", type: 2, minAmount: "100.00", maxAmount: "50000.00", feeRate: "0.0100", feeFixed: "5.00", status: 1 },
   { code: "PH_BANK_WITHDRAW", name: "Bank Transfer", type: 2, minAmount: "200.00", maxAmount: "100000.00", feeRate: "0.0100", feeFixed: "10.00", status: 1 },
 ];
 
@@ -26,7 +28,7 @@ test("修正后的 deposit-guide 必须通过全部登记项", () => {
   const report = compare({
     registry,
     contents: allFixtures(),
-    channels: DEV_CHANNELS,
+    channels: PROD_CHANNELS,
   });
   assert.deepEqual(report.errors, [], JSON.stringify(report.errors, null, 2));
   assert.ok(report.ok, JSON.stringify(report.results.filter((result) => result.verdict === "fail"), null, 2));
@@ -38,7 +40,7 @@ test("修正后的 withdrawal-guide 必须通过全部登记项", () => {
   const report = compare({
     registry,
     contents: allFixtures(),
-    channels: DEV_CHANNELS,
+    channels: PROD_CHANNELS,
   });
   assert.deepEqual(report.errors, [], JSON.stringify(report.errors, null, 2));
   assert.ok(report.ok, JSON.stringify(report.results.filter((result) => result.verdict === "fail"), null, 2));
