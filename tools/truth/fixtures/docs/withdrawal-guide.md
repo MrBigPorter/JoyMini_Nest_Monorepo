@@ -4,7 +4,7 @@
 
 | Method | Processing Time | Min Amount | Max Amount | Fee |
 |:-------|:---------------:|:----------:|:----------:|:---:|
-| **GCash** | Varies by channel | ₱100 | ₱50,000 | 0.8% + ₱5 <!-- truth: PH_GCASH_WITHDRAW.available --> <!-- truth: PH_GCASH_WITHDRAW.fee --> <!-- truth: PH_GCASH_WITHDRAW.min --> <!-- truth: PH_GCASH_WITHDRAW.max --> |
+| **GCash** | Varies by channel | ₱100 | ₱50,000 | 1% + ₱5 <!-- truth: PH_GCASH_WITHDRAW.available --> <!-- truth: PH_GCASH_WITHDRAW.fee --> <!-- truth: PH_GCASH_WITHDRAW.min --> <!-- truth: PH_GCASH_WITHDRAW.max --> |
 | **Bank Transfer (InstaPay)** | Varies by channel | ₱200 | ₱100,000 | 1% + ₱10 <!-- truth: PH_BANK_WITHDRAW.available --> <!-- truth: PH_BANK_WITHDRAW.fee --> <!-- truth: PH_BANK_WITHDRAW.min --> <!-- truth: PH_BANK_WITHDRAW.max --> |
 
 ## How to Withdraw
